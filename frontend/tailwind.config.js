@@ -1,0 +1,72 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          50:  '#f0fdf6',
+          100: '#dcf5e7',
+          200: '#b0e7c9',
+          300: '#74d2a3',
+          400: '#3bb87a',
+          500: '#2d7a55',
+          600: '#245a41',
+          700: '#1a4331',
+          800: '#122e22',
+          900: '#0d2119',
+        },
+        forest: {
+          50:  '#f0f7f3',
+          100: '#dceee4',
+          200: '#b8ddc9',
+          300: '#8ac5a8',
+          400: '#56a880',
+          500: '#2d7a55',
+          600: '#245a41',
+          700: '#1e4535',
+          800: '#162f25',
+          900: '#0f2019',
+        },
+        harvest: {
+          50:  '#fef8ee',
+          100: '#fdefd3',
+          200: '#fbdaa7',
+          300: '#f7bf70',
+          400: '#f29b38',
+          500: '#d4813a',
+          600: '#c07030',
+          700: '#a05e28',
+          800: '#7c4a1e',
+          900: '#5c3418',
+        },
+        cream: {
+          50:  '#fdfaf4',
+          100: '#f8f3e8',
+          200: '#f0e8d6',
+          300: '#e3d5be',
+          400: '#c9b89d',
+          500: '#b5a082',
+          600: '#9a8168',
+          700: '#7e6750',
+          800: '#62503e',
+          900: '#4a3c2e',
+        },
+      },
+      fontFamily: {
+        display: ['"DM Serif Display"', 'Georgia', 'serif'],
+        sans:    ['"Plus Jakarta Sans"', 'system-ui', '-apple-system', 'sans-serif'],
+        logo:    ['"Syne"', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        'warm-sm': '0 1px 3px 0 rgba(90,65,40,0.07), 0 1px 2px -1px rgba(90,65,40,0.05)',
+        'warm':    '0 4px 8px -1px rgba(90,65,40,0.09), 0 2px 4px -2px rgba(90,65,40,0.06)',
+        'warm-md': '0 10px 18px -3px rgba(90,65,40,0.11), 0 4px 6px -4px rgba(90,65,40,0.07)',
+      },
+    },
+  },
+  plugins: [],
+}
