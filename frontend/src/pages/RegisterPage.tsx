@@ -31,7 +31,7 @@ export default function RegisterPage() {
     try {
       const tokens = await apiClient.register(form.username, form.email, form.password, form.full_name)
       authService.setTokens(tokens)
-      navigate('/dashboard')
+      navigate(tokens.user.role === 'admin' ? '/dashboard' : '/my-tasks')
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Registration failed. Username or email may already exist.')
     } finally {

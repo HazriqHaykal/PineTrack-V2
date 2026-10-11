@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import get_db
 from app.schemas import LoginRequest, UserCreate, UserResponse, TokenResponse
 from app.services.auth_service import authenticate_user, create_user, create_access_token
-from app.middleware.rbac import get_current_user, security
+from app.middleware.rbac import get_current_user
 from app.models import User
 
 router = APIRouter()
@@ -24,13 +24,14 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Username or email already exists")
     
     # Create user
-    new_user = create_user(db, user.username, user.email, user.password)
+    # Self-registration always creates a worker; admins are promoted via /api/users
+    new_user = create_user(db, user.username, user.email, user.password, full_name=user.full_name)
     token = create_access_token(new_user.id, new_user.role)
     
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": UserResponse.from_orm(new_user)
+        "user": UserResponse.model_validate(new_user)
     }
 
 
@@ -45,7 +46,7 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": UserResponse.from_orm(user)
+        "user": UserResponse.model_validate(user)
     }
 
 
@@ -59,10 +60,8 @@ def get_current_user_info(current_user: dict = Depends(get_current_user), db: Se
 
 
 @router.post("/refresh", response_model=TokenResponse)
-def refresh_token(credentials = Depends(security), db: Session = Depends(get_db)):
-    """Refresh expired token"""
-    from app.middleware.rbac import verify_token
-    current_user = verify_token(credentials)
+def refresh_token(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Issue a fresh token for the current (still valid) token"""
     user = db.query(User).filter(User.id == current_user["user_id"]).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -70,5 +69,5 @@ def refresh_token(credentials = Depends(security), db: Session = Depends(get_db)
     return {
         "access_token": new_token,
         "token_type": "bearer",
-        "user": UserResponse.from_orm(user)
+        "user": UserResponse.model_validate(user)
     }

@@ -80,9 +80,9 @@ class ReportGenerationService:
     @staticmethod
     def get_harvest_stats(db: Session, days: int = 30) -> Dict:
         """Get harvest statistics for the report period"""
-        cutoff_date = datetime.now() - timedelta(days=days)
+        cutoff_date = (datetime.now() - timedelta(days=days)).date()
         
-        harvests = db.query(Harvest).filter(Harvest.created_at >= cutoff_date).all()
+        harvests = db.query(Harvest).filter(Harvest.harvest_date >= cutoff_date).all()
         
         if not harvests:
             return {
@@ -98,7 +98,8 @@ class ReportGenerationService:
         total_kg = 0
         
         for h in harvests:
-            quality_dist[h.quality_grade] = quality_dist.get(h.quality_grade, 0) + 1
+            grade = h.quality_grade or "ungraded"
+            quality_dist[grade] = quality_dist.get(grade, 0) + 1
             total_kg += h.quantity_kg
         
         return {
@@ -112,9 +113,9 @@ class ReportGenerationService:
     @staticmethod
     def get_transport_stats(db: Session, days: int = 30) -> Dict:
         """Get transport statistics for the report period"""
-        cutoff_date = datetime.now() - timedelta(days=days)
+        cutoff_date = (datetime.now() - timedelta(days=days)).date()
         
-        transports = db.query(Transport).filter(Transport.created_at >= cutoff_date).all()
+        transports = db.query(Transport).filter(Transport.scheduled_date >= cutoff_date).all()
         
         if not transports:
             return {
@@ -145,9 +146,9 @@ class ReportGenerationService:
     @staticmethod
     def get_waste_stats(db: Session, days: int = 30) -> Dict:
         """Get waste statistics for the report period"""
-        cutoff_date = datetime.now() - timedelta(days=days)
+        cutoff_date = (datetime.now() - timedelta(days=days)).date()
         
-        waste_records = db.query(Waste).filter(Waste.created_at >= cutoff_date).all()
+        waste_records = db.query(Waste).filter(Waste.waste_date >= cutoff_date).all()
         
         if not waste_records:
             return {
@@ -171,206 +172,215 @@ class ReportGenerationService:
             "waste_list": waste_records
         }
     
+    # Which sections each report type contains
+    REPORT_SECTIONS = {
+        "harvest": ["harvest"],
+        "transport": ["transport"],
+        "waste": ["waste"],
+        "analytics": ["harvest", "transport", "waste"],
+        "summary": ["harvest", "transport", "waste"],
+        "full": ["harvest", "transport", "waste"],
+    }
+
+    REPORT_TITLES = {
+        "harvest": "Harvest Report",
+        "transport": "Transport Report",
+        "waste": "Waste Report",
+        "analytics": "Analytics Report",
+        "summary": "Operations Summary",
+        "full": "Full Operations Report",
+    }
+
     @classmethod
-    def generate_summary_report(
+    def _metric_table(cls, rows, header_color) -> Table:
+        """Two-column metric/value table used by every section"""
+        table = Table([["Metric", "Value"]] + rows, colWidths=[2.5*inch, 2*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), header_color),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, cls.COLORS['light']])
+        ]))
+        return table
+
+    @classmethod
+    def _detail_table(cls, header, rows) -> Table:
+        """Record listing table"""
+        table = Table([header] + rows, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), cls.COLORS['dark']),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, cls.COLORS['light']])
+        ]))
+        return table
+
+    @classmethod
+    def _harvest_section(cls, db: Session, days: int, styles, detailed: bool) -> list:
+        stats = cls.get_harvest_stats(db, days)
+        harvests = stats["harvests_list"]
+        total_kg = stats["total_quantity_kg"]
+        spoilage = round(sum(h.spoilage_kg or 0 for h in harvests), 2)
+        rejected = round(sum(h.rejected_kg or 0 for h in harvests), 2)
+
+        rows = [
+            ["Total Harvests", str(stats['total_harvests'])],
+            ["Total Quantity", f"{total_kg} kg"],
+            ["Average per Harvest", f"{stats['average_quantity']} kg"],
+            ["Spoilage", f"{spoilage} kg"],
+            ["Rejected", f"{rejected} kg"],
+            ["Marketable Yield", f"{round(total_kg - spoilage - rejected, 2)} kg"],
+        ]
+        for grade, count in sorted(stats['quality_distribution'].items(), key=lambda kv: str(kv[0])):
+            rows.append([f"Grade {grade}", str(count)])
+
+        elements = [
+            Paragraph("Harvest Management", styles['heading']),
+            cls._metric_table(rows, cls.COLORS['primary']),
+            Spacer(1, 0.3*inch),
+        ]
+        if detailed and harvests:
+            elements.append(cls._detail_table(
+                ["Batch", "Field", "Date", "Qty (kg)", "Grade", "Status"],
+                [[h.batch_number, h.field_name, str(h.harvest_date), f"{h.quantity_kg:g}",
+                  h.quality_grade or "-", h.harvest_status] for h in harvests]
+            ))
+            elements.append(Spacer(1, 0.3*inch))
+        return elements
+
+    @classmethod
+    def _transport_section(cls, db: Session, days: int, styles, detailed: bool) -> list:
+        stats = cls.get_transport_stats(db, days)
+        rows = [
+            ["Total Transports", str(stats['total_transports'])],
+            ["Delivered", str(stats['delivered_count'])],
+            ["In Transit", str(stats['in_transit_count'])],
+            ["Pending", str(stats['pending_count'])],
+            ["Delivery Rate", f"{stats['delivery_rate']}%"],
+        ]
+        elements = [
+            Paragraph("Transport &amp; Logistics", styles['heading']),
+            cls._metric_table(rows, cls.COLORS['secondary']),
+            Spacer(1, 0.3*inch),
+        ]
+        if detailed and stats["transports_list"]:
+            elements.append(cls._detail_table(
+                ["Destination", "Driver", "Vehicle", "Date", "Cargo (kg)", "Status"],
+                [[t.destination, t.driver_name or "-", t.vehicle_number or "-", str(t.scheduled_date),
+                  f"{t.cargo_weight_kg:g}" if t.cargo_weight_kg else "-", t.status]
+                 for t in stats["transports_list"]]
+            ))
+            elements.append(Spacer(1, 0.3*inch))
+        return elements
+
+    @classmethod
+    def _waste_section(cls, db: Session, days: int, styles, detailed: bool) -> list:
+        stats = cls.get_waste_stats(db, days)
+        rows = [
+            ["Total Waste Records", str(stats['total_records'])],
+            ["Total Waste Quantity", f"{stats['total_waste_kg']} kg"],
+        ]
+        for waste_type, kg in stats['waste_types'].items():
+            rows.append([waste_type.replace("_", " ").title(), f"{round(kg, 2)} kg"])
+
+        elements = [
+            Paragraph("Waste Management", styles['heading']),
+            cls._metric_table(rows, cls.COLORS['warning']),
+            Spacer(1, 0.3*inch),
+        ]
+        if detailed and stats["waste_list"]:
+            elements.append(cls._detail_table(
+                ["Date", "Type", "Qty (kg)", "Classification", "Disposal"],
+                [[str(w.waste_date), w.waste_type, f"{w.quantity_kg:g}", w.classification,
+                  w.disposal_method or "-"] for w in stats["waste_list"]]
+            ))
+            elements.append(Spacer(1, 0.3*inch))
+        return elements
+
+    @classmethod
+    def generate_report(
         cls,
         db: Session,
         user: User,
+        report_type: str = "summary",
         days: int = 30
     ) -> Tuple[BytesIO, str]:
         """
-        Generate comprehensive summary report
-        
+        Generate a PDF report
+
         Args:
             db: Database session
             user: User requesting the report
+            report_type: One of REPORT_SECTIONS (harvest, transport, waste, analytics, summary, full)
             days: Number of days to include in report
-            
+
         Returns:
             Tuple of (BytesIO buffer, filename)
         """
-        try:
-            # Get statistics
-            harvest_stats = cls.get_harvest_stats(db, days)
-            transport_stats = cls.get_transport_stats(db, days)
-            waste_stats = cls.get_waste_stats(db, days)
-            
-            # Create PDF document
-            buffer = BytesIO()
-            filename = f"pinetrack_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            
-            doc = SimpleDocTemplate(
-                buffer,
-                pagesize=letter,
-                rightMargin=0.75*inch,
-                leftMargin=0.75*inch,
-                topMargin=0.75*inch,
-                bottomMargin=0.75*inch
-            )
-            
-            # Get styles
-            styles = cls._create_styles()
-            
-            # Build document content
-            elements = []
-            
-            # Header
-            elements.append(Paragraph("🍍 PineTrack V2.0 Report", styles['title']))
-            elements.append(Spacer(1, 0.2*inch))
-            
-            # Report info
-            info_data = [
-                ["Report Generated:", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-                ["Generated By:", user.full_name],
-                ["Report Period:", f"Last {days} days"],
-                ["Organization:", "Farm Management System"]
-            ]
-            info_table = Table(info_data, colWidths=[2*inch, 4*inch])
-            info_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, -1), cls.COLORS['light']),
-                ('TEXTCOLOR', (0, 0), (-1, -1), cls.COLORS['dark']),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey)
-            ]))
-            elements.append(info_table)
-            elements.append(Spacer(1, 0.3*inch))
-            
-            # Harvest Section
-            elements.append(Paragraph("Harvest Management", styles['heading']))
-            harvest_data = [
-                ["Metric", "Value"],
-                ["Total Harvests", str(harvest_stats['total_harvests'])],
-                ["Total Quantity", f"{harvest_stats['total_quantity_kg']} kg"],
-                ["Average per Harvest", f"{harvest_stats['average_quantity']} kg"],
-            ]
-            
-            # Add quality distribution
-            for grade, count in harvest_stats['quality_distribution'].items():
-                harvest_data.append([f"Grade {grade}", str(count)])
-            
-            harvest_table = Table(harvest_data, colWidths=[2.5*inch, 2*inch])
-            harvest_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), cls.COLORS['primary']),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 11),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), cls.COLORS['light']),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, cls.COLORS['light']])
-            ]))
-            elements.append(harvest_table)
-            elements.append(Spacer(1, 0.3*inch))
-            
-            # Transport Section
-            elements.append(Paragraph("Transport & Logistics", styles['heading']))
-            transport_data = [
-                ["Metric", "Value"],
-                ["Total Transports", str(transport_stats['total_transports'])],
-                ["Delivered", str(transport_stats['delivered_count'])],
-                ["In Transit", str(transport_stats['in_transit_count'])],
-                ["Pending", str(transport_stats['pending_count'])],
-                ["Delivery Rate", f"{transport_stats['delivery_rate']}%"],
-            ]
-            
-            transport_table = Table(transport_data, colWidths=[2.5*inch, 2*inch])
-            transport_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), cls.COLORS['secondary']),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 11),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), cls.COLORS['light']),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, cls.COLORS['light']])
-            ]))
-            elements.append(transport_table)
-            elements.append(Spacer(1, 0.3*inch))
-            
-            # Waste Section
-            elements.append(Paragraph("Waste Management", styles['heading']))
-            waste_data = [
-                ["Metric", "Value"],
-                ["Total Waste Records", str(waste_stats['total_records'])],
-                ["Total Waste Quantity", f"{waste_stats['total_waste_kg']} kg"],
-            ]
-            
-            for waste_type, kg in waste_stats['waste_types'].items():
-                waste_data.append([f"{waste_type.title()}", f"{kg} kg"])
-            
-            waste_table = Table(waste_data, colWidths=[2.5*inch, 2*inch])
-            waste_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), cls.COLORS['warning']),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 11),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), cls.COLORS['light']),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, cls.COLORS['light']])
-            ]))
-            elements.append(waste_table)
-            elements.append(Spacer(1, 0.3*inch))
-            
-            # Footer
-            elements.append(Paragraph(
-                f"<i>Report generated by PineTrack V2.0 Farm Management System on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>",
-                styles['normal']
-            ))
-            
-            # Build PDF
-            doc.build(elements)
-            buffer.seek(0)
-            
-            logger.info(f"Report generated: {filename}")
-            return buffer, filename
-            
-        except Exception as e:
-            logger.error(f"Error generating report: {str(e)}")
-            raise
-    
-    @classmethod
-    def generate_harvest_report(
-        cls,
-        db: Session,
-        user: User,
-        days: int = 30
-    ) -> Tuple[BytesIO, str]:
-        """Generate detailed harvest analysis report"""
-        try:
-            buffer = BytesIO()
-            filename = f"harvest_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            
-            doc = SimpleDocTemplate(buffer, pagesize=letter)
-            styles = cls._create_styles()
-            elements = []
-            
-            harvest_stats = cls.get_harvest_stats(db, days)
-            
-            elements.append(Paragraph("Harvest Analysis Report", styles['title']))
-            elements.append(Spacer(1, 0.2*inch))
-            elements.append(Paragraph(f"Period: Last {days} days", styles['normal']))
-            elements.append(Spacer(1, 0.2*inch))
-            
-            # Summary
-            summary = f"""
-            This report covers harvest operations over the last {days} days.
-            Total harvests recorded: <b>{harvest_stats['total_harvests']}</b><br/>
-            Total production: <b>{harvest_stats['total_quantity_kg']} kg</b><br/>
-            Average harvest size: <b>{harvest_stats['average_quantity']} kg</b>
-            """
-            elements.append(Paragraph(summary, styles['body']))
-            
-            doc.build(elements)
-            buffer.seek(0)
-            
-            return buffer, filename
-        except Exception as e:
-            logger.error(f"Error generating harvest report: {str(e)}")
-            raise
+        if report_type not in cls.REPORT_SECTIONS:
+            raise ValueError(f"Unknown report type. Must be one of: {', '.join(cls.REPORT_SECTIONS)}")
+
+        sections = cls.REPORT_SECTIONS[report_type]
+        # Single-module reports and the full report list the individual records
+        detailed = len(sections) == 1 or report_type == "full"
+
+        buffer = BytesIO()
+        filename = f"pinetrack_{report_type}_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=0.75*inch,
+            leftMargin=0.75*inch,
+            topMargin=0.75*inch,
+            bottomMargin=0.75*inch
+        )
+        styles = cls._create_styles()
+        elements = []
+
+        elements.append(Paragraph(f"PineTrack V2.0 - {cls.REPORT_TITLES[report_type]}", styles['title']))
+        elements.append(Spacer(1, 0.2*inch))
+
+        info_data = [
+            ["Report Generated:", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+            ["Generated By:", user.full_name or user.username],
+            ["Report Period:", f"Last {days} days"],
+            ["Organization:", "Farm Management System"]
+        ]
+        info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+        info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), cls.COLORS['light']),
+            ('TEXTCOLOR', (0, 0), (-1, -1), cls.COLORS['dark']),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 0.3*inch))
+
+        builders = {
+            "harvest": cls._harvest_section,
+            "transport": cls._transport_section,
+            "waste": cls._waste_section,
+        }
+        for section in sections:
+            elements.extend(builders[section](db, days, styles, detailed))
+
+        elements.append(Paragraph(
+            f"<i>Report generated by PineTrack V2.0 Farm Management System on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>",
+            styles['normal']
+        ))
+
+        doc.build(elements)
+        buffer.seek(0)
+
+        logger.info(f"Report generated: {filename}")
+        return buffer, filename

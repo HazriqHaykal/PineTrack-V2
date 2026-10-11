@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2, X, Calendar, Search, Sprout, Truck, Eye, Wrench, FileText } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
-import { apiClient } from '../../services/api'
-import { Schedule } from '../../types'
+import { apiClient, apiErrorMessage } from '../../services/api'
+import { Schedule, SystemUser } from '../../types'
 
 const STATUS_STYLES: Record<string, string> = {
   pending:     'bg-amber-100  text-amber-800',
@@ -28,6 +28,7 @@ const TASK_ICONS: Record<string, { icon: React.ElementType; color: string }> = {
 const EMPTY_FORM = {
   task_type:     'harvest',
   assigned_date: new Date().toISOString().split('T')[0],
+  scheduled_time: '',
   status:        'pending',
   priority:      'medium',
   details:       '',
@@ -70,39 +71,43 @@ export default function SchedulePage() {
   const [form, setForm]           = useState({ ...EMPTY_FORM })
   const [submitting, setSub]      = useState(false)
   const [toast, setToast]         = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [workers, setWorkers]     = useState<SystemUser[]>([])
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  const DEMO_SCHEDULES: Schedule[] = [
-    { id: 1, worker_id: 2, task_type: 'harvest',     assigned_date: '2026-05-23', status: 'pending',     priority: 'high',   details: 'Harvest Block A-3 — estimated 200 kg', created_at: '2026-05-21T08:00:00' },
-    { id: 2, worker_id: 3, task_type: 'transport',   assigned_date: '2026-05-22', status: 'in_progress', priority: 'high',   details: 'Load truck for KL delivery',           created_at: '2026-05-21T08:30:00' },
-    { id: 3, worker_id: 2, task_type: 'inspection',  assigned_date: '2026-05-22', status: 'completed',   priority: 'medium', details: 'Field condition check — Block B',       created_at: '2026-05-20T09:00:00' },
-    { id: 4, worker_id: 4, task_type: 'maintenance', assigned_date: '2026-05-24', status: 'pending',     priority: 'low',    details: 'Service irrigation system',             created_at: '2026-05-21T10:00:00' },
-    { id: 5, worker_id: 3, task_type: 'harvest',     assigned_date: '2026-05-25', status: 'pending',     priority: 'medium', details: 'Harvest Block D-2',                     created_at: '2026-05-21T11:00:00' },
-  ]
-
   const load = async () => {
     try {
       const d = await apiClient.listSchedules()
       setSchedules(d.items || [])
-    } catch {
-      setSchedules(DEMO_SCHEDULES)
+    } catch (err) {
+      setSchedules([])
+      showToast(apiErrorMessage(err, 'Failed to load schedule'), 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    apiClient.listUsers().then(d => setWorkers(d.items.filter(u => u.is_active))).catch(() => setWorkers([]))
+  }, [])
 
-  const openCreate = () => { setEditing(null); setForm({ ...EMPTY_FORM }); setModal(true) }
+  const openCreate = () => {
+    setEditing(null)
+    // Default to the first worker account rather than the admin
+    const firstWorker = workers.find(w => w.role === 'worker') ?? workers[0]
+    setForm({ ...EMPTY_FORM, worker_id: firstWorker?.id ?? EMPTY_FORM.worker_id })
+    setModal(true)
+  }
   const openEdit   = (s: Schedule) => {
     setEditing(s)
     setForm({
       task_type:     s.task_type,
       assigned_date: s.assigned_date,
+      scheduled_time: s.scheduled_time ? s.scheduled_time.slice(0, 5) : '',
       status:        s.status,
       priority:      s.priority || 'medium',
       details:       s.details || '',
@@ -115,7 +120,7 @@ export default function SchedulePage() {
     e.preventDefault()
     setSub(true)
     try {
-      const payload = { ...form } as any
+      const payload = { ...form, scheduled_time: form.scheduled_time || null } as any
       if (editing) {
         await apiClient.updateSchedule(editing.id, payload)
         showToast('Schedule updated', 'success')
@@ -125,8 +130,8 @@ export default function SchedulePage() {
       }
       setModal(false)
       load()
-    } catch {
-      showToast('Failed to save', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Failed to save'), 'error')
     } finally {
       setSub(false)
     }
@@ -137,8 +142,8 @@ export default function SchedulePage() {
       await apiClient.updateSchedule(id, { status })
       showToast('Status updated', 'success')
       load()
-    } catch {
-      showToast('Update failed', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Update failed'), 'error')
     }
   }
 
@@ -148,8 +153,8 @@ export default function SchedulePage() {
       showToast('Schedule deleted', 'success')
       setDel(null)
       load()
-    } catch {
-      showToast('Delete failed', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Delete failed'), 'error')
     }
   }
 
@@ -250,7 +255,7 @@ export default function SchedulePage() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">{s.assigned_date} · Worker #{s.worker_id}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{s.assigned_date}{s.scheduled_time ? ` ${s.scheduled_time.slice(0, 5)}` : ''} · {s.worker_name || `Worker #${s.worker_id}`}</p>
                     {s.details && <p className="text-sm text-gray-600 mt-1 truncate">{s.details}</p>}
                   </div>
                 </div>
@@ -303,6 +308,11 @@ export default function SchedulePage() {
                 required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
             <div>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Time</label>
+              <input type="time" value={form.scheduled_time} onChange={(e) => setForm({...form, scheduled_time: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            </div>
+            <div>
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Priority</label>
               <select value={form.priority} onChange={(e) => setForm({...form, priority: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
@@ -315,6 +325,15 @@ export default function SchedulePage() {
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
                 {['pending', 'in_progress', 'completed', 'cancelled'].map((s) => (
                   <option key={s} value={s} className="capitalize">{s.replace('_',' ')}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Assigned Worker *</label>
+              <select value={form.worker_id} onChange={(e) => setForm({...form, worker_id: parseInt(e.target.value)})}
+                required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                {workers.map((w) => (
+                  <option key={w.id} value={w.id}>{w.full_name || w.username} ({w.role})</option>
                 ))}
               </select>
             </div>

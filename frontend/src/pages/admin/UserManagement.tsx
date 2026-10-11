@@ -1,89 +1,109 @@
-import { useState } from 'react'
-import { Users, Search, Plus, MoreVertical, CheckCircle2, XCircle, Clock, Shield, UserCircle, Mail } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Users, Search, Plus, MoreVertical, CheckCircle2, XCircle, Shield, UserCircle, Mail, AlertTriangle } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
+import { apiClient, apiErrorMessage } from '../../services/api'
+import { authService } from '../../services/auth'
+import { SystemUser } from '../../types'
 
-type UserRole   = 'admin' | 'worker'
-type UserStatus = 'active' | 'inactive' | 'pending'
+type UserRole = 'admin' | 'worker'
 
-interface SystemUser {
-  id: number
-  full_name: string
-  username: string
-  email: string
-  role: UserRole
-  status: UserStatus
-  joined: string
-  last_active: string
-  tasks_completed: number
-}
+const EMPTY_FORM = { full_name: '', username: '', email: '', password: '', role: 'worker' as UserRole }
 
-const DEMO_USERS: SystemUser[] = [
-  { id: 1, full_name: 'Ahmad Razif',    username: 'ahmad.razif',  email: 'ahmad@pinetrack.my',  role: 'admin',  status: 'active',   joined: '2024-01-15', last_active: '2 min ago',   tasks_completed: 0   },
-  { id: 2, full_name: 'Ali Hasan',      username: 'ali.hasan',    email: 'ali@pinetrack.my',    role: 'worker', status: 'active',   joined: '2024-02-01', last_active: '1 hour ago',  tasks_completed: 89  },
-  { id: 3, full_name: 'Siti Aminah',    username: 'siti.aminah',  email: 'siti@pinetrack.my',   role: 'worker', status: 'active',   joined: '2024-02-14', last_active: '3 hours ago', tasks_completed: 72  },
-  { id: 4, full_name: 'Mohd Farid',     username: 'mohd.farid',   email: 'farid@pinetrack.my',  role: 'worker', status: 'active',   joined: '2024-03-05', last_active: 'Yesterday',   tasks_completed: 64  },
-  { id: 5, full_name: 'Nurul Ain',      username: 'nurul.ain',    email: 'nurul@pinetrack.my',  role: 'worker', status: 'inactive', joined: '2024-03-20', last_active: '2 days ago',  tasks_completed: 41  },
-  { id: 6, full_name: 'Zulkifli Omar',  username: 'zul.omar',     email: 'zul@pinetrack.my',    role: 'worker', status: 'active',   joined: '2024-04-01', last_active: '5 hours ago', tasks_completed: 56  },
-  { id: 7, full_name: 'Hafizah Ismail', username: 'hafizah',      email: 'hafizah@pinetrack.my',role: 'worker', status: 'pending',  joined: '2024-05-10', last_active: 'Never',       tasks_completed: 0   },
-]
-
-const STATUS_BADGE: Record<UserStatus, string> = {
-  active:   'bg-green-100 text-green-700',
-  inactive: 'bg-gray-100 text-gray-500',
-  pending:  'bg-amber-100 text-amber-700',
-}
-
-const STATUS_ICON: Record<UserStatus, React.ReactNode> = {
-  active:   <CheckCircle2 size={12} className="text-green-600" />,
-  inactive: <XCircle      size={12} className="text-gray-400"  />,
-  pending:  <Clock        size={12} className="text-amber-500" />,
-}
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })
 
 export default function UserManagement() {
-  const [users, setUsers]     = useState<SystemUser[]>(DEMO_USERS)
+  const currentUser = authService.getUser()
+  const [users, setUsers]     = useState<SystemUser[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState<'all' | UserRole>('all')
-  const [showInvite, setShowInvite] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole]   = useState<UserRole>('worker')
+  const [showCreate, setShowCreate] = useState(false)
+  const [form, setForm]       = useState({ ...EMPTY_FORM })
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving]   = useState(false)
   const [openMenu, setOpenMenu] = useState<number | null>(null)
+  const [resetFor, setResetFor] = useState<SystemUser | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [toast, setToast]     = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+
+  const showToast = (msg: string, type: 'success' | 'error') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  const load = async () => {
+    try {
+      const data = await apiClient.listUsers()
+      setUsers(data.items)
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Failed to load users'), 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
 
   const filtered = users.filter(u => {
-    const matchSearch = u.full_name.toLowerCase().includes(search.toLowerCase()) ||
-                        u.username.toLowerCase().includes(search.toLowerCase()) ||
-                        u.email.toLowerCase().includes(search.toLowerCase())
+    const q = search.toLowerCase()
+    const matchSearch = (u.full_name || '').toLowerCase().includes(q) ||
+                        u.username.toLowerCase().includes(q) ||
+                        u.email.toLowerCase().includes(q)
     const matchFilter = filter === 'all' || u.role === filter
     return matchSearch && matchFilter
   })
 
-  const toggleStatus = (id: number) => {
-    setUsers(prev => prev.map(u =>
-      u.id === id ? { ...u, status: u.status === 'active' ? 'inactive' : 'active' } : u
-    ))
+  const update = async (user: SystemUser, changes: { role?: string; is_active?: boolean }, done: string) => {
     setOpenMenu(null)
-  }
-
-  const handleInvite = (e: React.FormEvent) => {
-    e.preventDefault()
-    const newUser: SystemUser = {
-      id: users.length + 1,
-      full_name: inviteEmail.split('@')[0],
-      username:  inviteEmail.split('@')[0].toLowerCase().replace(/\s+/g, '.'),
-      email:     inviteEmail,
-      role:      inviteRole,
-      status:    'pending',
-      joined:    new Date().toISOString().split('T')[0],
-      last_active: 'Never',
-      tasks_completed: 0,
+    try {
+      await apiClient.updateUser(user.id, changes)
+      showToast(done, 'success')
+      load()
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Update failed'), 'error')
     }
-    setUsers(prev => [...prev, newUser])
-    setShowInvite(false)
-    setInviteEmail('')
   }
 
-  const admins  = users.filter(u => u.role === 'admin' && u.status === 'active').length
-  const workers = users.filter(u => u.role === 'worker' && u.status === 'active').length
-  const pending = users.filter(u => u.status === 'pending').length
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setFormError('')
+    setSaving(true)
+    try {
+      await apiClient.createUser(form)
+      setShowCreate(false)
+      setForm({ ...EMPTY_FORM })
+      showToast('User created', 'success')
+      load()
+    } catch (err) {
+      setFormError(apiErrorMessage(err, 'Could not create user.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!resetFor) return
+    setSaving(true)
+    try {
+      await apiClient.updateUser(resetFor.id, { password: newPassword })
+      showToast(`Password changed for ${resetFor.username}`, 'success')
+      setResetFor(null)
+      setNewPassword('')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Password change failed'), 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const admins   = users.filter(u => u.role === 'admin' && u.is_active).length
+  const workers  = users.filter(u => u.role === 'worker' && u.is_active).length
+  const inactive = users.filter(u => !u.is_active).length
+
+  const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500'
+  const labelClass = 'block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide'
 
   return (
     <AdminLayout title="User Management" subtitle="Manage team members and access">
@@ -91,9 +111,9 @@ export default function UserManagement() {
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Active Workers', value: workers, icon: <Users size={18} />, color: 'text-green-600 bg-green-50' },
-          { label: 'Administrators', value: admins,  icon: <Shield size={18} />, color: 'text-blue-600 bg-blue-50'  },
-          { label: 'Pending Invite', value: pending, icon: <Clock size={18} />,  color: 'text-amber-600 bg-amber-50'},
+          { label: 'Active Workers', value: workers,  icon: <Users size={18} />,   color: 'text-green-600 bg-green-50' },
+          { label: 'Administrators', value: admins,   icon: <Shield size={18} />,  color: 'text-blue-600 bg-blue-50'  },
+          { label: 'Deactivated',    value: inactive, icon: <XCircle size={18} />, color: 'text-gray-500 bg-gray-100' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color}`}>{s.icon}</div>
@@ -132,15 +152,15 @@ export default function UserManagement() {
             ))}
           </div>
           <button
-            onClick={() => setShowInvite(true)}
+            onClick={() => { setFormError(''); setShowCreate(true) }}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
           >
-            <Plus size={15} /> Invite User
+            <Plus size={15} /> Add User
           </button>
         </div>
 
         {/* User table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[16rem]">
           <table className="w-full">
             <thead>
               <tr className="text-[11px] text-gray-500 uppercase tracking-wide border-b border-gray-50">
@@ -148,115 +168,145 @@ export default function UserManagement() {
                 <th className="text-left px-4 py-3 font-semibold">Role</th>
                 <th className="text-left px-4 py-3 font-semibold">Status</th>
                 <th className="text-left px-4 py-3 font-semibold hidden md:table-cell">Tasks Done</th>
-                <th className="text-left px-4 py-3 font-semibold hidden lg:table-cell">Last Active</th>
+                <th className="text-left px-4 py-3 font-semibold hidden lg:table-cell">Joined</th>
                 <th className="text-right px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map(u => (
-                <tr key={u.id} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shrink-0">
-                        <UserCircle size={16} className="text-white" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{u.full_name}</p>
-                        <div className="flex items-center gap-1">
-                          <Mail size={10} className="text-gray-400" />
-                          <p className="text-xs text-gray-500 truncate">{u.email}</p>
+              {filtered.map(u => {
+                const isSelf = u.id === currentUser?.id
+                return (
+                  <tr key={u.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shrink-0">
+                          <UserCircle size={16} className="text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {u.full_name || u.username}
+                            {isSelf && <span className="ml-1.5 text-[10px] text-gray-400 font-normal">(you)</span>}
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <Mail size={10} className="text-gray-400" />
+                            <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${
-                      u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {u.role === 'admin' ? <Shield size={10} /> : <UserCircle size={10} />}
-                      {u.role}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_BADGE[u.status]}`}>
-                      {STATUS_ICON[u.status]}
-                      {u.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5 hidden md:table-cell">
-                    <span className="text-sm font-semibold text-gray-700">{u.tasks_completed}</span>
-                  </td>
-                  <td className="px-4 py-3.5 hidden lg:table-cell">
-                    <span className="text-xs text-gray-500">{u.last_active}</span>
-                  </td>
-                  <td className="px-4 py-3.5 text-right relative">
-                    <button
-                      onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                    >
-                      <MoreVertical size={15} />
-                    </button>
-                    {openMenu === u.id && (
-                      <div className="absolute right-4 top-10 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-44 py-1">
-                        <button
-                          onClick={() => toggleStatus(u.id)}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700"
-                        >
-                          {u.status === 'active' ? 'Deactivate' : 'Activate'} Account
-                        </button>
-                        <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700">
-                          Reset Password
-                        </button>
-                        <button
-                          onClick={() => { setUsers(prev => prev.filter(x => x.id !== u.id)); setOpenMenu(null) }}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600"
-                        >
-                          Remove User
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${
+                        u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {u.role === 'admin' ? <Shield size={10} /> : <UserCircle size={10} />}
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                        u.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {u.is_active
+                          ? <CheckCircle2 size={12} className="text-green-600" />
+                          : <XCircle size={12} className="text-gray-400" />}
+                        {u.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 hidden md:table-cell">
+                      <span className="text-sm font-semibold text-gray-700">{u.tasks_completed}</span>
+                      <span className="text-xs text-gray-400"> / {u.tasks_total}</span>
+                    </td>
+                    <td className="px-4 py-3.5 hidden lg:table-cell">
+                      <span className="text-xs text-gray-500">{formatDate(u.created_at)}</span>
+                    </td>
+                    <td className="px-4 py-3.5 text-right relative">
+                      <button
+                        onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                      >
+                        <MoreVertical size={15} />
+                      </button>
+                      {openMenu === u.id && (
+                        <div className="absolute right-4 top-10 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-48 py-1 text-left">
+                          {!isSelf && (
+                            <button
+                              onClick={() => update(u, { is_active: !u.is_active }, u.is_active ? 'Account deactivated' : 'Account activated')}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700"
+                            >
+                              {u.is_active ? 'Deactivate' : 'Activate'} Account
+                            </button>
+                          )}
+                          {!isSelf && (
+                            <button
+                              onClick={() => update(u, { role: u.role === 'admin' ? 'worker' : 'admin' }, 'Role updated')}
+                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700"
+                            >
+                              Make {u.role === 'admin' ? 'Worker' : 'Admin'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => { setOpenMenu(null); setNewPassword(''); setResetFor(u) }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700"
+                          >
+                            Change Password
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
 
-          {filtered.length === 0 && (
+          {!loading && filtered.length === 0 && (
             <div className="text-center py-12 text-gray-400">
               <Users size={32} className="mx-auto mb-2 opacity-40" />
               <p className="text-sm">No users match your search</p>
             </div>
           )}
+          {loading && <p className="text-center py-12 text-sm text-gray-400">Loading users…</p>}
         </div>
       </div>
 
-      {/* Invite modal */}
-      {showInvite && (
+      {/* Create modal */}
+      {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Invite New User</h3>
-            <form onSubmit={handleInvite} className="space-y-4">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Add New User</h3>
+            <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Email Address</label>
-                <input
-                  type="email"
-                  placeholder="worker@example.com"
-                  required
-                  value={inviteEmail}
-                  onChange={e => setInviteEmail(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+                <label className={labelClass}>Full Name</label>
+                <input required value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })}
+                  placeholder="e.g. Siti Aminah" className={inputClass} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Username</label>
+                  <input required minLength={3} value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
+                    placeholder="siti" className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Password</label>
+                  <input required minLength={6} type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
+                    placeholder="Min 6 characters" className={inputClass} />
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Role</label>
+                <label className={labelClass}>Email Address</label>
+                <input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+                  placeholder="worker@example.com" className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Role</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['worker', 'admin'] as UserRole[]).map(r => (
                     <button
                       key={r}
                       type="button"
-                      onClick={() => setInviteRole(r)}
+                      onClick={() => setForm({ ...form, role: r })}
                       className={`py-3 rounded-xl border-2 text-sm font-semibold capitalize transition-all ${
-                        inviteRole === r ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        form.role === r ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
                       }`}
                     >
                       {r}
@@ -264,16 +314,51 @@ export default function UserManagement() {
                   ))}
                 </div>
               </div>
+              {formError && (
+                <p className="flex items-center gap-2 text-xs text-red-600">
+                  <AlertTriangle size={13} /> {formError}
+                </p>
+              )}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowInvite(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                <button type="button" onClick={() => setShowCreate(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
                   Cancel
                 </button>
-                <button type="submit" className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700">
-                  Send Invite
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-60">
+                  {saving ? 'Creating…' : 'Create User'}
                 </button>
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Change password modal */}
+      {resetFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Change Password</h3>
+            <p className="text-xs text-gray-500 mb-4">Set a new password for {resetFor.full_name || resetFor.username}.</p>
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <input required minLength={6} type="password" autoFocus value={newPassword}
+                onChange={e => setNewPassword(e.target.value)} placeholder="New password (min 6 characters)" className={inputClass} />
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setResetFor(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-60">
+                  {saving ? 'Saving…' : 'Save Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${
+          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        }`}>
+          {toast.msg}
         </div>
       )}
 

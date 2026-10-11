@@ -8,13 +8,16 @@ from datetime import date
 from typing import List
 from app.config import get_db
 from app.middleware.rbac import get_current_user, require_worker, require_admin
-from app.schemas import HarvestCreate, HarvestUpdate, HarvestResponse, QualityTargetUpdate, QualityTargetResponse
+from app.schemas import (
+    HarvestCreate, HarvestUpdate, HarvestResponse, HarvestListResponse,
+    QualityTargetUpdate, QualityTargetResponse
+)
 from app.services.harvest_service import HarvestService
 
 router = APIRouter()
 
 
-@router.post("/", response_model=HarvestResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=HarvestResponse, status_code=status.HTTP_201_CREATED)
 def create_harvest(
     harvest_data: HarvestCreate,
     current_user: dict = Depends(require_worker),
@@ -75,7 +78,7 @@ def get_harvest(
     return harvest
 
 
-@router.get("/", response_model=dict)
+@router.get("", response_model=HarvestListResponse)
 def list_harvests(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
@@ -99,7 +102,7 @@ def list_harvests(
     harvests, total = HarvestService.list_harvests(db, filter_user_id, skip, limit)
     
     return {
-        "items": [HarvestResponse.from_orm(h).__dict__ for h in harvests],
+        "items": harvests,
         "total": total,
         "skip": skip,
         "limit": limit
@@ -233,7 +236,7 @@ def get_harvests_by_field(
     return {
         "field_name": field_name,
         "count": len(harvests),
-        "harvests": [HarvestResponse.from_orm(h).__dict__ for h in harvests]
+        "harvests": [HarvestResponse.model_validate(h).model_dump(mode="json") for h in harvests]
     }
 
 

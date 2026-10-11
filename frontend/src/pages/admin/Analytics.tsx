@@ -4,55 +4,20 @@ import {
   Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer
 } from 'recharts'
-import { Download } from 'lucide-react'
+import { Download, AlertTriangle } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
-import { apiClient } from '../../services/api'
+import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
+import { AnalyticsOverview, PeriodKpis } from '../../types'
 
-// ── Static demo data (replaced by API data when available) ───────────────────
+const GRADE_FILL: Record<string, string> = {
+  A: '#22c55e',
+  B: '#3b82f6',
+  C: '#f59e0b',
+  D: '#ef4444',
+  ungraded: '#94a3b8',
+}
 
-const HARVEST_TREND = [
-  { month: 'Jan', kg: 1200, batches: 8  },
-  { month: 'Feb', kg: 980,  batches: 6  },
-  { month: 'Mar', kg: 1450, batches: 10 },
-  { month: 'Apr', kg: 1700, batches: 12 },
-  { month: 'May', kg: 1300, batches: 9  },
-  { month: 'Jun', kg: 1620, batches: 11 },
-  { month: 'Jul', kg: 1850, batches: 14 },
-]
-
-const QUALITY_DATA = [
-  { name: 'Grade A', value: 42, fill: '#22c55e' },
-  { name: 'Grade B', value: 30, fill: '#3b82f6' },
-  { name: 'Grade C', value: 18, fill: '#f59e0b' },
-  { name: 'Grade D', value: 10, fill: '#ef4444' },
-]
-
-const WASTE_BY_TYPE = [
-  { type: 'Rotten',      kg: 320 },
-  { type: 'Damaged',     kg: 180 },
-  { type: 'Overripe',    kg: 240 },
-  { type: 'Unused Parts',kg: 90  },
-  { type: 'Other',       kg: 45  },
-]
-
-const TRANSPORT_TREND = [
-  { month: 'Jan', delivered: 7,  delayed: 1 },
-  { month: 'Feb', delivered: 5,  delayed: 2 },
-  { month: 'Mar', delivered: 9,  delayed: 1 },
-  { month: 'Apr', delivered: 11, delayed: 0 },
-  { month: 'May', delivered: 8,  delayed: 2 },
-  { month: 'Jun', delivered: 10, delayed: 1 },
-  { month: 'Jul', delivered: 13, delayed: 1 },
-]
-
-const KPI_ROWS = [
-  { metric: 'Total Harvest Volume',     value: '10,100 kg',   change: '+12%',  positive: true  },
-  { metric: 'Average Batch Size',       value: '148 kg',      change: '+5%',   positive: true  },
-  { metric: 'Grade A Percentage',       value: '42%',         change: '+3%',   positive: true  },
-  { metric: 'Waste Rate',               value: '8.7%',        change: '-1.2%', positive: true  },
-  { metric: 'Transport On-Time Rate',   value: '91%',         change: '+4%',   positive: true  },
-  { metric: 'Avg Delivery Days',        value: '2.3 days',    change: '-0.4',  positive: true  },
-]
+interface KpiRow { metric: string; value: string; change: string; positive: boolean }
 
 const CHART_COLORS = {
   primary:   '#22c55e',
@@ -84,8 +49,13 @@ const renderLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: an
 
 export default function AnalyticsPage() {
   const [aiMetrics, setAiMetrics] = useState<any>(null)
+  const [overview, setOverview]   = useState<AnalyticsOverview | null>(null)
+  const [error, setError]         = useState('')
 
   useEffect(() => {
+    apiClient.getAnalyticsOverview(6)
+      .then(setOverview)
+      .catch((err) => setError(apiErrorMessage(err, 'Failed to load analytics.')))
     apiClient.getAIMetrics()
       .then(setAiMetrics)
       .catch(() => null)
@@ -94,16 +64,52 @@ export default function AnalyticsPage() {
   const handleExport = async (type: string) => {
     try {
       const blob = await apiClient.downloadReport(type)
-      const url  = window.URL.createObjectURL(blob)
-      const a    = document.createElement('a')
-      a.href     = url
-      a.download = `pinetrack-${type}-report.pdf`
-      a.click()
-      window.URL.revokeObjectURL(url)
-    } catch {
-      alert('Report generation not available yet.')
+      saveBlob(blob, `pinetrack-${type}-report.pdf`)
+      setError('')
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Failed to generate the report.'))
     }
   }
+
+  // Last 30 days compared with the 30 days before
+  const kpiRow = (
+    metric: string,
+    key: keyof PeriodKpis,
+    format: (v: number) => string,
+    higherIsBetter: boolean,
+    unit: string
+  ): KpiRow => {
+    const current  = overview?.kpis.current[key] ?? 0
+    const previous = overview?.kpis.previous[key] ?? 0
+    const diff = Math.round((current - previous) * 10) / 10
+    return {
+      metric,
+      value: format(current),
+      change: diff === 0 ? 'No change' : `${diff > 0 ? '+' : ''}${diff}${unit}`,
+      positive: diff === 0 || (diff > 0) === higherIsBetter,
+    }
+  }
+
+  const KPI_ROWS: KpiRow[] = [
+    kpiRow('Total Harvest Volume',   'harvest_volume_kg',       v => `${v.toLocaleString()} kg`, true,  ' kg'),
+    kpiRow('Average Batch Size',     'avg_batch_kg',            v => `${v} kg`,                  true,  ' kg'),
+    kpiRow('Grade A Percentage',     'grade_a_percent',         v => `${v}%`,                    true,  ' pts'),
+    kpiRow('Waste Rate',             'waste_rate_percent',      v => `${v}%`,                    false, ' pts'),
+    kpiRow('Transport On-Time Rate', 'on_time_rate_percent',    v => `${v}%`,                    true,  ' pts'),
+    kpiRow('Avg Delivery Delay',     'avg_delivery_delay_days', v => `${v} days`,                false, ' days'),
+  ]
+
+  const HARVEST_TREND   = overview?.harvest_trend ?? []
+  const TRANSPORT_TREND = overview?.transport_trend ?? []
+  const QUALITY_DATA = (overview?.grade_distribution ?? []).map(g => ({
+    name: g.grade === 'ungraded' ? 'Ungraded' : `Grade ${g.grade}`,
+    value: g.count,
+    fill: GRADE_FILL[g.grade] ?? GRADE_FILL.ungraded,
+  }))
+  const WASTE_BY_TYPE = (overview?.waste_by_type ?? []).map(w => ({
+    type: w.type.replace('_', ' ').replace(/^\w/, c => c.toUpperCase()),
+    kg: w.kg,
+  }))
 
   return (
     <AdminLayout>
@@ -111,7 +117,7 @@ export default function AnalyticsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Analytics & Reports</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Analytics &amp; Reports</h1>
             <p className="text-sm text-gray-500 mt-0.5">Performance insights across all operations</p>
           </div>
           <div className="flex gap-2">
@@ -123,6 +129,12 @@ export default function AnalyticsPage() {
             ))}
           </div>
         </div>
+
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 mb-6 text-sm">
+            <AlertTriangle size={15} className="shrink-0" /> {error}
+          </div>
+        )}
 
         {/* Summary KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
@@ -160,7 +172,7 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <SectionHeader title="Quality Grade Distribution" sub="% of harvest batches" />
+            <SectionHeader title="Quality Grade Distribution" sub="Share of harvest batches, last 6 months" />
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie
@@ -176,7 +188,7 @@ export default function AnalyticsPage() {
                     <Cell key={i} fill={entry.fill} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => [`${v}%`, 'Share']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Tooltip formatter={(v: number) => [`${v} batches`, 'Count']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
@@ -186,7 +198,7 @@ export default function AnalyticsPage() {
         {/* Row 2: Waste by type + Transport trend */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <SectionHeader title="Waste by Type" sub="Total kg per waste category" />
+            <SectionHeader title="Waste by Type" sub="Total kg per waste category, last 6 months" />
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={WASTE_BY_TYPE} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -203,7 +215,7 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <SectionHeader title="Transport Performance" sub="Monthly delivered vs delayed" />
+            <SectionHeader title="Transport Performance" sub="Monthly on-time vs late or overdue deliveries" />
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={TRANSPORT_TREND} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -211,7 +223,7 @@ export default function AnalyticsPage() {
                 <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="delivered" name="Delivered" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="delivered" name="On time" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
                 <Bar dataKey="delayed"   name="Delayed"   fill={CHART_COLORS.danger}  radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -221,7 +233,7 @@ export default function AnalyticsPage() {
         {/* AI Metrics */}
         {aiMetrics && (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
-            <SectionHeader title="AI Engine Metrics" sub="Prediction engine performance" />
+            <SectionHeader title="PineTrack Agent Activity" sub="How often the agent has been used" />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-purple-50 rounded-xl p-4">
                 <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide">Total Predictions</p>
@@ -246,7 +258,7 @@ export default function AnalyticsPage() {
         {/* KPI Table */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <SectionHeader title="Key Performance Indicators" sub="Period comparison summary" />
+            <SectionHeader title="Key Performance Indicators" sub="Last 30 days, with change against the 30 days before" />
           </div>
           <table className="w-full text-sm">
             <thead>

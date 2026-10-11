@@ -2,7 +2,8 @@
 Pydantic schemas for request/response validation
 """
 
-from pydantic import BaseModel, EmailStr, Field
+import json
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime, date, time
 from typing import Optional, List
 
@@ -29,7 +30,11 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     email: Optional[EmailStr] = None
-    password: Optional[str] = None
+    password: Optional[str] = Field(None, min_length=6)
+
+class UserAdminUpdate(UserUpdate):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class UserResponse(UserBase):
     id: int
@@ -63,6 +68,7 @@ class HarvestUpdate(BaseModel):
 class HarvestResponse(HarvestBase):
     id: int
     user_id: int
+    worker_id: int
     batch_number: str
     harvest_status: str
     spoilage_kg: float
@@ -91,53 +97,72 @@ class QualityTargetResponse(QualityTargetUpdate):
 
 # Transport Schemas
 class TransportBase(BaseModel):
-    destination: str = Field(..., max_length=200)
-    transport_date: date
-    vehicle_id: Optional[str] = None
-    quantity_kg: float = Field(..., gt=0)
+    destination: str = Field(..., min_length=1, max_length=200)
+    driver_name: str = Field("", max_length=100)
+    vehicle_number: str = Field("", max_length=50)
+    scheduled_date: date
+    cargo_weight_kg: Optional[float] = Field(None, gt=0)
     status: str = "pending"
     notes: Optional[str] = None
 
 class TransportCreate(TransportBase):
-    harvest_id: int
+    harvest_id: Optional[int] = None
+    driver_id: Optional[int] = None
 
 class TransportUpdate(BaseModel):
+    destination: Optional[str] = Field(None, min_length=1, max_length=200)
+    driver_name: Optional[str] = Field(None, max_length=100)
+    vehicle_number: Optional[str] = Field(None, max_length=50)
+    scheduled_date: Optional[date] = None
+    actual_delivery: Optional[date] = None
+    cargo_weight_kg: Optional[float] = Field(None, gt=0)
     status: Optional[str] = None
     notes: Optional[str] = None
+    harvest_id: Optional[int] = None
+    driver_id: Optional[int] = None
 
 class TransportResponse(TransportBase):
     id: int
-    harvest_id: int
+    harvest_id: Optional[int] = None
+    driver_id: Optional[int] = None
+    batch_number: Optional[str] = None
     user_id: int
+    actual_delivery: Optional[date] = None
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 # Schedule Schemas
 class ScheduleBase(BaseModel):
     task_type: str = Field(..., max_length=50)
-    scheduled_date: date
+    assigned_date: date
     scheduled_time: Optional[time] = None
-    priority: str = "normal"
-    notes: Optional[str] = None
+    priority: str = "medium"
+    details: Optional[str] = None
 
 class ScheduleCreate(ScheduleBase):
-    pass
+    worker_id: Optional[int] = None  # defaults to the creating admin
+    status: str = "pending"
 
 class ScheduleUpdate(BaseModel):
+    task_type: Optional[str] = Field(None, max_length=50)
+    assigned_date: Optional[date] = None
+    scheduled_time: Optional[time] = None
     priority: Optional[str] = None
     status: Optional[str] = None
-    notes: Optional[str] = None
+    details: Optional[str] = None
+    worker_id: Optional[int] = None
 
 class ScheduleResponse(ScheduleBase):
     id: int
-    user_id: int
+    worker_id: int
+    worker_name: Optional[str] = None
     status: str
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -145,24 +170,33 @@ class ScheduleResponse(ScheduleBase):
 class WasteBase(BaseModel):
     waste_type: str = Field(..., max_length=100)
     quantity_kg: float = Field(..., gt=0)
-    waste_date: date
-    disposal_method: Optional[str] = None
+    classification: str = "compostable"
+    disposal_method: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = None
 
 class WasteCreate(WasteBase):
+    waste_date: Optional[date] = None  # defaults to today
     harvest_id: Optional[int] = None
 
 class WasteUpdate(BaseModel):
-    disposal_method: Optional[str] = None
+    waste_type: Optional[str] = Field(None, max_length=100)
+    quantity_kg: Optional[float] = Field(None, gt=0)
+    waste_date: Optional[date] = None
+    classification: Optional[str] = None
+    disposal_method: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = None
+    harvest_id: Optional[int] = None
 
 class WasteResponse(WasteBase):
     id: int
     user_id: int
-    harvest_id: Optional[int]
+    recorded_by: int
+    harvest_id: Optional[int] = None
+    batch_number: Optional[str] = None
+    waste_date: date
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -179,9 +213,16 @@ class AILogCreate(AILogBase):
 
 class AILogResponse(AILogBase):
     id: int
+    user_id: int
     harvest_id: Optional[int] = None
-    input_data: str
+    input_data: dict
     created_at: datetime
+
+    @field_validator("input_data", mode="before")
+    @classmethod
+    def parse_input_data(cls, value):
+        # Stored as a JSON string in the database
+        return json.loads(value) if isinstance(value, str) else value
     
     class Config:
         from_attributes = True
@@ -190,15 +231,39 @@ class AILogResponse(AILogBase):
 class HarvestListResponse(BaseModel):
     total: int
     items: List[HarvestResponse]
+    skip: int = 0
+    limit: int = 100
 
 class TransportListResponse(BaseModel):
     total: int
     items: List[TransportResponse]
+    skip: int = 0
+    limit: int = 100
 
 class ScheduleListResponse(BaseModel):
     total: int
     items: List[ScheduleResponse]
+    skip: int = 0
+    limit: int = 100
 
 class WasteListResponse(BaseModel):
     total: int
     items: List[WasteResponse]
+    skip: int = 0
+    limit: int = 100
+
+class UserWithStatsResponse(UserResponse):
+    tasks_total: int = 0
+    tasks_completed: int = 0
+
+class UserListResponse(BaseModel):
+    total: int
+    items: List[UserWithStatsResponse]
+    skip: int = 0
+    limit: int = 100
+
+class AILogListResponse(BaseModel):
+    total: int
+    items: List[AILogResponse]
+    skip: int = 0
+    limit: int = 100

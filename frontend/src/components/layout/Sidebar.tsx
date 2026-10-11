@@ -22,7 +22,7 @@ const NAV_ITEMS = [
   { icon: Calendar,        label: 'Schedule',  path: '/schedule'  },
   { icon: Recycle,         label: 'Waste',     path: '/waste'     },
   { icon: BarChart3,       label: 'Analytics', path: '/analytics' },
-  { icon: Brain,           label: 'AI Assist', path: '/ai'        },
+  { icon: Brain,           label: 'PineTrack Agent', path: '/ai'        },
 ]
 
 export default function Sidebar() {
@@ -46,7 +46,7 @@ export default function Sidebar() {
       <div className={`flex items-center border-b border-slate-700/60 h-16 ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="text-xl leading-none">🍍</span>
+            <span className="w-8 h-8 rounded-lg bg-green-600 text-white font-bold text-sm flex items-center justify-center shrink-0">PT</span>
             <div className="min-w-0">
               <p className="font-bold text-sm text-white leading-tight">PineTrack</p>
               <p className="text-[10px] text-slate-400 uppercase tracking-wider">v2.0</p>

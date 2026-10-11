@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer()
 
 
-def verify_token(credentials: HTTPAuthorizationCredentials) -> dict:
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """Decode and verify JWT token"""
     token = credentials.credentials
     try:

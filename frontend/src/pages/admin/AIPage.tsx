@@ -1,5 +1,5 @@
 ﻿import React, { useState } from 'react'
-import { Brain, Leaf, Recycle, Activity, CheckCircle, AlertCircle, HelpCircle } from 'lucide-react'
+import { Brain, Leaf, Recycle, CheckCircle, AlertCircle, HelpCircle } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
 import { apiClient } from '../../services/api'
 import { AIHarvestPrediction, AIWastePrediction } from '../../types'
@@ -48,7 +48,7 @@ export default function AIPage() {
       const res = await apiClient.predictHarvestTiming(hForm)
       setHResult(res)
     } catch (err: any) {
-      setHError(err.response?.data?.detail || 'Prediction failed. Check your API connection.')
+      setHError(err.response?.data?.detail || 'PineTrack Agent could not respond. Please try again.')
     } finally {
       setHLoad(false)
     }
@@ -63,7 +63,7 @@ export default function AIPage() {
       const res = await apiClient.predictWasteClassification(wForm)
       setWResult(res)
     } catch (err: any) {
-      setWError(err.response?.data?.detail || 'Classification failed. Check your API connection.')
+      setWError(err.response?.data?.detail || 'PineTrack Agent could not respond. Please try again.')
     } finally {
       setWLoad(false)
     }
@@ -74,35 +74,10 @@ export default function AIPage() {
       <div className="p-6 lg:p-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">AI Recommendation Engine</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Ask PineTrack Agent</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Machine learning models for harvest timing and waste classification
+            Get a recommendation on harvest timing or how to handle rejected produce
           </p>
-        </div>
-
-        {/* Model info cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          {[
-            { icon: Brain,   title: 'Decision Tree',   desc: 'Primary model for harvest timing predictions',    badge: 'v2.0 Active', color: 'text-purple-600 bg-purple-50' },
-            { icon: Activity,title: 'Random Forest',   desc: 'Ensemble model for quality & waste classification', badge: 'v2.0 Active', color: 'text-blue-600 bg-blue-50'   },
-            { icon: Leaf,    title: 'Rule Engine',     desc: 'Expert system fallback for edge cases',             badge: 'Fallback',    color: 'text-green-600 bg-green-50' },
-          ].map((m) => {
-            const Icon = m.icon
-            return (
-              <div key={m.title} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex gap-4">
-                <div className={`p-2.5 rounded-xl ${m.color} shrink-0 h-fit`}>
-                  <Icon size={20} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-gray-900">{m.title}</p>
-                    <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">{m.badge}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5 leading-snug">{m.desc}</p>
-                </div>
-              </div>
-            )
-          })}
         </div>
 
         {/* Tabs */}
@@ -201,7 +176,11 @@ export default function AIPage() {
                         <p className="font-bold text-gray-900 text-xl">{hResult.recommendation}</p>
                         <p className={`text-sm font-semibold ${CONFIDENCE_COLOR(hResult.confidence_score)}`}>
                           {Math.round(hResult.confidence_score * 100)}% confidence
+                          <span className="text-gray-400 font-normal"> · {hResult.source === 'gemini' ? 'PineTrack Agent' : 'Built-in rules'}</span>
                         </p>
+                        {hResult.explanation && (
+                          <p className="text-sm text-gray-700 mt-1 leading-relaxed">{hResult.explanation}</p>
+                        )}
                       </div>
                     </div>
 
@@ -331,7 +310,11 @@ export default function AIPage() {
                         </p>
                         <p className={`text-sm font-semibold ${CONFIDENCE_COLOR(wResult.confidence_score)}`}>
                           {Math.round(wResult.confidence_score * 100)}% confidence
+                          <span className="text-gray-400 font-normal"> · {wResult.source === 'gemini' ? 'PineTrack Agent' : 'Built-in rules'}</span>
                         </p>
+                        {wResult.explanation && (
+                          <p className="text-sm text-gray-700 mt-1 leading-relaxed">{wResult.explanation}</p>
+                        )}
                       </div>
                     </div>
 

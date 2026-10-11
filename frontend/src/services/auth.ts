@@ -9,6 +9,10 @@ export const authService = {
     localStorage.setItem(USER_KEY, JSON.stringify(response.user))
   },
 
+  setUser(user: User): void {
+    localStorage.setItem(USER_KEY, JSON.stringify(user))
+  },
+
   getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY)
   },

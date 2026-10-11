@@ -38,13 +38,22 @@ def authenticate_user(db: Session, username: str, password: str):
     user = db.query(User).filter(User.username == username).first()
     if not user or not verify_password(password, user.password_hash):
         return None
+    if not user.is_active:
+        return None
     return user
 
 
-def create_user(db: Session, username: str, email: str, password: str, role: str = "worker") -> User:
+def create_user(
+    db: Session,
+    username: str,
+    email: str,
+    password: str,
+    role: str = "worker",
+    full_name: str = None
+) -> User:
     """Create new user"""
     hashed_pw = hash_password(password)
-    user = User(username=username, email=email, password_hash=hashed_pw, role=role)
+    user = User(username=username, email=email, password_hash=hashed_pw, role=role, full_name=full_name)
     db.add(user)
     db.commit()
     db.refresh(user)

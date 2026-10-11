@@ -21,8 +21,10 @@ class HarvestService:
         """Generate a sequential batch number scoped to the current year, e.g. PT-2026-014"""
         year = date.today().year
         prefix = f"PT-{year}-"
-        count = db.query(Harvest).filter(Harvest.batch_number.like(f"{prefix}%")).count()
-        return f"{prefix}{count + 1:03d}"
+        existing = db.query(Harvest.batch_number).filter(Harvest.batch_number.like(f"{prefix}%")).all()
+        # Continue from the highest number used so deleted batches never cause a duplicate
+        numbers = [int(b[len(prefix):]) for (b,) in existing if b[len(prefix):].isdigit()]
+        return f"{prefix}{max(numbers, default=0) + 1:03d}"
 
     @staticmethod
     def create_harvest(
@@ -197,6 +199,8 @@ class HarvestService:
                 "total_quantity_kg": 0.0,
                 "average_quantity_kg": 0.0,
                 "quality_grades": {},
+                "by_grade": {},
+                "this_month": 0,
                 "total_spoilage_kg": 0.0,
                 "total_rejected_kg": 0.0,
                 "total_marketable_yield_kg": 0.0,
@@ -205,6 +209,7 @@ class HarvestService:
                 "marketable_yield_percent": 0.0,
             }
 
+        today = date.today()
         total_quantity = sum(h.quantity_kg for h in harvests)
         total_spoilage = sum(h.spoilage_kg or 0 for h in harvests)
         total_rejected = sum(h.rejected_kg or 0 for h in harvests)
@@ -219,6 +224,11 @@ class HarvestService:
             "total_quantity_kg": total_quantity,
             "average_quantity_kg": total_quantity / len(harvests),
             "quality_grades": quality_counts,
+            "by_grade": quality_counts,
+            "this_month": sum(
+                1 for h in harvests
+                if h.harvest_date.year == today.year and h.harvest_date.month == today.month
+            ),
             "total_spoilage_kg": total_spoilage,
             "total_rejected_kg": total_rejected,
             "total_marketable_yield_kg": total_marketable,

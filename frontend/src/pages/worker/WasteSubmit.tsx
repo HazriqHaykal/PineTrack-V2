@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import { Recycle, CheckCircle2, AlertTriangle, Info } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Recycle, CheckCircle2, AlertTriangle, Info, Clock, Hammer, Bug, Ban } from 'lucide-react'
 import WorkerLayout from '../../components/layout/WorkerLayout'
-import { apiClient } from '../../services/api'
+import { apiClient, apiErrorMessage } from '../../services/api'
+import { Harvest } from '../../types'
 
 type WasteType = 'overripe' | 'damaged' | 'rotten' | 'other'
 
@@ -9,15 +11,15 @@ interface FormState {
   waste_type: WasteType
   quantity_kg: string
   disposal_method: string
-  batch_reference: string
+  harvest_id: string
   description: string
 }
 
-const WASTE_TYPES: { value: WasteType; label: string; desc: string; icon: string; color: string }[] = [
-  { value: 'overripe', label: 'Overripe',  desc: 'Too ripe for market',     icon: '🍍', color: 'border-amber-400 bg-amber-50 text-amber-700'  },
-  { value: 'damaged',  label: 'Damaged',   desc: 'Physical damage/bruising', icon: '💥', color: 'border-red-400 bg-red-50 text-red-700'        },
-  { value: 'rotten',   label: 'Rotten',    desc: 'Disease or infection',     icon: '🦠', color: 'border-purple-400 bg-purple-50 text-purple-700'},
-  { value: 'other',    label: 'Other',     desc: 'Other or rejected produce', icon: '❌', color: 'border-gray-400 bg-gray-50 text-gray-700'    },
+const WASTE_TYPES: { value: WasteType; label: string; desc: string; icon: React.ReactNode; color: string }[] = [
+  { value: 'overripe', label: 'Overripe',  desc: 'Too ripe for market',     icon: <Clock size={20} />, color: 'border-amber-400 bg-amber-50 text-amber-700'  },
+  { value: 'damaged',  label: 'Damaged',   desc: 'Physical damage/bruising', icon: <Hammer size={20} />, color: 'border-red-400 bg-red-50 text-red-700'        },
+  { value: 'rotten',   label: 'Rotten',    desc: 'Disease or infection',     icon: <Bug size={20} />, color: 'border-purple-400 bg-purple-50 text-purple-700'},
+  { value: 'other',    label: 'Other',     desc: 'Other or rejected produce', icon: <Ban size={20} />, color: 'border-gray-400 bg-gray-50 text-gray-700'    },
 ]
 
 const DISPOSAL_METHODS = ['Composting', 'Animal Feed', 'Biogas Production', 'Landfill', 'Other']
@@ -27,12 +29,19 @@ export default function WasteSubmit() {
     waste_type:       'overripe',
     quantity_kg:      '',
     disposal_method:  'Composting',
-    batch_reference:  '',
+    harvest_id:       '',
     description:      '',
   })
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const [batches, setBatches] = useState<Harvest[]>([])
+  const navigate = useNavigate()
+
+  // A worker's own harvest batches, newest first
+  useEffect(() => {
+    apiClient.listHarvests(0, 100).then(d => setBatches(d.items)).catch(() => setBatches([]))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,11 +57,12 @@ export default function WasteSubmit() {
         quantity_kg:     parseFloat(form.quantity_kg),
         classification:  'compostable',
         disposal_method: form.disposal_method,
+        harvest_id:      form.harvest_id ? parseInt(form.harvest_id) : null,
         notes:           form.description || undefined,
       })
       setSuccess(true)
-    } catch {
-      setSuccess(true) // demo mode
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save the waste entry. Please try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -60,7 +70,7 @@ export default function WasteSubmit() {
 
   const reset = () => {
     setSuccess(false)
-    setForm({ waste_type: 'overripe', quantity_kg: '', disposal_method: 'Composting', batch_reference: '', description: '' })
+    setForm({ waste_type: 'overripe', quantity_kg: '', disposal_method: 'Composting', harvest_id: '', description: '' })
   }
 
   const selectedType = WASTE_TYPES.find(t => t.value === form.waste_type)!
@@ -90,6 +100,9 @@ export default function WasteSubmit() {
           </div>
           <button onClick={reset} className="w-full py-3.5 bg-orange-500 text-white rounded-2xl font-semibold text-sm hover:bg-orange-600 transition-colors">
             Log Another Waste
+          </button>
+          <button onClick={() => navigate('/my-records')} className="w-full py-3 text-orange-600 font-semibold text-sm">
+            View my records
           </button>
         </div>
       </WorkerLayout>
@@ -134,7 +147,7 @@ export default function WasteSubmit() {
                     form.waste_type === type.value ? type.color + ' border-2' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                   }`}
                 >
-                  <span className="text-xl">{type.icon}</span>
+                  <span>{type.icon}</span>
                   <div>
                     <p className="text-sm font-semibold leading-tight">{type.label}</p>
                     <p className="text-[10px] opacity-70 leading-tight mt-0.5">{type.desc}</p>
@@ -177,14 +190,17 @@ export default function WasteSubmit() {
 
           {/* Batch reference */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Batch Reference (optional)</label>
-            <input
-              type="text"
-              placeholder="e.g. PT-2024-001"
-              value={form.batch_reference}
-              onChange={e => setForm(p => ({ ...p, batch_reference: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
-            />
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Harvest Batch (optional)</label>
+            <select
+              value={form.harvest_id}
+              onChange={e => setForm(p => ({ ...p, harvest_id: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white"
+            >
+              <option value="">Not from a specific batch</option>
+              {batches.map(h => (
+                <option key={h.id} value={h.id}>{h.batch_number} · {h.field_name} · {h.quantity_kg} kg</option>
+              ))}
+            </select>
           </div>
 
           {/* Description */}

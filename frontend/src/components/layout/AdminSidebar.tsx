@@ -21,7 +21,7 @@ const NAV_SECTIONS = [
   {
     label: 'Intelligence',
     items: [
-      { icon: Brain,     label: 'AI Insights', path: '/admin/ai-insights' },
+      { icon: Brain,     label: 'PineTrack Agent', path: '/admin/ai-insights' },
       { icon: BarChart3, label: 'Analytics',   path: '/analytics'         },
     ],
   },

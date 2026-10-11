@@ -3,6 +3,7 @@ Tests for Harvest Management Module
 """
 
 import pytest
+from pydantic import ValidationError
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
 from app.models import Harvest, User
@@ -268,16 +269,15 @@ class TestHarvestValidation:
         assert error is None
     
     def test_validate_negative_quantity(self):
-        """Test validation of negative quantity"""
-        harvest_data = HarvestCreate(
-            field_name="Field",
-            harvest_date=date.today(),
-            quantity_kg=-10.0
-        )
-        
-        is_valid, error = HarvestService.validate_harvest_data(harvest_data)
-        assert is_valid is False
-        assert "greater than 0" in error
+        """Negative quantities are rejected by the request schema"""
+        with pytest.raises(ValidationError) as exc_info:
+            HarvestCreate(
+                field_name="Field",
+                harvest_date=date.today(),
+                quantity_kg=-10.0
+            )
+
+        assert "greater than 0" in str(exc_info.value)
     
     def test_validate_empty_field_name(self):
         """Test validation of empty field name"""

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { CheckCircle2, Sprout, Info } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import WorkerLayout from '../../components/layout/WorkerLayout'
-import { apiClient } from '../../services/api'
+import { apiClient, apiErrorMessage } from '../../services/api'
 
 type Grade = 'A' | 'B' | 'C' | 'D'
 
@@ -34,6 +35,7 @@ export default function HarvestEntry() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
   const [batchNumber, setBatchNumber] = useState('')
+  const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -54,10 +56,8 @@ export default function HarvestEntry() {
       })
       setBatchNumber(created.batch_number)
       setSuccess(true)
-    } catch {
-      // Demo mode: show success anyway
-      setBatchNumber(`PT-${new Date().getFullYear()}-DEMO`)
-      setSuccess(true)
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save the harvest. Please try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -99,6 +99,9 @@ export default function HarvestEntry() {
             className="w-full py-3.5 bg-green-600 text-white rounded-2xl font-semibold text-sm hover:bg-green-700 transition-colors"
           >
             Log Another Harvest
+          </button>
+          <button onClick={() => navigate('/my-records')} className="w-full py-3 text-green-700 font-semibold text-sm">
+            View my records
           </button>
         </div>
       </WorkerLayout>

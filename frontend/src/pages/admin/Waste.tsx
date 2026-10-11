@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2, X, Recycle, Search } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
-import { apiClient } from '../../services/api'
-import { Waste } from '../../types'
+import { apiClient, apiErrorMessage } from '../../services/api'
+import { Waste, Harvest } from '../../types'
 
 const WASTE_TYPE_STYLES: Record<string, string> = {
   rotten:       'bg-red-100    text-red-800',
@@ -24,6 +24,7 @@ const EMPTY_FORM = {
   classification:  'compostable',
   disposal_method: '',
   notes:           '',
+  harvest_id:      '',
 }
 
 function Modal({ open, title, onClose, children }: {
@@ -62,32 +63,29 @@ export default function WastePage() {
   const [form, setForm]         = useState({ ...EMPTY_FORM })
   const [submitting, setSub]    = useState(false)
   const [toast, setToast]       = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [harvests, setHarvests] = useState<Harvest[]>([])
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  const DEMO_WASTE: Waste[] = [
-    { id: 1, waste_type: 'rotten',       quantity_kg: 45,  classification: 'compostable',     disposal_method: 'compost',  notes: 'From Block C-2',   created_at: '2026-05-20T10:00:00' },
-    { id: 2, waste_type: 'damaged',      quantity_kg: 32,  classification: 'compostable',     disposal_method: 'compost',  notes: 'Transit damage',   created_at: '2026-05-19T09:00:00' },
-    { id: 3, waste_type: 'unused_parts', quantity_kg: 18,  classification: 'recyclable',      disposal_method: 'donate',   notes: 'Crowns & leaves',  created_at: '2026-05-18T11:00:00' },
-    { id: 4, waste_type: 'overripe',     quantity_kg: 28,  classification: 'compostable',     disposal_method: 'compost',  notes: '',                 created_at: '2026-05-17T08:00:00' },
-    { id: 5, waste_type: 'other',        quantity_kg: 12,  classification: 'non-recyclable',  disposal_method: 'discard',  notes: 'Contaminated',     created_at: '2026-05-16T14:00:00' },
-  ]
-
   const load = async () => {
     try {
       const d = await apiClient.listWaste()
       setRecords(d.items || [])
-    } catch {
-      setRecords(DEMO_WASTE)
+    } catch (err) {
+      setRecords([])
+      showToast(apiErrorMessage(err, 'Failed to load waste records'), 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    apiClient.listHarvests(0, 500).then(d => setHarvests(d.items)).catch(() => setHarvests([]))
+  }, [])
 
   const openCreate = () => { setEditing(null); setForm({ ...EMPTY_FORM }); setModal(true) }
   const openEdit   = (w: Waste) => {
@@ -98,6 +96,7 @@ export default function WastePage() {
       classification:  w.classification,
       disposal_method: w.disposal_method || '',
       notes:           w.notes || '',
+      harvest_id:      w.harvest_id ? String(w.harvest_id) : '',
     })
     setModal(true)
   }
@@ -106,7 +105,11 @@ export default function WastePage() {
     e.preventDefault()
     setSub(true)
     try {
-      const payload = { ...form, quantity_kg: parseFloat(form.quantity_kg) } as any
+      const payload = {
+        ...form,
+        quantity_kg: parseFloat(form.quantity_kg),
+        harvest_id: form.harvest_id ? parseInt(form.harvest_id) : null,
+      } as any
       if (editing) {
         await apiClient.updateWaste(editing.id, payload)
         showToast('Record updated', 'success')
@@ -116,8 +119,8 @@ export default function WastePage() {
       }
       setModal(false)
       load()
-    } catch {
-      showToast('Failed to save', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Failed to save'), 'error')
     } finally {
       setSub(false)
     }
@@ -129,8 +132,8 @@ export default function WastePage() {
       showToast('Record deleted', 'success')
       setDel(null)
       load()
-    } catch {
-      showToast('Delete failed', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Delete failed'), 'error')
     }
   }
 
@@ -227,7 +230,7 @@ export default function WastePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    {['Type', 'Quantity (kg)', 'Classification', 'Disposal Method', 'Date', 'Notes', 'Actions'].map((h) => (
+                    {['Type', 'Batch', 'Quantity (kg)', 'Classification', 'Disposal Method', 'Date', 'Notes', 'Actions'].map((h) => (
                       <th key={h} className="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -240,6 +243,7 @@ export default function WastePage() {
                           {r.waste_type.replace('_', ' ')}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-gray-600 font-mono text-xs">{r.batch_number || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-gray-900">{r.quantity_kg.toLocaleString()}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${CLASS_STYLES[r.classification] || 'bg-gray-100 text-gray-700'}`}>
@@ -247,7 +251,7 @@ export default function WastePage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600 capitalize">{r.disposal_method || '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{r.created_at?.split('T')[0] || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{r.waste_date || r.created_at?.split('T')[0] || '—'}</td>
                       <td className="px-4 py-3 text-gray-500 max-w-[160px] truncate">{r.notes || '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
@@ -274,6 +278,16 @@ export default function WastePage() {
       <Modal open={modalOpen} title={editing ? 'Edit Waste Record' : 'Log Waste'} onClose={() => setModal(false)}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Harvest Batch</label>
+              <select value={form.harvest_id} onChange={(e) => setForm({...form, harvest_id: e.target.value})}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+                <option value="">No batch linked</option>
+                {harvests.map(h => (
+                  <option key={h.id} value={h.id}>{h.batch_number} · {h.field_name} · {h.quantity_kg} kg</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Waste Type *</label>
               <select value={form.waste_type} onChange={(e) => setForm({...form, waste_type: e.target.value})}

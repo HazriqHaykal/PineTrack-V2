@@ -1,27 +1,8 @@
 ﻿import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
-import { apiClient } from '../services/api'
+import { apiClient, apiErrorMessage } from '../services/api'
 import { authService } from '../services/auth'
-import { LoginResponse } from '../types'
-
-const DEMO_ACCOUNTS: Record<string, LoginResponse> = {
-  admin: {
-    access_token: 'demo_admin_token',
-    token_type: 'bearer',
-    user: { id: 1, username: 'admin', email: 'admin@pinetrack.com', full_name: 'Ahmad Admin', role: 'admin' },
-  },
-  worker: {
-    access_token: 'demo_worker_token',
-    token_type: 'bearer',
-    user: { id: 2, username: 'worker', email: 'worker@pinetrack.com', full_name: 'Ali Worker', role: 'worker' },
-  },
-}
-
-const DEMO_PASSWORDS: Record<string, string> = {
-  admin:  'admin123',
-  worker: 'worker123',
-}
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -39,16 +20,12 @@ export default function LoginPage() {
       const tokens = await apiClient.login(username, password)
       authService.setTokens(tokens)
       navigate(tokens.user.role === 'admin' ? '/dashboard' : '/my-tasks')
-    } catch {
-      const demo = DEMO_ACCOUNTS[username]
-      if (demo && DEMO_PASSWORDS[username] === password) {
-        authService.setTokens(demo)
-        navigate(demo.user.role === 'admin' ? '/dashboard' : '/my-tasks')
-      } else if (DEMO_ACCOUNTS[username] && DEMO_PASSWORDS[username] !== password) {
-        setError('Incorrect password. Please try again.')
-      } else {
-        setError('Account not found. Please check your username.')
-      }
+    } catch (err: any) {
+      setError(
+        err.response?.status === 401
+          ? 'Incorrect username or password.'
+          : apiErrorMessage(err, 'Sign in failed. Please try again.')
+      )
     } finally {
       setLoading(false)
     }
@@ -95,12 +72,12 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Stats — glassy cards */}
+        {/* What the system covers — glassy cards */}
         <div className="relative z-10 flex gap-3">
           {[
-            { value: '+32%', label: 'Harvest Efficiency' },
-            { value: '−28%', label: 'Waste Reduction'   },
-            { value: '94%',  label: 'On-time Delivery'  },
+            { value: 'Harvest',   label: 'Batches, grading and yield' },
+            { value: 'Transport', label: 'Deliveries tracked to arrival' },
+            { value: 'Waste',     label: 'Losses logged and reduced' },
           ].map(stat => (
             <div
               key={stat.label}
@@ -112,7 +89,7 @@ export default function LoginPage() {
                 WebkitBackdropFilter: 'blur(12px)',
               }}
             >
-              <p className="font-display text-2xl text-white leading-none">{stat.value}</p>
+              <p className="font-display text-xl text-white leading-none">{stat.value}</p>
               <p className="text-[11px] mt-1.5 leading-tight" style={{ color: 'rgba(255,255,255,0.5)' }}>
                 {stat.label}
               </p>

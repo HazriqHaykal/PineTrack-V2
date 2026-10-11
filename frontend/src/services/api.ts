@@ -15,6 +15,13 @@ import {
   AIMetrics,
   AILog,
   PaginatedResponse,
+  User,
+  SystemUser,
+  UserStats,
+  AIStatus,
+  AIRecommendations,
+  AnalyticsOverview,
+  AppSettings,
 } from '../types'
 
 type HarvestServerFields =
@@ -41,7 +48,9 @@ class APIClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
+        // A rejected token means the session is over; a failed login attempt is not that
+        const isLoginAttempt = error.config?.url?.includes('/auth/login')
+        if (error.response?.status === 401 && !isLoginAttempt) {
           authService.logout()
           window.location.href = '/login'
         }
@@ -112,7 +121,7 @@ class APIClient {
     return res.data
   }
 
-  async createTransport(data: Omit<Transport, 'id' | 'created_at'>): Promise<Transport> {
+  async createTransport(data: Partial<Transport>): Promise<Transport> {
     const res = await this.client.post('/transport', data)
     return res.data
   }
@@ -137,7 +146,7 @@ class APIClient {
     return res.data
   }
 
-  async createWaste(data: Omit<Waste, 'id' | 'created_at'>): Promise<Waste> {
+  async createWaste(data: Partial<Waste>): Promise<Waste> {
     const res = await this.client.post('/waste', data)
     return res.data
   }
@@ -162,7 +171,7 @@ class APIClient {
     return res.data
   }
 
-  async createSchedule(data: Omit<Schedule, 'id' | 'created_at'>): Promise<Schedule> {
+  async createSchedule(data: Partial<Schedule>): Promise<Schedule> {
     const res = await this.client.post('/schedule', data)
     return res.data
   }
@@ -174,6 +183,82 @@ class APIClient {
 
   async deleteSchedule(id: number): Promise<void> {
     await this.client.delete(`/schedule/${id}`)
+  }
+
+  async getMySchedule(): Promise<{ schedules: Schedule[]; count: number }> {
+    const res = await this.client.get('/schedule/worker/my-schedule')
+    return res.data
+  }
+
+  async updateScheduleStatus(id: number, status: Schedule['status']): Promise<Schedule> {
+    const res = await this.client.patch(`/schedule/${id}/status`, null, { params: { new_status: status } })
+    return res.data
+  }
+
+  async updateTransportStatus(id: number, status: Transport['status']): Promise<Transport> {
+    const res = await this.client.patch(`/transport/${id}/status`, null, { params: { new_status: status } })
+    return res.data
+  }
+
+  // ── Users ─────────────────────────────────────────────────────────────
+  async listUsers(role?: string): Promise<PaginatedResponse<SystemUser>> {
+    const res = await this.client.get('/users', { params: { role, limit: 500 } })
+    return res.data
+  }
+
+  async createUser(data: {
+    username: string
+    email: string
+    password: string
+    full_name: string
+    role: string
+  }): Promise<User> {
+    const res = await this.client.post('/users', data)
+    return res.data
+  }
+
+  async updateUser(
+    id: number,
+    data: { role?: string; is_active?: boolean; full_name?: string; email?: string; password?: string }
+  ): Promise<User> {
+    const res = await this.client.patch(`/users/${id}`, data)
+    return res.data
+  }
+
+  async getMe(): Promise<User> {
+    const res = await this.client.get('/auth/me')
+    return res.data
+  }
+
+  async updateMe(data: { full_name?: string; email?: string; password?: string }): Promise<User> {
+    const res = await this.client.patch('/users/me', data)
+    return res.data
+  }
+
+  async getMyStats(): Promise<UserStats> {
+    const res = await this.client.get('/users/me/stats')
+    return res.data
+  }
+
+  // ── Analytics & settings ──────────────────────────────────────────────
+  async getAnalyticsOverview(months = 6): Promise<AnalyticsOverview> {
+    const res = await this.client.get('/analytics/overview', { params: { months } })
+    return res.data
+  }
+
+  async getSettings(): Promise<AppSettings> {
+    const res = await this.client.get('/settings')
+    return res.data
+  }
+
+  async updateSettings(data: AppSettings): Promise<AppSettings> {
+    const res = await this.client.put('/settings', data)
+    return res.data
+  }
+
+  async exportAllData(): Promise<Blob> {
+    const res = await this.client.get('/export', { responseType: 'blob' })
+    return res.data
   }
 
   // ── AI ────────────────────────────────────────────────────────────────
@@ -206,11 +291,47 @@ class APIClient {
     return res.data
   }
 
+  async getAIStatus(): Promise<AIStatus> {
+    const res = await this.client.get('/ai/status')
+    return res.data
+  }
+
+  async getAIRecommendations(): Promise<AIRecommendations> {
+    const res = await this.client.get('/ai/recommendations')
+    return res.data
+  }
+
+  async refreshAIRecommendations(): Promise<AIRecommendations> {
+    // Gemini can take a while to answer
+    const res = await this.client.post('/ai/recommendations/refresh', null, { timeout: 60000 })
+    return res.data
+  }
+
   // ── Reports ───────────────────────────────────────────────────────────
-  async downloadReport(type: string): Promise<Blob> {
-    const res = await this.client.get(`/reports/${type}`, { responseType: 'blob' })
+  async downloadReport(type: string, days = 30): Promise<Blob> {
+    const res = await this.client.get(`/reports/${type}`, { params: { days }, responseType: 'blob' })
     return res.data
   }
 }
 
 export const apiClient = new APIClient()
+
+/** Best human-readable message from a failed API call */
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  const err = error as { response?: { data?: { detail?: unknown } }; message?: string }
+  const detail = err?.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail) && detail[0]?.msg) return String(detail[0].msg)
+  if (!err?.response) return 'Cannot reach the server. Check that the backend is running.'
+  return fallback
+}
+
+/** Save a downloaded file (e.g. a PDF report) to the user's computer */
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  window.URL.revokeObjectURL(url)
+}

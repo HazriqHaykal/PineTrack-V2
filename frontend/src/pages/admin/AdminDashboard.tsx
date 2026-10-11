@@ -6,51 +6,20 @@ import {
 } from 'recharts'
 import {
   Sprout, Truck, Recycle, Brain, TrendingUp, Users,
-  AlertTriangle, CheckCircle2, Clock, ArrowUpRight, ArrowRight, Bell
+  AlertTriangle, CheckCircle2, Clock, ArrowUpRight, ArrowRight, UserCircle
 } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
-import { apiClient } from '../../services/api'
+import { apiClient, apiErrorMessage } from '../../services/api'
 import { authService } from '../../services/auth'
-import { HarvestStats, TransportEfficiency, WasteStats } from '../../types'
+import { AnalyticsOverview, HarvestStats, TransportEfficiency, WasteStats } from '../../types'
 
-// ── demo data ──────────────────────────────────────────────────────
-const HARVEST_TREND = [
-  { month: 'Jan', kg: 1200, target: 1100 },
-  { month: 'Feb', kg: 980,  target: 1100 },
-  { month: 'Mar', kg: 1450, target: 1200 },
-  { month: 'Apr', kg: 1700, target: 1300 },
-  { month: 'May', kg: 1300, target: 1300 },
-  { month: 'Jun', kg: 1620, target: 1400 },
-]
-
-const QUALITY_PIE = [
-  { name: 'Grade A', value: 42, fill: '#22c55e' },
-  { name: 'Grade B', value: 30, fill: '#3b82f6' },
-  { name: 'Grade C', value: 18, fill: '#f59e0b' },
-  { name: 'Grade D', value: 10, fill: '#ef4444' },
-]
-
-const WORKER_PERF = [
-  { name: 'Ahmad',  tasks: 18, completed: 16 },
-  { name: 'Ali',    tasks: 14, completed: 14 },
-  { name: 'Faizal', tasks: 12, completed: 10 },
-  { name: 'Kamal',  tasks: 9,  completed: 8  },
-]
-
-const ALERTS = [
-  { level: 'warning', msg: 'Block C-2 ripeness index dropped below 4.0',   time: '2h ago'  },
-  { level: 'info',    msg: 'Transport JHF-5678 delivered to Johor Bahru',  time: '3h ago'  },
-  { level: 'warning', msg: 'Waste rate in Block D exceeded 12% threshold', time: '5h ago'  },
-  { level: 'success', msg: 'AI model v2.0 achieved 91% harvest accuracy',  time: '1d ago'  },
-]
-
-const RECENT_HARVESTS = [
-  { id: 1, field: 'Block A-1', date: '2026-05-20', kg: 185, grade: 'A', worker: 'Ahmad' },
-  { id: 2, field: 'Block B-3', date: '2026-05-18', kg: 142, grade: 'B', worker: 'Ali'   },
-  { id: 3, field: 'Block C-2', date: '2026-05-16', kg: 98,  grade: 'C', worker: 'Ahmad' },
-  { id: 4, field: 'Block A-2', date: '2026-05-14', kg: 210, grade: 'A', worker: 'Faizal'},
-  { id: 5, field: 'Block D-1', date: '2026-05-12', kg: 65,  grade: 'D', worker: 'Kamal' },
-]
+const GRADE_FILL: Record<string, string> = {
+  A: '#22c55e',
+  B: '#3b82f6',
+  C: '#f59e0b',
+  D: '#ef4444',
+  ungraded: '#94a3b8',
+}
 
 const GRADE_BADGE: Record<string, string> = {
   A: 'bg-green-100 text-green-800',
@@ -102,22 +71,28 @@ export default function AdminDashboard() {
   const [hStats, setHStats]  = useState<HarvestStats | null>(null)
   const [tStats, setTStats]  = useState<TransportEfficiency | null>(null)
   const [wStats, setWStats]  = useState<WasteStats | null>(null)
+  const [overview, setOverview] = useState<AnalyticsOverview | null>(null)
   const [loaded, setLoaded]  = useState(false)
+  const [error, setError]    = useState('')
 
   useEffect(() => {
     Promise.all([
       apiClient.getHarvestStats(),
       apiClient.getTransportEfficiency(),
       apiClient.getWasteStats(),
+      apiClient.getAnalyticsOverview(6),
     ])
-      .then(([h, t, w]) => { setHStats(h); setTStats(t); setWStats(w) })
-      .catch(() => {
-        setHStats({ total_harvests: 68, total_quantity_kg: 9840, average_quantity_kg: 144.7, by_grade: { A: 28, B: 22, C: 12, D: 6 }, this_month: 14 })
-        setTStats({ total_transports: 41, delivered: 37, in_transit: 3, pending: 1, delivery_rate_percent: 90 })
-        setWStats({ total_records: 23, total_waste_kg: 875, by_type: {}, by_classification: {} })
-      })
+      .then(([h, t, w, o]) => { setHStats(h); setTStats(t); setWStats(w); setOverview(o) })
+      .catch((err) => setError(apiErrorMessage(err, 'Failed to load dashboard data.')))
       .finally(() => setLoaded(true))
   }, [])
+
+  const gradePie = (overview?.grade_distribution ?? []).map(g => ({
+    name: g.grade === 'ungraded' ? 'Ungraded' : `Grade ${g.grade}`,
+    value: g.count,
+    fill: GRADE_FILL[g.grade] ?? GRADE_FILL.ungraded,
+  }))
+  const alerts = overview?.alerts ?? []
 
   const today = new Date().toLocaleDateString('en-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -130,45 +105,44 @@ export default function AdminDashboard() {
             <h1 className="text-xl font-bold text-gray-900">Operations Overview</h1>
             <p className="text-sm text-gray-500 mt-0.5">{today}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="relative p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-              <Bell size={18} className="text-gray-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-            <div className="h-8 w-px bg-gray-200" />
-            <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-xl px-3 py-2">
-              👤 {user?.full_name || user?.username}
-            </span>
-          </div>
+          <span className="flex items-center gap-1.5 text-xs text-gray-500 bg-white border border-gray-200 rounded-xl px-3 py-2">
+            <UserCircle size={14} /> {user?.full_name || user?.username}
+          </span>
         </div>
 
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+            <AlertTriangle size={15} className="shrink-0" /> {error}
+          </div>
+        )}
+
         {/* ── KPI Row ── */}
-        {loaded && (
+        {loaded && !error && (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
             <KPICard
               icon={Sprout}     label="Total Harvests"  value={hStats?.total_harvests ?? 0}
               sub={`${hStats?.total_quantity_kg?.toLocaleString() ?? 0} kg total`}
-              trend="+8%"  color="bg-green-500"  onClick={() => navigate('/harvest')} />
+              color="bg-green-500"  onClick={() => navigate('/harvest')} />
             <KPICard
               icon={Truck}      label="Transport Rate"  value={`${tStats?.delivery_rate_percent ?? 0}%`}
               sub={`${tStats?.delivered ?? 0} of ${tStats?.total_transports ?? 0} delivered`}
-              trend="+4%"  color="bg-blue-500"   onClick={() => navigate('/transport')} />
+              color="bg-blue-500"   onClick={() => navigate('/transport')} />
             <KPICard
               icon={Recycle}    label="Waste Logged"    value={`${wStats?.total_waste_kg ?? 0} kg`}
               sub={`${wStats?.total_records ?? 0} records`}
-              trend="-3%" positive={false} color="bg-orange-500" onClick={() => navigate('/waste')} />
+              color="bg-orange-500" onClick={() => navigate('/waste')} />
             <KPICard
-              icon={Brain}      label="AI Accuracy"     value="87%"
-              sub="42 predictions this month"
-              trend="+2%"  color="bg-purple-500" onClick={() => navigate('/admin/ai-insights')} />
+              icon={Brain}      label="Agent Confidence"   value={`${Math.round((overview?.ai.average_confidence ?? 0) * 100)}%`}
+              sub={`${overview?.ai.predictions_this_month ?? 0} predictions this month`}
+              color="bg-purple-500" onClick={() => navigate('/admin/ai-insights')} />
             <KPICard
-              icon={Users}      label="Active Workers"  value={12}
-              sub="4 on field today"
+              icon={Users}      label="Active Workers"  value={overview?.workers.active ?? 0}
+              sub={`${overview?.workers.on_field_today ?? 0} with tasks today`}
               color="bg-teal-500"  onClick={() => navigate('/admin/users')} />
             <KPICard
               icon={TrendingUp} label="Avg Batch (kg)"  value={hStats?.average_quantity_kg?.toFixed(0) ?? 0}
-              sub="Target: 150 kg"
-              trend="-5%" positive={false} color="bg-indigo-500" onClick={() => navigate('/analytics')} />
+              sub={`${hStats?.this_month ?? 0} batches this month`}
+              color="bg-indigo-500" onClick={() => navigate('/analytics')} />
           </div>
         )}
 
@@ -178,7 +152,7 @@ export default function AdminDashboard() {
           <div className="xl:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="font-semibold text-gray-900 text-sm">Harvest Volume vs Target</h3>
+                <h3 className="font-semibold text-gray-900 text-sm">Harvest Volume</h3>
                 <p className="text-xs text-gray-400">Monthly kg — last 6 months</p>
               </div>
               <button onClick={() => navigate('/analytics')}
@@ -187,7 +161,7 @@ export default function AdminDashboard() {
               </button>
             </div>
             <ResponsiveContainer width="100%" height={210}>
-              <AreaChart data={HARVEST_TREND} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+              <AreaChart data={overview?.harvest_trend ?? []} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                 <defs>
                   <linearGradient id="gKg" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.2} />
@@ -199,8 +173,7 @@ export default function AdminDashboard() {
                 <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Area  type="monotone" dataKey="kg"     name="Actual (kg)"  stroke="#22c55e" strokeWidth={2} fill="url(#gKg)" />
-                <Area  type="monotone" dataKey="target" name="Target (kg)"  stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 4" fill="none" />
+                <Area  type="monotone" dataKey="kg"     name="Harvested (kg)"  stroke="#22c55e" strokeWidth={2} fill="url(#gKg)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -209,14 +182,14 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="mb-4">
               <h3 className="font-semibold text-gray-900 text-sm">Quality Grade Split</h3>
-              <p className="text-xs text-gray-400">Distribution of all batches</p>
+              <p className="text-xs text-gray-400">Batches in the last 6 months</p>
             </div>
             <ResponsiveContainer width="100%" height={210}>
               <PieChart>
-                <Pie data={QUALITY_PIE} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={3}>
-                  {QUALITY_PIE.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                <Pie data={gradePie} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={3}>
+                  {gradePie.map((e, i) => <Cell key={i} fill={e.fill} />)}
                 </Pie>
-                <Tooltip formatter={(v: number) => [`${v}%`]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Tooltip formatter={(v: number) => [`${v} batches`]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>
@@ -238,10 +211,10 @@ export default function AdminDashboard() {
               </button>
             </div>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={WORKER_PERF} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
+              <BarChart data={overview?.worker_performance ?? []} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="tasks"     name="Assigned"  fill="#cbd5e1" radius={[4,4,0,0]} />
@@ -255,12 +228,13 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-900 text-sm">System Alerts</h3>
               <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-semibold">
-                {ALERTS.filter(a => a.level === 'warning').length} warnings
+                {alerts.filter(a => a.level === 'warning').length} warnings
               </span>
             </div>
             <div className="space-y-2.5">
-              {ALERTS.map((a, i) => (
-                <div key={i} className={`flex items-start gap-3 p-3 rounded-lg text-sm ${
+              {alerts.map((a, i) => (
+                <div key={i} onClick={() => a.link && navigate(a.link)}
+                  className={`flex items-start gap-3 p-3 rounded-lg text-sm ${a.link ? 'cursor-pointer' : ''} ${
                   a.level === 'warning' ? 'bg-amber-50' :
                   a.level === 'success' ? 'bg-green-50' : 'bg-blue-50'
                 }`}>
@@ -269,7 +243,6 @@ export default function AdminDashboard() {
                                            <Clock        size={15} className="text-blue-500  shrink-0 mt-0.5"  />}
                   <div className="min-w-0">
                     <p className="text-gray-700 text-xs leading-snug">{a.msg}</p>
-                    <p className="text-gray-400 text-[10px] mt-0.5">{a.time}</p>
                   </div>
                 </div>
               ))}
@@ -301,14 +274,14 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {RECENT_HARVESTS.map((r, i) => (
+                {(overview?.recent_harvests ?? []).map((r, i) => (
                   <tr key={r.id} className={`border-t border-gray-50 hover:bg-green-50/30 transition-colors ${i % 2 ? 'bg-gray-50/20' : ''}`}>
                     <td className="px-5 py-3 font-medium text-gray-900">{r.field}</td>
                     <td className="px-5 py-3 text-gray-500 text-xs">{r.date}</td>
                     <td className="px-5 py-3 font-semibold text-gray-900">{r.kg} kg</td>
                     <td className="px-5 py-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${GRADE_BADGE[r.grade]}`}>
-                        Grade {r.grade}
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${GRADE_BADGE[r.grade] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {r.grade === 'ungraded' ? 'Ungraded' : `Grade ${r.grade}`}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-gray-500">{r.worker}</td>

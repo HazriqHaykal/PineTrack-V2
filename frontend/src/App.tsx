@@ -26,6 +26,7 @@ import TransportUpdate  from './pages/worker/TransportUpdate'
 import WasteSubmit      from './pages/worker/WasteSubmit'
 import MySchedule       from './pages/worker/MySchedule'
 import Profile          from './pages/worker/Profile'
+import MyRecords        from './pages/worker/MyRecords'
 
 // ─── Route guards ──────────────────────────────────────────────────────────────
 
@@ -97,6 +98,7 @@ function App() {
         <Route path="/transport-update" element={<WorkerRoute><TransportUpdate /></WorkerRoute>} />
         <Route path="/waste-submit"     element={<WorkerRoute><WasteSubmit /></WorkerRoute>} />
         <Route path="/my-schedule"      element={<WorkerRoute><MySchedule /></WorkerRoute>} />
+        <Route path="/my-records"       element={<WorkerRoute><MyRecords /></WorkerRoute>} />
         <Route path="/profile"          element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
         {/* Fallback */}

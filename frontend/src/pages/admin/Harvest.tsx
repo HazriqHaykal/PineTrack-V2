@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2, X, Brain, ChevronDown, Search, Sprout } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
-import { apiClient } from '../../services/api'
+import { apiClient, apiErrorMessage } from '../../services/api'
 import { Harvest, HarvestStatus, QualityTargets } from '../../types'
 
 const GRADE_STYLES: Record<string, string> = {
@@ -86,32 +86,13 @@ export default function HarvestPage() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const withYield = (h: Omit<Harvest, 'marketable_yield_kg' | 'marketable_yield_percent' | 'spoilage_rate_percent' | 'rejection_rate_percent'>): Harvest => {
-    const marketable_yield_kg = Math.max(h.quantity_kg - h.spoilage_kg - h.rejected_kg, 0)
-    return {
-      ...h,
-      marketable_yield_kg,
-      marketable_yield_percent: h.quantity_kg ? Math.round((marketable_yield_kg / h.quantity_kg) * 1000) / 10 : 0,
-      spoilage_rate_percent:    h.quantity_kg ? Math.round((h.spoilage_kg / h.quantity_kg) * 1000) / 10 : 0,
-      rejection_rate_percent:   h.quantity_kg ? Math.round((h.rejected_kg / h.quantity_kg) * 1000) / 10 : 0,
-    }
-  }
-
-  const DEMO_HARVESTS: Harvest[] = [
-    withYield({ id: 1, batch_number: 'PT-2026-001', field_name: 'Block A-1', harvest_date: '2026-05-20', quantity_kg: 185, quality_grade: 'A', ripeness_level: 8, harvest_status: 'processed', spoilage_kg: 4,  rejected_kg: 2, notes: 'Excellent batch', worker_id: 1, created_at: '2026-05-20T08:00:00', updated_at: '2026-05-20T08:00:00' }),
-    withYield({ id: 2, batch_number: 'PT-2026-002', field_name: 'Block B-3', harvest_date: '2026-05-18', quantity_kg: 142, quality_grade: 'B', ripeness_level: 6, harvest_status: 'graded',    spoilage_kg: 6,  rejected_kg: 3, notes: '',             worker_id: 2, created_at: '2026-05-18T09:30:00', updated_at: '2026-05-18T09:30:00' }),
-    withYield({ id: 3, batch_number: 'PT-2026-003', field_name: 'Block C-2', harvest_date: '2026-05-16', quantity_kg: 98,  quality_grade: 'C', ripeness_level: 5, harvest_status: 'graded',    spoilage_kg: 9,  rejected_kg: 5, notes: 'Some damage',   worker_id: 1, created_at: '2026-05-16T07:15:00', updated_at: '2026-05-16T07:15:00' }),
-    withYield({ id: 4, batch_number: 'PT-2026-004', field_name: 'Block A-2', harvest_date: '2026-05-14', quantity_kg: 210, quality_grade: 'A', ripeness_level: 9, harvest_status: 'processed', spoilage_kg: 2,  rejected_kg: 1, notes: '',             worker_id: 2, created_at: '2026-05-14T10:00:00', updated_at: '2026-05-14T10:00:00' }),
-    withYield({ id: 5, batch_number: 'PT-2026-005', field_name: 'Block D-1', harvest_date: '2026-05-12', quantity_kg: 65,  quality_grade: 'D', ripeness_level: 3, harvest_status: 'rejected',  spoilage_kg: 15, rejected_kg: 20, notes: 'Overripe',      worker_id: 1, created_at: '2026-05-12T11:00:00', updated_at: '2026-05-12T11:00:00' }),
-    withYield({ id: 6, batch_number: 'PT-2026-006', field_name: 'Block A-3', harvest_date: '2026-05-21', quantity_kg: 120, quality_grade: 'A', ripeness_level: 7, harvest_status: 'pending',   spoilage_kg: 0,  rejected_kg: 0, notes: '',             worker_id: 2, created_at: '2026-05-21T08:00:00', updated_at: '2026-05-21T08:00:00' }),
-  ]
-
   const load = async () => {
     try {
       const data = await apiClient.listHarvests()
       setHarvests(data.items || [])
-    } catch {
-      setHarvests(DEMO_HARVESTS)
+    } catch (err) {
+      setHarvests([])
+      showToast(apiErrorMessage(err, 'Failed to load harvests'), 'error')
     } finally {
       setLoading(false)
     }
@@ -177,8 +158,8 @@ export default function HarvestPage() {
       }
       setModal(false)
       load()
-    } catch {
-      showToast('Failed to save harvest', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Failed to save harvest'), 'error')
     } finally {
       setSubmitting(false)
     }
@@ -190,8 +171,8 @@ export default function HarvestPage() {
       showToast('Harvest deleted', 'success')
       setDelConfirm(null)
       load()
-    } catch {
-      showToast('Failed to delete', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Failed to delete'), 'error')
     }
   }
 
@@ -210,8 +191,8 @@ export default function HarvestPage() {
         ...aiForm,
       })
       setAiResult(result)
-    } catch {
-      showToast('AI prediction failed', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'PineTrack Agent could not respond'), 'error')
     } finally {
       setAiLoading(false)
     }
@@ -363,7 +344,7 @@ export default function HarvestPage() {
                           <button
                             onClick={() => openAI(h)}
                             className="p-1.5 rounded-lg hover:bg-purple-50 text-purple-500 hover:text-purple-700 transition-colors"
-                            title="AI Recommendation"
+                            title="Ask PineTrack Agent"
                           >
                             <Brain size={15} />
                           </button>
@@ -543,7 +524,7 @@ export default function HarvestPage() {
       </Modal>
 
       {/* AI Modal */}
-      <Modal open={aiModalOpen} title="AI Harvest Recommendation" onClose={() => setAiModal(false)}>
+      <Modal open={aiModalOpen} title="PineTrack Agent: Harvest Timing" onClose={() => setAiModal(false)}>
         {aiHarvest && (
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm">
@@ -576,7 +557,7 @@ export default function HarvestPage() {
               className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
             >
               <Brain size={16} />
-              {aiLoading ? 'Analyzing…' : 'Get AI Recommendation'}
+              {aiLoading ? 'Analyzing…' : 'Ask PineTrack Agent'}
             </button>
 
             {aiResult && (
@@ -597,7 +578,12 @@ export default function HarvestPage() {
                     <p className="font-semibold text-gray-800">{aiResult.transport_priority}</p>
                   </div>
                 </div>
-                <p className="text-xs text-purple-700">Score: {aiResult.reasoning?.total_score}/100</p>
+                {aiResult.explanation && (
+                  <p className="text-xs text-gray-700 leading-relaxed">{aiResult.explanation}</p>
+                )}
+                <p className="text-xs text-purple-700">
+                  Readiness score: {aiResult.reasoning?.total_score}/100 · {aiResult.source === 'gemini' ? 'PineTrack Agent' : 'Built-in rules'}
+                </p>
               </div>
             )}
           </div>

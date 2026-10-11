@@ -28,7 +28,7 @@ export default function WorkerNav() {
       <aside className="hidden md:flex flex-col bg-white border-r border-gray-200 shrink-0 w-52 min-h-screen">
         {/* Brand */}
         <div className="flex items-center gap-2.5 px-4 py-4 border-b border-gray-100 h-16">
-          <span className="text-2xl">🍍</span>
+          <span className="w-8 h-8 rounded-lg bg-green-600 text-white font-bold text-sm flex items-center justify-center shrink-0">PT</span>
           <div>
             <p className="font-bold text-sm text-gray-900 leading-tight">PineTrack</p>
             <p className="text-[9px] text-green-600 uppercase tracking-widest font-semibold">Worker</p>

@@ -22,7 +22,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     harvests = relationship("Harvest", back_populates="user")
-    transports = relationship("Transport", back_populates="user")
+    transports = relationship("Transport", back_populates="user", foreign_keys="Transport.user_id")
     schedules = relationship("Schedule", back_populates="user")
     waste_records = relationship("Waste", back_populates="user")
     ai_logs = relationship("AILog", back_populates="user")
@@ -52,6 +52,10 @@ class Harvest(Base):
     ai_logs = relationship("AILog", back_populates="harvest")
 
     @property
+    def worker_id(self) -> int:
+        return self.user_id
+
+    @property
     def marketable_yield_kg(self) -> float:
         """Quantity left after removing spoiled and rejected pineapples."""
         return max(self.quantity_kg - (self.spoilage_kg or 0) - (self.rejected_kg or 0), 0.0)
@@ -77,56 +81,79 @@ class Harvest(Base):
 
 class Transport(Base):
     __tablename__ = "transport"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    harvest_id = Column(Integer, ForeignKey("harvest.id"), nullable=False)
+    harvest_id = Column(Integer, ForeignKey("harvest.id"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    driver_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # worker assigned to deliver
     destination = Column(String(200), nullable=False)
-    transport_date = Column(Date, nullable=False)
-    vehicle_id = Column(String(50), nullable=True)
-    quantity_kg = Column(Float, nullable=False)
-    status = Column(String(20), default="pending")  # pending, in_transit, delivered
+    driver_name = Column(String(100), nullable=False, default="")
+    vehicle_number = Column(String(50), nullable=False, default="")
+    scheduled_date = Column(Date, nullable=False)
+    actual_delivery = Column(Date, nullable=True)
+    cargo_weight_kg = Column(Float, nullable=True)
+    status = Column(String(20), default="pending")  # pending, in_transit, delivered, cancelled
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
+
     harvest = relationship("Harvest", back_populates="transports")
-    user = relationship("User", back_populates="transports")
+    user = relationship("User", back_populates="transports", foreign_keys=[user_id])
+    driver = relationship("User", foreign_keys=[driver_id])
+
+    @property
+    def batch_number(self):
+        return self.harvest.batch_number if self.harvest else None
 
 
 class Schedule(Base):
     __tablename__ = "schedules"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    task_type = Column(String(50), nullable=False)  # harvest, transport, maintenance, inspection
-    scheduled_date = Column(Date, nullable=False)
+    worker_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    task_type = Column(String(50), nullable=False)  # harvest, transport, inspection, maintenance, other
+    assigned_date = Column(Date, nullable=False)
     scheduled_time = Column(Time, nullable=True)
-    priority = Column(String(20), default="normal")  # low, normal, high, urgent
-    status = Column(String(20), default="pending")  # pending, assigned, in_progress, completed, cancelled
-    notes = Column(Text, nullable=True)
+    priority = Column(String(20), default="medium")  # low, medium, high
+    status = Column(String(20), default="pending")  # pending, in_progress, completed, cancelled
+    details = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
+
     user = relationship("User", back_populates="schedules")
+
+    @property
+    def worker_name(self):
+        if not self.user:
+            return None
+        return self.user.full_name or self.user.username
 
 
 class Waste(Base):
     __tablename__ = "waste"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     harvest_id = Column(Integer, ForeignKey("harvest.id"), nullable=True)
-    waste_type = Column(String(100), nullable=False)  # rotten, damaged, unused_parts, other
+    waste_type = Column(String(100), nullable=False)  # rotten, damaged, overripe, unused_parts, other
     quantity_kg = Column(Float, nullable=False)
     waste_date = Column(Date, nullable=False)
-    disposal_method = Column(String(100), nullable=True)  # compost, recycle, discard, donate
+    classification = Column(String(30), nullable=False, default="compostable")  # compostable, recyclable, non-recyclable
+    disposal_method = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
+
     user = relationship("User", back_populates="waste_records")
     harvest = relationship("Harvest", back_populates="waste_records")
+
+    @property
+    def recorded_by(self) -> int:
+        return self.user_id
+
+    @property
+    def batch_number(self):
+        return self.harvest.batch_number if self.harvest else None
 
 
 class QualityTarget(Base):
@@ -154,3 +181,12 @@ class AILog(Base):
     
     user = relationship("User", back_populates="ai_logs")
     harvest = relationship("Harvest", back_populates="ai_logs")
+
+
+class AppSetting(Base):
+    """System-wide settings, stored as a single JSON document"""
+    __tablename__ = "app_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    data = Column(Text, nullable=False, default="{}")
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

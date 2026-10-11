@@ -1,12 +1,28 @@
 import { useState, useEffect } from 'react'
-import { Settings, Bell, Shield, Database, Palette, Save, CheckCircle2, Target } from 'lucide-react'
+import { Settings, Bell, Database, Save, CheckCircle2, Target } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
-import { apiClient } from '../../services/api'
+import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
 
 interface ToggleSetting { id: string; label: string; desc: string; value: boolean }
 
 export default function AdminSettings() {
   const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [exporting, setExporting] = useState(false)
+
+  const handleExport = async () => {
+    setExporting(true)
+    setSaveError('')
+    try {
+      const blob = await apiClient.exportAllData()
+      saveBlob(blob, `pinetrack-export-${new Date().toISOString().split('T')[0]}.zip`)
+    } catch (err) {
+      setSaveError(apiErrorMessage(err, 'Export failed.'))
+    } finally {
+      setExporting(false)
+    }
+  }
   const [farmName, setFarmName] = useState('PineTrack Farm')
   const [timezone, setTimezone] = useState('Asia/Kuala_Lumpur')
   const [language, setLanguage] = useState('English')
@@ -23,7 +39,17 @@ export default function AdminSettings() {
         setMaxSpoilageRate(String(t.max_spoilage_rate))
         setMaxRejectionRate(String(t.max_rejection_rate))
       })
-      .catch(() => { /* keep defaults if backend/demo mode unavailable */ })
+      .catch((err) => setTargetsError(apiErrorMessage(err, 'Could not load quality targets.')))
+
+    apiClient.getSettings()
+      .then(s => {
+        setFarmName(s.farm_name)
+        setTimezone(s.timezone)
+        setLanguage(s.language)
+        // Stored toggles override the defaults below; unknown ids are ignored
+        setNotifications(prev => prev.map(n => n.id in s.notifications ? { ...n, value: s.notifications[n.id] } : n))
+      })
+      .catch((err) => setSaveError(apiErrorMessage(err, 'Could not load settings.')))
   }, [])
 
   const handleSaveTargets = async () => {
@@ -36,8 +62,8 @@ export default function AdminSettings() {
       })
       setTargetsSaved(true)
       setTimeout(() => setTargetsSaved(false), 3000)
-    } catch {
-      setTargetsError('Failed to save targets — admin access required.')
+    } catch (err) {
+      setTargetsError(apiErrorMessage(err, 'Failed to save targets.'))
     } finally {
       setTargetsSaving(false)
     }
@@ -46,15 +72,9 @@ export default function AdminSettings() {
   const [notifications, setNotifications] = useState<ToggleSetting[]>([
     { id: 'harvest_alerts',   label: 'Harvest Alerts',      desc: 'Notify when harvest batches are logged',       value: true  },
     { id: 'waste_threshold',  label: 'Waste Threshold',     desc: 'Alert when waste exceeds 5% of harvest',      value: true  },
-    { id: 'ai_insights',      label: 'AI Recommendations',  desc: 'Push notifications for new AI insights',      value: true  },
+    { id: 'ai_insights',      label: 'Agent Recommendations', desc: 'Notify when PineTrack Agent has new recommendations',      value: true  },
     { id: 'transport_delay',  label: 'Transport Delays',    desc: 'Alert when deliveries are overdue',           value: false },
     { id: 'weekly_report',    label: 'Weekly Reports',      desc: 'Auto-generate reports every Monday',          value: true  },
-  ])
-
-  const [security, setSecurity] = useState<ToggleSetting[]>([
-    { id: 'two_factor',     label: 'Two-Factor Auth',       desc: 'Require 2FA for all admin accounts',  value: false },
-    { id: 'session_expire', label: 'Session Timeout',       desc: 'Auto-logout after 8 hours inactivity', value: true  },
-    { id: 'audit_log',      label: 'Audit Logging',         desc: 'Log all admin actions for review',    value: true  },
   ])
 
   const toggle = (
@@ -65,8 +85,23 @@ export default function AdminSettings() {
   }
 
   const handleSave = async () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    setSaving(true)
+    setSaveError('')
+    try {
+      await apiClient.updateSettings({
+        farm_name: farmName,
+        timezone,
+        language,
+        notifications: Object.fromEntries(notifications.map(n => [n.id, n.value])),
+        security: {},
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      setSaveError(apiErrorMessage(err, 'Failed to save settings.'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const ToggleRow = ({ item, onToggle }: { item: ToggleSetting; onToggle: () => void }) => (
@@ -95,11 +130,13 @@ export default function AdminSettings() {
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-semibold text-sm hover:bg-green-700 active:scale-[0.98] transition-all shadow-md shadow-green-100"
+          disabled={saving}
+          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-semibold text-sm hover:bg-green-700 active:scale-[0.98] transition-all shadow-md shadow-green-100 disabled:opacity-60"
         >
           <Save size={15} />
-          Save Changes
+          {saving ? 'Saving…' : 'Save Changes'}
         </button>
+        {saveError && <p className="text-sm text-red-600">{saveError}</p>}
         {saved && (
           <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
             <CheckCircle2 size={16} /> Settings saved!
@@ -215,42 +252,15 @@ export default function AdminSettings() {
               <div className="flex items-center justify-between py-2">
                 <div>
                   <p className="text-sm font-medium text-gray-900">Export All Data</p>
-                  <p className="text-xs text-gray-500">Download complete database as CSV</p>
+                  <p className="text-xs text-gray-500">Download every table as CSV files in one zip</p>
                 </div>
-                <button className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-50 transition-colors">
-                  Export CSV
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-50 transition-colors disabled:opacity-60"
+                >
+                  {exporting ? 'Exporting…' : 'Export CSV'}
                 </button>
-              </div>
-              <div className="flex items-center justify-between py-2 border-t border-gray-50">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Database Backup</p>
-                  <p className="text-xs text-gray-500">Last backup: 2 hours ago</p>
-                </div>
-                <button className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-50 transition-colors">
-                  Backup Now
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Appearance */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
-              <Palette size={15} className="text-slate-600" />
-              <h3 className="text-sm font-bold text-gray-900">Appearance</h3>
-            </div>
-            <div className="p-5">
-              <div className="flex gap-3">
-                {[
-                  { label: 'System', bg: 'bg-gradient-to-r from-white to-gray-900' },
-                  { label: 'Light',  bg: 'bg-white border-2 border-gray-200' },
-                  { label: 'Dark',   bg: 'bg-slate-900' },
-                ].map(t => (
-                  <button key={t.label} className="flex flex-col items-center gap-2">
-                    <div className={`w-20 h-12 rounded-lg ${t.bg} shadow-sm`} />
-                    <span className="text-xs text-gray-500">{t.label}</span>
-                  </button>
-                ))}
               </div>
             </div>
           </div>
@@ -264,24 +274,14 @@ export default function AdminSettings() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
               <Bell size={15} className="text-slate-600" />
-              <h3 className="text-sm font-bold text-gray-900">Notifications</h3>
+              <h3 className="text-sm font-bold text-gray-900">Notification Preferences</h3>
             </div>
             <div className="px-5">
+              <p className="text-xs text-gray-500 pt-4">
+                Saved with your settings. Alerts currently appear on the dashboard; email and push delivery is not set up.
+              </p>
               {notifications.map(item => (
                 <ToggleRow key={item.id} item={item} onToggle={() => toggle(setNotifications, item.id)} />
-              ))}
-            </div>
-          </div>
-
-          {/* Security */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
-              <Shield size={15} className="text-slate-600" />
-              <h3 className="text-sm font-bold text-gray-900">Security</h3>
-            </div>
-            <div className="px-5">
-              {security.map(item => (
-                <ToggleRow key={item.id} item={item} onToggle={() => toggle(setSecurity, item.id)} />
               ))}
             </div>
           </div>

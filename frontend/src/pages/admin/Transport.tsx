@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2, X, Truck, Clock, CheckCircle2, Search, XCircle } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
-import { apiClient } from '../../services/api'
-import { Transport } from '../../types'
+import { apiClient, apiErrorMessage } from '../../services/api'
+import { Transport, SystemUser, Harvest } from '../../types'
 
 const STATUS_STYLES: Record<string, { badge: string; icon: React.ElementType; label: string }> = {
   pending:    { badge: 'bg-amber-100 text-amber-800',  icon: Clock,         label: 'Pending'    },
@@ -19,6 +19,8 @@ const EMPTY_FORM = {
   status:            'pending',
   cargo_weight_kg:   '',
   notes:             '',
+  driver_id:         '',
+  harvest_id:        '',
 }
 
 function Modal({ open, title, onClose, children }: {
@@ -57,31 +59,31 @@ export default function TransportPage() {
   const [form, setForm]             = useState({ ...EMPTY_FORM })
   const [submitting, setSub]        = useState(false)
   const [toast, setToast]           = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [workers, setWorkers]       = useState<SystemUser[]>([])
+  const [harvests, setHarvests]     = useState<Harvest[]>([])
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
   }
 
-  const DEMO_TRANSPORTS: Transport[] = [
-    { id: 1, destination: 'Kuala Lumpur Central Market', driver_name: 'Ahmad bin Razak', vehicle_number: 'WXY 1234', scheduled_date: '2026-05-22', status: 'in_transit', cargo_weight_kg: 450, created_at: '2026-05-21T08:00:00' },
-    { id: 2, destination: 'Johor Bahru Fresh Produce Hub', driver_name: 'Ramli Hassan', vehicle_number: 'JHF 5678', scheduled_date: '2026-05-21', status: 'delivered', cargo_weight_kg: 380, created_at: '2026-05-20T09:00:00' },
-    { id: 3, destination: 'Penang Wholesale Market', driver_name: 'Kamal Ibrahim', vehicle_number: 'PEX 9012', scheduled_date: '2026-05-23', status: 'pending', cargo_weight_kg: 520, created_at: '2026-05-22T07:00:00' },
-    { id: 4, destination: 'Seremban Distribution Centre', driver_name: 'Faizal Yusof', vehicle_number: 'NSA 3456', scheduled_date: '2026-05-20', status: 'delivered', cargo_weight_kg: 290, created_at: '2026-05-19T10:00:00' },
-  ]
-
   const load = async () => {
     try {
       const d = await apiClient.listTransports()
       setTransports(d.items || [])
-    } catch {
-      setTransports(DEMO_TRANSPORTS)
+    } catch (err) {
+      setTransports([])
+      showToast(apiErrorMessage(err, 'Failed to load transports'), 'error')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    apiClient.listUsers().then(d => setWorkers(d.items.filter(u => u.is_active))).catch(() => setWorkers([]))
+    apiClient.listHarvests(0, 500).then(d => setHarvests(d.items)).catch(() => setHarvests([]))
+  }, [])
 
   const openCreate = () => { setEditing(null); setForm({ ...EMPTY_FORM }); setModal(true) }
   const openEdit   = (t: Transport) => {
@@ -94,6 +96,8 @@ export default function TransportPage() {
       status:          t.status,
       cargo_weight_kg: t.cargo_weight_kg ? String(t.cargo_weight_kg) : '',
       notes:           t.notes || '',
+      driver_id:       t.driver_id ? String(t.driver_id) : '',
+      harvest_id:      t.harvest_id ? String(t.harvest_id) : '',
     })
     setModal(true)
   }
@@ -102,7 +106,12 @@ export default function TransportPage() {
     e.preventDefault()
     setSub(true)
     try {
-      const payload = { ...form, cargo_weight_kg: form.cargo_weight_kg ? parseFloat(form.cargo_weight_kg) : undefined } as any
+      const payload = {
+        ...form,
+        cargo_weight_kg: form.cargo_weight_kg ? parseFloat(form.cargo_weight_kg) : undefined,
+        driver_id: form.driver_id ? parseInt(form.driver_id) : null,
+        harvest_id: form.harvest_id ? parseInt(form.harvest_id) : null,
+      } as any
       if (editing) {
         await apiClient.updateTransport(editing.id, payload)
         showToast('Transport updated', 'success')
@@ -112,8 +121,8 @@ export default function TransportPage() {
       }
       setModal(false)
       load()
-    } catch {
-      showToast('Failed to save transport', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Failed to save transport'), 'error')
     } finally {
       setSub(false)
     }
@@ -124,8 +133,8 @@ export default function TransportPage() {
       await apiClient.updateTransport(id, { status })
       showToast('Status updated', 'success')
       load()
-    } catch {
-      showToast('Update failed', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Update failed'), 'error')
     }
   }
 
@@ -135,8 +144,8 @@ export default function TransportPage() {
       showToast('Transport deleted', 'success')
       setDel(null)
       load()
-    } catch {
-      showToast('Delete failed', 'error')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Delete failed'), 'error')
     }
   }
 
@@ -220,7 +229,7 @@ export default function TransportPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    {['Destination', 'Driver', 'Vehicle', 'Scheduled', 'Weight (kg)', 'Status', 'Actions'].map((h) => (
+                    {['Batch', 'Destination', 'Driver', 'Vehicle', 'Scheduled', 'Weight (kg)', 'Status', 'Actions'].map((h) => (
                       <th key={h} className="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -231,6 +240,7 @@ export default function TransportPage() {
                     const Icon = s.icon
                     return (
                       <tr key={t.id} className={`border-b border-gray-50 hover:bg-gray-50/60 ${i % 2 ? 'bg-gray-50/30' : ''}`}>
+                        <td className="px-4 py-3 text-gray-600 font-mono text-xs">{t.batch_number || '—'}</td>
                         <td className="px-4 py-3 font-medium text-gray-900">{t.destination}</td>
                         <td className="px-4 py-3 text-gray-600">{t.driver_name}</td>
                         <td className="px-4 py-3 text-gray-600 font-mono text-xs">{t.vehicle_number}</td>
@@ -296,6 +306,43 @@ export default function TransportPage() {
               <input type="text" value={form.vehicle_number} onChange={(e) => setForm({...form, vehicle_number: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="e.g. WXY 1234" required />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Harvest Batch</label>
+              <select
+                value={form.harvest_id}
+                onChange={(e) => {
+                  const batch = harvests.find(h => String(h.id) === e.target.value)
+                  // Suggest the batch's marketable weight as the cargo weight when none was typed
+                  setForm({
+                    ...form,
+                    harvest_id: e.target.value,
+                    cargo_weight_kg: form.cargo_weight_kg || (batch ? String(batch.marketable_yield_kg) : ''),
+                  })
+                }}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">No batch linked</option>
+                {harvests.map(h => (
+                  <option key={h.id} value={h.id}>{h.batch_number} · {h.field_name} · {h.quantity_kg} kg</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Assign to Worker</label>
+              <select
+                value={form.driver_id}
+                onChange={(e) => {
+                  const worker = workers.find(w => String(w.id) === e.target.value)
+                  // Pre-fill the driver name from the chosen account; it stays editable
+                  setForm({ ...form, driver_id: e.target.value, driver_name: worker ? (worker.full_name || worker.username) : form.driver_name })
+                }}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Not assigned (external driver)</option>
+                {workers.map(w => (
+                  <option key={w.id} value={w.id}>{w.full_name || w.username} ({w.role})</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">The assigned worker sees this delivery in their app and can update its status.</p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Scheduled Date *</label>
