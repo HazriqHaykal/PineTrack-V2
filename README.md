@@ -1,508 +1,207 @@
-# 🍍 PineTrack V2.0 - Intelligent Pineapple Harvest Management System
+# PineTrack V2
 
-> A modern 3-tier web application for managing pineapple harvesting with AI-powered recommendations.
+A web-based post-harvest management system for pineapple farms. It tracks each harvest batch from the field through grading, transport and delivery, records waste, schedules worker tasks, and includes an assistant (PineTrack Agent) that gives recommendations from the farm's own data.
 
-## 📊 Project Status
+Final-year project.
 
-| Phase | Component | Status | Completion |
-|-------|-----------|--------|-----------|
-| 1 | Backend Foundation | ✅ Complete | 100% |
-| 2 | Authentication & RBAC | ✅ Complete | 100% |
-| 3 | **Core Modules** | ✅ **Complete** | **100%** |
-| 4 | Frontend (React) | ⏳ Ready | 0% |
-| 5 | AI/ML & Reports | ⏳ Ready | 5% |
-| 6 | Deployment | ⏳ Ready | 0% |
+## Features
 
-**Current Status**: Phase 3 Complete ✅ - Backend production-ready!
+**Admin**
 
----
+| Module | What it does |
+|---|---|
+| Dashboard | Live totals, monthly harvest volume, grade split, worker performance, alerts, recent batches |
+| Harvest | Create, grade, edit and delete batches; spoilage and rejection tracked against quality targets |
+| Transport | Plan deliveries, link them to a harvest batch, assign a worker as driver, track status to delivery |
+| Scheduling | Assign dated (and optionally timed) tasks to workers |
+| Waste | Log waste by type and classification, linked to the batch it came from |
+| PineTrack Agent | Farm-wide recommendations, harvest timing advice, waste handling advice |
+| Analytics | 30-day KPIs compared with the previous 30 days, trend charts |
+| Reports | PDF reports for harvest, transport, waste, analytics or full operations |
+| Users | Create accounts, change roles, activate or deactivate, change passwords |
+| Settings | Farm details, quality targets, CSV export of all data |
 
-## 🎯 Features Implemented
+**Worker**
 
-### ✅ Core Operational Modules (35 API Endpoints)
+| Page | What it does |
+|---|---|
+| My Tasks | Today's assigned tasks; start them or mark them done |
+| Harvest | Log a new harvest batch |
+| Transport | See assigned deliveries; dispatch and mark delivered |
+| Waste | Log waste, optionally against one of your own batches |
+| Schedule | All assigned tasks by day |
+| My Records | Everything you have logged |
+| Profile | Your totals and achievements |
 
-**🌾 Harvest Management** (7 endpoints)
-- Create, read, update, delete harvest records
-- Quality grading and tracking
-- Yield statistics by date range
-- Field-based harvest queries
+Workers only see and change their own records. Admins see everything.
 
-**🚚 Transport Management** (8 endpoints)
-- Manage pineapple logistics
-- Track delivery status (pending → in_transit → delivered)
-- Calculate delivery efficiency
-- Link to harvest batches
+## Tech stack
 
-**📅 Schedule Management** (9 endpoints)
-- Create and assign tasks to workers
-- Priority-based scheduling (low, normal, high, urgent)
-- Conflict detection
-- Worker availability tracking
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Recharts |
+| Backend | Python, FastAPI, SQLAlchemy |
+| Database | PostgreSQL on Supabase (SQLite for local development) |
+| Assistant | Google Gemini API, with a rule-based fallback |
+| Auth | JWT bearer tokens, bcrypt password hashing, role-based access |
+| Reports | ReportLab (PDF) |
 
-**♻️ Waste Management** (6 endpoints)
-- Classify waste types (rotten, damaged, unused_parts)
-- Track disposal methods (compost, recycle, discard, donate)
-- Calculate sustainability KPIs
-- Optional harvest linking
+## Getting started
 
-**🤖 AI Recommendation Engine** (5 endpoints)
-- Harvest timing predictions with confidence scores
-- Quality predictions (high, medium, low)
-- Waste classification
-- Model versioning and performance metrics
+You need Python 3.11+ and Node.js 18+.
 
-### ✅ Security & Authentication
+### 1. Backend
 
-- JWT token-based authentication (24-hour expiry)
-- Role-Based Access Control (RBAC) - 3 roles: admin, worker, user
-- User data isolation (workers see only their records)
-- Admin-only operations (delete, assign, manage)
-- Comprehensive input validation
-- Clear error responses
-
-### ✅ Database Integration
-
-- PostgreSQL with SQLAlchemy ORM
-- 6 main tables: users, harvest, transport, schedules, waste, ai_logs
-- Proper foreign key relationships
-- Cascade deletes configured
-- Timestamps on all records
-- Indexes for performance
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.8+
-- PostgreSQL 12+
-- Git
-
-### 1. Clone & Setup
 ```bash
 cd backend
-python -m venv venv
-# Windows: venv\Scripts\activate
-# Linux/Mac: source venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 2. Configure Database
-```bash
-# Create database
-createdb pinetrack
-
-# Apply schema
-psql pinetrack < ../database/schema.sql
-```
-
-### 3. Create Environment File
-```bash
-# Copy and edit .env
 cp .env.example .env
 ```
 
-Edit `.env`:
-```
-DATABASE_URL=postgresql://user:password@localhost:5432/pinetrack
-SECRET_KEY=your-secret-key-here-change-in-production
-ENVIRONMENT=development
-```
+Edit `backend/.env` (see [Configuration](#configuration)). With the defaults it uses a local SQLite file and needs no other setup.
 
-### 4. Run Backend
+Create the tables, login accounts and sample data:
+
 ```bash
-python -m uvicorn app.main:app --reload
+python seed.py
 ```
 
-### 5. Access APIs
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/health
+Start the API:
 
----
+```bash
+python -m uvicorn app.main:app --reload --port 8000
+```
 
-## 📚 Documentation
+Interactive API documentation is at http://localhost:8000/docs.
 
-| Document | Purpose | Location |
-|----------|---------|----------|
-| **API_REFERENCE.md** | Complete endpoint documentation with examples | `backend/` |
-| **PHASE3_COMPLETE.md** | Phase 3 completion summary (THIS IS GREAT!) | Root |
-| **BUILD_STATUS.md** | Current build status and progress tracking | Root |
-| **QUICK_REFERENCE.md** | Quick auth API guide | Root |
-| **IMPLEMENTATION_SUMMARY.md** | Phase 2 (Auth) implementation details | Root |
-| **PHASE1_SETUP.md** | Phase 1 (Backend Foundation) setup guide | Root |
+### 2. Frontend
 
-👉 **Start with**: `PHASE3_COMPLETE.md` to see what was built!
+In a second terminal:
 
----
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-## 🏗️ Project Structure
+Open http://localhost:5173.
+
+### Sample logins
+
+Created by `seed.py`:
+
+| Username | Password | Role |
+|---|---|---|
+| `admin` | `admin123` | Admin |
+| `hazriq` | `worker123` | Worker |
+| `ibrahim` | `worker123` | Worker |
+| `arif` | `worker123` | Worker |
+
+These are for development only. Change the passwords before any real use.
+
+## Configuration
+
+All backend settings live in `backend/.env`. This file is not committed; never put real keys in `.env.example`.
+
+| Setting | Purpose |
+|---|---|
+| `DATABASE_URL` | Database connection. `sqlite:///./pinetrack.db` for local use, or a Supabase connection string. |
+| `SECRET_KEY` | Signs login tokens. Use a long random value outside development. |
+| `GEMINI_API_KEY` | Enables PineTrack Agent's Gemini answers. Optional. |
+| `GEMINI_MODEL` | Gemini model name. Defaults to `gemini-3.8-flash`. |
+
+The frontend reads one optional setting, `VITE_API_URL`, from `frontend/.env`. It defaults to `http://localhost:8000/api`.
+
+### Using Supabase
+
+1. Create a project at https://supabase.com.
+2. Click **Connect** and copy the **Session pooler** connection string. The "Direct connection" string is IPv6-only and does not work on many networks.
+3. Set it as `DATABASE_URL` in `backend/.env`, with your database password in place of the placeholder:
+
+   ```
+   DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+   ```
+
+4. Run `python seed.py`, then start the backend.
+
+The backend creates its tables on startup and turns on row level security for them, so they cannot be read through Supabase's public API.
+
+### PineTrack Agent
+
+With `GEMINI_API_KEY` set, harvest timing, waste handling and farm-wide recommendations are generated by Gemini from a summary of the farm's recent data. Without a key, or if a Gemini call fails, the same features answer from built-in rules, and each result is labelled with which one produced it.
+
+Get a key at https://aistudio.google.com/apikey. If Gemini reports that the model is no longer available, set `GEMINI_MODEL` to the name it suggests.
+
+## Sample data
+
+`seed.py` loads a small, fully linked data set: 6 harvest batches, 4 deliveries, 4 waste records and 6 tasks across the three workers. Dates are relative to the day it runs.
+
+```bash
+python seed.py            # add accounts and data if the database is empty
+python seed.py --reset    # wipe every table first, then seed
+```
+
+`--reset` deletes all existing data in the database `DATABASE_URL` points to.
+
+## Tests
+
+```bash
+cd backend
+python -m pytest
+```
+
+The tests use a temporary SQLite file and never touch the configured database.
+
+## Project structure
 
 ```
 PinetrackV2/
-├── backend/                          # FastAPI Backend
+├── backend/
 │   ├── app/
-│   │   ├── main.py                  # FastAPI app entry point
-│   │   ├── config.py                # Database & auth config
-│   │   ├── models.py                # SQLAlchemy ORM models (6)
-│   │   ├── schemas.py               # Pydantic validation schemas
-│   │   ├── middleware/
-│   │   │   └── rbac.py              # Role-based access control
-│   │   ├── services/                # Business logic (6 services)
-│   │   │   ├── auth_service.py      ✅ Authentication
-│   │   │   ├── harvest_service.py   ✅ Harvest operations
-│   │   │   ├── transport_service.py ✅ Transport operations
-│   │   │   ├── waste_service.py     ✅ Waste operations
-│   │   │   ├── schedule_service.py  ✅ Schedule operations
-│   │   │   └── ai_service.py        ✅ AI recommendations
-│   │   └── routers/                 # API endpoints (6 routers)
-│   │       ├── auth.py              ✅ Auth endpoints
-│   │       ├── harvest.py           ✅ Harvest endpoints
-│   │       ├── transport.py         ✅ Transport endpoints
-│   │       ├── waste.py             ✅ Waste endpoints
-│   │       ├── schedule.py          ✅ Schedule endpoints
-│   │       └── ai.py                ✅ AI endpoints
+│   │   ├── main.py            App entry point, startup table creation
+│   │   ├── config.py          Settings and database connection
+│   │   ├── models.py          Database tables
+│   │   ├── schemas.py         Request and response shapes
+│   │   ├── middleware/rbac.py Token checking and role guards
+│   │   ├── routers/           API endpoints, one file per module
+│   │   └── services/          Business logic, one file per module
 │   ├── tests/
-│   │   ├── test_auth.py             ✅ Auth tests
-│   │   └── test_harvest.py          ✅ Harvest tests (40+ cases)
-│   ├── requirements.txt             # Python dependencies
-│   ├── .env.example                 # Environment template
-│   ├── API_REFERENCE.md             # API documentation
-│   └── AUTH_SYSTEM.md               # Auth system documentation
-│
-├── frontend/                        # React Frontend (Ready)
-│   └── src/                         # Ready for implementation
-│
-├── database/
-│   └── schema.sql                   # PostgreSQL schema
-│
-├── docs/
-├── BUILD_STATUS.md                  # Project status
-├── PHASE3_COMPLETE.md               # Phase 3 summary ⭐
-├── PHASE3_SETUP.md                  # Phase 3 guide
-├── QUICK_REFERENCE.md               # Quick guides
-├── IMPLEMENTATION_SUMMARY.md        # Implementation docs
-└── README.md                        # This file
+│   ├── seed.py                Sample accounts and data
+│   ├── requirements.txt
+│   └── .env.example
+├── frontend/
+│   └── src/
+│       ├── pages/admin/       Admin pages
+│       ├── pages/worker/      Worker pages
+│       ├── components/layout/ Sidebars and page shells
+│       ├── services/          API client and login state
+│       └── types/             Shared TypeScript types
+└── database/
+    └── schema.sql             Reference PostgreSQL schema
 ```
 
----
-
-## 📡 API Endpoints Overview
-
-### Authentication (4)
-```
-POST   /api/auth/register         - Register new user
-POST   /api/auth/login            - Login
-GET    /api/auth/me               - Get current user
-POST   /api/auth/refresh          - Refresh token
-```
-
-### Harvest (7)
-```
-POST   /api/harvest/              - Create harvest
-GET    /api/harvest/{id}          - Get harvest
-GET    /api/harvest/              - List harvests
-PATCH  /api/harvest/{id}          - Update harvest
-DELETE /api/harvest/{id}          - Delete harvest
-GET    /api/harvest/statistics/summary - Get stats
-GET    /api/harvest/field/{name}  - Get by field
-```
-
-### Transport (8)
-```
-POST   /api/transport/            - Create transport
-GET    /api/transport/{id}        - Get transport
-GET    /api/transport/            - List transports
-PATCH  /api/transport/{id}        - Update transport
-PATCH  /api/transport/{id}/status - Update status
-DELETE /api/transport/{id}        - Delete transport
-GET    /api/transport/efficiency/statistics - Get stats
-GET    /api/transport/destination/{dest} - Get by destination
-```
-
-### Waste (6)
-```
-POST   /api/waste/                - Create waste
-GET    /api/waste/{id}            - Get waste
-GET    /api/waste/                - List waste
-PATCH  /api/waste/{id}            - Update waste
-DELETE /api/waste/{id}            - Delete waste
-GET    /api/waste/statistics/summary - Get stats
-```
-
-### Schedule (9)
-```
-POST   /api/schedule/             - Create schedule
-GET    /api/schedule/{id}         - Get schedule
-GET    /api/schedule/             - List schedules
-PATCH  /api/schedule/{id}         - Update schedule
-PATCH  /api/schedule/{id}/status  - Update status
-DELETE /api/schedule/{id}         - Delete schedule
-POST   /api/schedule/{id}/assign  - Assign to worker
-GET    /api/schedule/worker/my-schedule - My tasks
-GET    /api/schedule/worker/{id}/schedule - Worker's schedule
-```
-
-### AI (5)
-```
-POST   /api/ai/predict/harvest-timing - Harvest recommendation
-POST   /api/ai/predict/waste-classification - Waste prediction
-GET    /api/ai/logs               - List prediction logs
-GET    /api/ai/logs/{id}          - Get log details
-GET    /api/ai/metrics            - Get AI metrics
-```
-
-**Total: 39 endpoints** ✅
-
----
-
-## 🧪 Testing
-
-### Run Tests
-```bash
-cd backend
-# Install pytest
-pip install pytest pytest-asyncio
-
-# Run all tests
-pytest tests/ -v
-
-# Run specific module
-pytest tests/test_harvest.py -v
-
-# Run with coverage
-pytest --cov=app --cov-report=html
-```
-
-### Test Coverage
-- ✅ Harvest Module: 40+ test cases
-- ⏳ Other Modules: Ready for test suite
-
----
-
-## 🔐 Security Features
-
-### Authentication
-- JWT tokens with 24-hour expiry
-- Token refresh mechanism
-- Bcrypt password hashing
-- Email validation
-
-### Authorization
-- Admin role: Full system access
-- Worker role: Operational data, own records only
-- User role: Basic access (deprecated in favor of worker)
-- Hierarchical permission checking
-
-### Validation
-- Pydantic input validation
-- Business logic validation
-- Authorization checks on all endpoints
-- Clear error responses
-
-### Database
-- No SQL injection (SQLAlchemy ORM)
-- CORS configured
-- Secure connection support
-- Environment-based secrets
-
----
-
-## 📊 Key Metrics
-
-| Metric | Value |
-|--------|-------|
-| **Total API Endpoints** | 35 ✅ |
-| **Service Classes** | 6 |
-| **Router Modules** | 6 |
-| **Database Tables** | 6 |
-| **Test Cases** | 40+ |
-| **Lines of Code** | ~5,500 |
-| **API Endpoints** | 39 |
-| **Security Roles** | 3 |
-| **Validation Rules** | 50+ |
-
----
-
-## 🛠️ Technology Stack
-
-### Backend
-- **Framework**: FastAPI (modern, async-ready)
-- **ORM**: SQLAlchemy 2.0
-- **Database**: PostgreSQL
-- **Validation**: Pydantic
-- **Auth**: JWT + python-jose
-- **Security**: Bcrypt password hashing
-- **ML/AI**: scikit-learn, numpy, pandas
-
-### Frontend (Ready)
-- **Framework**: React 18+ with TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS
-- **UI Components**: shadcn/ui + Radix UI
-- **Charts**: Recharts
-- **HTTP**: Axios
-
-### DevOps (Ready)
-- **Backend Deployment**: Railway, Render, Heroku
-- **Frontend Deployment**: Vercel, Netlify
-- **Database**: Supabase, Railway PostgreSQL
-- **Monitoring**: TBD (Phase 6)
-
----
-
-## 🚀 Deployment Ready
-
-### Prerequisites Met
-✅ All backend modules implemented  
-✅ API documentation complete  
-✅ RBAC security configured  
-✅ Input validation comprehensive  
-✅ Error handling standardized  
-✅ Environment configuration prepared  
-
-### Ready for
-✅ Frontend development (Vite dev server on :5173)  
-✅ Integration testing  
-✅ Production deployment  
-
----
-
-## 📈 What's Next
-
-### Phase 4: Frontend Development
-- React app with TypeScript
-- Login/Register pages
-- Dashboard with KPIs
-- CRUD forms for all modules
-- Analytics dashboards
-- PDF report generation
-
-### Phase 5: Advanced Features
-- ML model training on historical data
-- PDF report generation
-- Email notifications
-- Advanced analytics
-
-### Phase 6: Deployment
-- Deploy backend to production
-- Deploy frontend to CDN
-- Setup monitoring and logging
-- Configure backups
-
----
-
-## 💡 Example Workflows
-
-### Complete Harvest Workflow
-```
-1. Worker registers
-2. Worker creates harvest record
-3. System provides AI recommendation
-4. Worker creates transport job
-5. Worker updates transport status
-6. System logs any waste
-7. Admin views statistics
-8. System generates report
-```
-
-### Admin Scheduling Workflow
-```
-1. Admin creates schedule/task
-2. Admin assigns to worker
-3. Worker views assigned tasks
-4. Worker updates task status
-5. Admin views completion metrics
-```
-
----
-
-## 📞 Support & Resources
-
-### Getting Help
-1. Check the **API_REFERENCE.md** for endpoint documentation
-2. Review **PHASE3_COMPLETE.md** for project overview
-3. See **QUICK_REFERENCE.md** for common tasks
-4. Check test files for usage examples
-
-### External Resources
-- FastAPI: https://fastapi.tiangolo.com/
-- SQLAlchemy: https://www.sqlalchemy.org/
-- PostgreSQL: https://www.postgresql.org/
-- JWT: https://jwt.io/
-
----
-
-## 📝 License
-
-This project is part of a Final Year Project (FYP).
-
----
-
-## 👥 Contributors
-
-- AI Assistant (GitHub Copilot CLI)
-- Development: 2026-05-20
-
----
-
-## 🎯 Goals Achieved
-
-✅ **Complete API Implementation** - All 35 endpoints working  
-✅ **Production-Ready Code** - RBAC, validation, error handling  
-✅ **Comprehensive Documentation** - API reference + guides  
-✅ **Security Implemented** - JWT + RBAC + validation  
-✅ **Database Integrated** - PostgreSQL with SQLAlchemy  
-✅ **Test Suite Started** - 40+ test cases ready  
-✅ **Ready for Frontend** - Backend 100% complete  
-
----
-
-## 🎉 Phase 3 Status: COMPLETE ✅
-
-**Backend**: Production Ready  
-**API Endpoints**: 35 (all functional)  
-**Database**: Configured and optimized  
-**Security**: RBAC + JWT implemented  
-**Documentation**: Comprehensive  
-**Tests**: Started (40+ cases)  
-
-**Next Step**: Start Frontend Development (Phase 4)
-
----
-
-**Last Updated**: 2026-05-20 20:06  
-**Status**: ✅ Phase 3 Complete  
-**Next Phase**: Frontend Implementation  
-
----
-
-## 🚀 Getting Started Now
-
-```bash
-# 1. Clone repo
-git clone <repo-url>
-cd PinetrackV2
-
-# 2. Setup backend
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# 3. Configure database
-createdb pinetrack
-psql pinetrack < ../database/schema.sql
-
-# 4. Create .env file
-cp .env.example .env
-# Edit .env with your database URL and secret key
-
-# 5. Run server
-python -m uvicorn app.main:app --reload
-
-# 6. Visit Swagger UI
-# Open: http://localhost:8000/docs
-```
-
-**Happy farming! 🍍**
+## API
+
+Every endpoint is under `/api` and, apart from login and register, needs an `Authorization: Bearer <token>` header. The live reference at http://localhost:8000/docs is always current.
+
+| Prefix | Covers |
+|---|---|
+| `/api/auth` | Register, login, current user, token refresh |
+| `/api/users` | User management, own profile and statistics |
+| `/api/harvest` | Batches, statistics, quality targets |
+| `/api/transport` | Deliveries, status updates, efficiency |
+| `/api/schedule` | Tasks, assignment, a worker's own schedule |
+| `/api/waste` | Waste records and statistics |
+| `/api/ai` | PineTrack Agent: status, predictions, recommendations, activity log |
+| `/api/analytics` | Dashboard and analytics data |
+| `/api/reports` | PDF reports |
+| `/api/settings`, `/api/export` | System settings, CSV export |
+
+## Known limitations
+
+- Not deployed; it runs locally.
+- Registration is open: anyone who can reach the register page can create a worker account.
+- Notification preferences are saved but nothing sends email or push notifications.
+- Timezone and language settings are saved but do not change the interface.
+- PineTrack Agent's recommendation buttons open the related page; they do not create tasks.
+- A deactivated user's existing login token keeps working until it expires (24 hours).
