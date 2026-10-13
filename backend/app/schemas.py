@@ -12,11 +12,6 @@ class LoginRequest(BaseModel):
     username: str = Field(..., min_length=3)
     password: str = Field(..., min_length=6)
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: Optional['UserResponse'] = None
-
 # User Schemas
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
@@ -41,9 +36,14 @@ class UserResponse(UserBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: Optional[UserResponse] = None
 
 # Harvest Schemas
 class HarvestBase(BaseModel):
