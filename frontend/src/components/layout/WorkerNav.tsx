@@ -1,9 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { CheckSquare, Sprout, Truck, Recycle, Calendar, UserCircle, LogOut } from 'lucide-react'
+import { CheckSquare, Layers, Sprout, Truck, Recycle, Calendar, UserCircle, LogOut } from 'lucide-react'
 import { authService } from '../../services/auth'
 
 const TABS = [
   { icon: CheckSquare, label: 'My Tasks',  path: '/my-tasks'         },
+  { icon: Layers,      label: 'Sulur',     path: '/worker/sulur'     },
   { icon: Sprout,      label: 'Harvest',   path: '/harvest-entry'    },
   { icon: Truck,       label: 'Transport', path: '/transport-update' },
   { icon: Recycle,     label: 'Waste',     path: '/waste-submit'     },
@@ -24,9 +25,7 @@ export default function WorkerNav() {
 
   return (
     <>
-      {/* ── Desktop sidebar (hidden on mobile) ─────────────────── */}
       <aside className="hidden md:flex flex-col bg-white border-r border-gray-200 shrink-0 w-52 min-h-screen">
-        {/* Brand */}
         <div className="flex items-center gap-2.5 px-4 py-4 border-b border-gray-100 h-16">
           <span className="w-8 h-8 rounded-lg bg-green-600 text-white font-bold text-sm flex items-center justify-center shrink-0">PT</span>
           <div>
@@ -35,7 +34,6 @@ export default function WorkerNav() {
           </div>
         </div>
 
-        {/* Nav items */}
         <nav className="flex-1 p-3 space-y-1">
           {TABS.map(({ icon: Icon, label, path }) => {
             const active = isActive(path)
@@ -56,7 +54,6 @@ export default function WorkerNav() {
           })}
         </nav>
 
-        {/* Profile */}
         <div className="p-3 border-t border-gray-100">
           <button
             onClick={() => navigate('/profile')}
@@ -80,7 +77,6 @@ export default function WorkerNav() {
         </div>
       </aside>
 
-      {/* ── Mobile bottom tab bar (hidden on desktop) ───────────── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-area-bottom">
         <div className="flex">
           {TABS.map(({ icon: Icon, label, path }) => {

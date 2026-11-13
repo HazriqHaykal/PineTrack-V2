@@ -27,6 +27,11 @@ import WasteSubmit      from './pages/worker/WasteSubmit'
 import MySchedule       from './pages/worker/MySchedule'
 import Profile          from './pages/worker/Profile'
 import MyRecords        from './pages/worker/MyRecords'
+import SulurManagement from './pages/admin/SulurManagement'
+
+
+
+
 
 // ─── Route guards ──────────────────────────────────────────────────────────────
 
@@ -71,6 +76,27 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/admin/sulur" element={<SulurManagement />} />
+        <Route path="/admin/sulur/*" element={<SulurManagement />} />
+        <Route path="/worker/sulur" element={<SulurManagement />} />
+        <Route path="/worker/sulur/*" element={<SulurManagement />} />
+        <Route path="/sulur" element={<SulurManagement />} />
+        <Route path="/sulur/*" element={<SulurManagement />} />
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         {/* Public */}
         <Route path="/login"    element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />

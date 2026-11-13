@@ -5,6 +5,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import AdminLayout from '../../components/layout/AdminLayout'
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { AILog, AIMetrics, AIRecommendation, AIRecommendations, AIStatus } from '../../types'
+import { SulurIntelligenceSection } from '../../components/sulur/SulurModuleBridge'
+
 
 const PRIORITY_STYLES = {
   high:   { badge: 'bg-red-100 text-red-700'     },
@@ -264,6 +266,7 @@ export default function AIInsights() {
         </div>
       </div>
 
+          <SulurIntelligenceSection />
     </AdminLayout>
   )
 }

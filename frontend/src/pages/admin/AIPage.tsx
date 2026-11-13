@@ -3,6 +3,8 @@ import { Brain, Leaf, Recycle, CheckCircle, AlertCircle, HelpCircle } from 'luci
 import AdminLayout from '../../components/layout/AdminLayout'
 import { apiClient } from '../../services/api'
 import { AIHarvestPrediction, AIWastePrediction } from '../../types'
+import { SulurIntelligenceSection } from '../../components/sulur/SulurModuleBridge'
+
 
 type ActiveTab = 'harvest' | 'waste'
 
@@ -369,6 +371,7 @@ export default function AIPage() {
           )}
         </div>
       </div>
+          <SulurIntelligenceSection />
     </AdminLayout>
   )
 }

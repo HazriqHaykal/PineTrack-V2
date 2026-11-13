@@ -267,3 +267,152 @@ class AILogListResponse(BaseModel):
     items: List[AILogResponse]
     skip: int = 0
     limit: int = 100
+
+
+
+# ==============================================================================
+# SULUR INVENTORY & TRACKING SCHEMAS (MUHAMMAD ARIF OMAR BIN AKASHAH)
+# ==============================================================================
+
+class SulurBatchBase(BaseModel):
+    variety: str = Field(..., max_length=50)
+    sulur_type: str = Field("sucker", max_length=30)
+    size_grade: str = Field("Grade A", max_length=20)
+    initial_quantity: int = Field(..., gt=0)
+    source_plot: str = Field(..., max_length=100)
+    storage_location: str = Field("Nursery Shed 1", max_length=100)
+    date_received: date
+    treatment_status: str = Field("raw", max_length=30)
+    quality_remarks: Optional[str] = None
+
+class SulurBatchCreate(SulurBatchBase):
+    batch_code: Optional[str] = None
+    is_certified: bool = False
+    certified_by: Optional[str] = None
+
+class SulurBatchUpdate(BaseModel):
+    variety: Optional[str] = None
+    sulur_type: Optional[str] = None
+    size_grade: Optional[str] = None
+    storage_location: Optional[str] = None
+    treatment_status: Optional[str] = None
+    stock_status: Optional[str] = None
+    is_certified: Optional[bool] = None
+    certified_by: Optional[str] = None
+    quality_remarks: Optional[str] = None
+
+class SulurMovementCreate(BaseModel):
+    batch_id: int
+    movement_type: str = Field(..., description="stock_in, reserve, release_reserve, plant, sell, transfer, damage")
+    quantity: int = Field(..., gt=0)
+    destination_or_plot: Optional[str] = None
+    movement_date: Optional[date] = None
+    remarks: Optional[str] = None
+
+class SulurMovementResponse(BaseModel):
+    id: int
+    batch_id: int
+    batch_code: Optional[str] = None
+    user_id: int
+    recorded_by_name: Optional[str] = None
+    movement_type: str
+    quantity: int
+    destination_or_plot: Optional[str] = None
+    movement_date: date
+    remarks: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class SulurBatchResponse(SulurBatchBase):
+    id: int
+    user_id: int
+    batch_code: str
+    available_quantity: int
+    reserved_quantity: int
+    planted_quantity: int
+    sold_quantity: int
+    damaged_quantity: int
+    stock_status: str
+    is_certified: bool
+    certificate_number: Optional[str] = None
+    certified_by: Optional[str] = None
+    certified_date: Optional[date] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class SulurBatchListResponse(BaseModel):
+    total: int
+    items: List[SulurBatchResponse]
+    skip: int = 0
+    limit: int = 100
+
+class SulurReferenceConfigBase(BaseModel):
+    variety: str
+    default_planting_density_ha: int = 43500
+    npk_fertilizer_kg_per_1000: float = 42.0
+    foliar_fertilizer_l_per_1000: float = 3.5
+    sulur_unit_cost_rm: float = 0.80
+    sulur_selling_price_rm: float = 1.50
+    fruit_selling_price_rm_kg: float = 3.50
+    avg_fruit_weight_kg: float = 1.6
+    nutrient_cost_per_1000_rm: float = 360.0
+    operational_cost_per_ha_rm: float = 5000.0
+    min_stock_threshold: int = 5000
+
+class SulurReferenceConfigResponse(SulurReferenceConfigBase):
+    id: int
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class SulurPlanCreate(BaseModel):
+    plan_title: str = Field(..., min_length=2, max_length=120)
+    variety: str
+    plan_mode: str = Field("cultivation", description="cultivation or sulur_sales")
+    land_area_ha: float = Field(..., gt=0)
+    planting_density_ha: Optional[int] = Field(None, gt=0)
+    mortality_buffer_percent: float = Field(5.0, ge=0, le=50)
+    custom_selling_price_rm: Optional[float] = Field(None, gt=0)
+    custom_sulur_cost_rm: Optional[float] = Field(None, ge=0)
+    custom_nutrient_cost_rm: Optional[float] = Field(None, ge=0)
+    custom_operational_cost_rm: Optional[float] = Field(None, ge=0)
+
+class SulurRecommendationItem(BaseModel):
+    rule_code: str
+    severity: str  # critical, warning, info, optimal
+    category: str  # stock, profit, nutrient, quality
+    message: str
+    action_suggested: str
+
+class SulurPlanResponse(BaseModel):
+    id: int
+    user_id: int
+    plan_title: str
+    variety: str
+    plan_mode: str
+    land_area_ha: float
+    planting_density_ha: int
+    mortality_buffer_percent: float
+    required_sulur: int
+    available_sulur_at_plan: int
+    stock_shortfall: int
+    estimated_npk_kg: float
+    estimated_foliar_liters: float
+    sulur_cost_rm: float
+    nutrient_cost_rm: float
+    operational_cost_rm: float
+    total_cost_rm: float
+    estimated_revenue_rm: float
+    projected_profit_rm: float
+    roi_percent: float
+    recommendations: List[SulurRecommendationItem] = []
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

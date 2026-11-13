@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { FileText, Download, Calendar, Sprout, Truck, Recycle, BarChart3, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
 import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
+import { SulurReportsSection } from '../../components/sulur/SulurModuleBridge'
+
 
 type ReportType = 'harvest' | 'transport' | 'waste' | 'analytics' | 'full'
 
@@ -214,6 +216,7 @@ export default function Reports() {
         )}
       </div>
 
+          <SulurReportsSection />
     </AdminLayout>
   )
 }

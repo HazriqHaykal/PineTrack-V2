@@ -8,6 +8,8 @@ import { Download, AlertTriangle } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
 import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
 import { AnalyticsOverview, PeriodKpis } from '../../types'
+import { SulurAnalyticsSection } from '../../components/sulur/SulurModuleBridge'
+
 
 const GRADE_FILL: Record<string, string> = {
   A: '#22c55e',
@@ -284,6 +286,7 @@ export default function AnalyticsPage() {
           </table>
         </div>
       </div>
+          <SulurAnalyticsSection />
     </AdminLayout>
   )
 }

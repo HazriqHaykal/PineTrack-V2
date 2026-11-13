@@ -1,28 +1,36 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Sprout, Truck, Calendar, Recycle,
+  LayoutDashboard, Sprout, Layers, Truck, Calendar, Recycle,
   Brain, BarChart3, FileText, Users, Settings,
-  ChevronLeft, ChevronRight, LogOut, UserCircle, Shield,
+  ChevronLeft, ChevronRight, ChevronDown, LogOut, UserCircle, Shield,
+  Package, ArrowRightLeft, Calculator
 } from 'lucide-react'
 import { authService } from '../../services/auth'
+
+const SULUR_CHILDREN = [
+  { icon: Package,        label: '1. Stock & Batches',   path: '/admin/sulur/stock'     },
+  { icon: ArrowRightLeft, label: '2. Movement History',  path: '/admin/sulur/movements' },
+  { icon: Calculator,     label: '3. Profit Calculator', path: '/admin/sulur/planner'   },
+]
 
 const NAV_SECTIONS = [
   {
     label: 'Operations',
     items: [
-      { icon: LayoutDashboard, label: 'Dashboard',        path: '/dashboard'  },
-      { icon: Sprout,          label: 'Harvest',          path: '/harvest'    },
-      { icon: Truck,           label: 'Transport',        path: '/transport'  },
-      { icon: Calendar,        label: 'Scheduling',       path: '/schedule'   },
-      { icon: Recycle,         label: 'Waste Management', path: '/waste'      },
+      { icon: LayoutDashboard, label: 'Dashboard',        path: '/dashboard'   },
+      { icon: Layers,          label: 'Sulur Inventory',  path: '/admin/sulur', isSulurParent: true },
+      { icon: Sprout,          label: 'Harvest',          path: '/harvest'     },
+      { icon: Truck,           label: 'Transport',        path: '/transport'   },
+      { icon: Calendar,        label: 'Scheduling',       path: '/schedule'    },
+      { icon: Recycle,         label: 'Waste Management', path: '/waste'       },
     ],
   },
   {
     label: 'Intelligence',
     items: [
       { icon: Brain,     label: 'PineTrack Agent', path: '/admin/ai-insights' },
-      { icon: BarChart3, label: 'Analytics',   path: '/analytics'         },
+      { icon: BarChart3, label: 'Analytics',       path: '/analytics'         },
     ],
   },
   {
@@ -41,6 +49,32 @@ export default function AdminSidebar() {
   const user       = authService.getUser()
   const [collapsed, setCollapsed] = useState(false)
 
+  const onSulurRoute = location.pathname.startsWith('/admin/sulur') || location.pathname.startsWith('/sulur')
+  const [sulurOpen, setSulurOpen] = useState<boolean>(() => {
+    const saved = sessionStorage.getItem('sulur_nav_open')
+    if (saved !== null) return saved === 'true' && onSulurRoute
+    return onSulurRoute
+  })
+
+  useEffect(() => {
+    if (!onSulurRoute) {
+      setSulurOpen(false)
+      sessionStorage.setItem('sulur_nav_open', 'false')
+    }
+  }, [onSulurRoute])
+
+  const toggleSulurMenu = () => {
+    if (!onSulurRoute) {
+      setSulurOpen(true)
+      sessionStorage.setItem('sulur_nav_open', 'true')
+      navigate('/admin/sulur/stock')
+    } else {
+      const next = !sulurOpen
+      setSulurOpen(next)
+      sessionStorage.setItem('sulur_nav_open', String(next))
+    }
+  }
+
   const handleLogout = () => {
     authService.logout()
     navigate('/login')
@@ -56,7 +90,6 @@ export default function AdminSidebar() {
       }`}
       style={{ backgroundColor: '#162f25' }}
     >
-      {/* Brand header */}
       <div
         className="flex items-center justify-between px-4 py-4 h-16"
         style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
@@ -82,8 +115,6 @@ export default function AdminSidebar() {
             onClick={() => setCollapsed(true)}
             className="p-1.5 rounded-md transition-colors shrink-0 ml-1"
             style={{ color: '#56a880' }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
           >
             <ChevronLeft size={15} />
           </button>
@@ -99,7 +130,6 @@ export default function AdminSidebar() {
         )}
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 px-2 py-4 overflow-y-auto space-y-5">
         {NAV_SECTIONS.map(({ label, items }) => (
           <div key={label}>
@@ -112,12 +142,72 @@ export default function AdminSidebar() {
               </p>
             )}
             <div className="space-y-0.5">
-              {items.map(({ icon: Icon, label: itemLabel, path }) => {
+              {items.map(({ icon: Icon, label: itemLabel, path, isSulurParent }: any) => {
                 const active = isActive(path)
+                if (isSulurParent) {
+                  return (
+                    <div key={path} className="space-y-1">
+                      <button
+                        onClick={toggleSulurMenu}
+                        title={collapsed ? itemLabel : undefined}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+                          collapsed ? 'justify-center' : ''
+                        }`}
+                        style={
+                          active
+                            ? { backgroundColor: 'rgba(212,129,58,0.18)', color: '#f7bf70' }
+                            : { color: '#8ac5a8' }
+                        }
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon size={17} className="shrink-0" style={active ? { color: '#f29b38' } : undefined} />
+                          {!collapsed && <span className="truncate">{itemLabel}</span>}
+                        </div>
+                        {!collapsed && (
+                          <ChevronDown
+                            size={14}
+                            className={`transition-transform duration-200 ${sulurOpen ? 'rotate-180' : ''}`}
+                          />
+                        )}
+                      </button>
+
+                      {!collapsed && sulurOpen && (
+                        <div className="ml-4 pl-3 border-l border-emerald-800/70 space-y-1 py-1">
+                          {SULUR_CHILDREN.map(child => {
+                            const ChildIcon = child.icon
+                            const childActive =
+                              location.pathname === child.path ||
+                              (child.path === '/admin/sulur/stock' && location.pathname === '/admin/sulur')
+                            return (
+                              <button
+                                key={child.path}
+                                onClick={() => navigate(child.path)}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all"
+                                style={
+                                  childActive
+                                    ? { backgroundColor: 'rgba(255,255,255,0.12)', color: '#ffffff', fontWeight: 600 }
+                                    : { color: '#8ac5a8' }
+                                }
+                              >
+                                <ChildIcon size={14} className="shrink-0" style={childActive ? { color: '#f5922a' } : undefined} />
+                                <span className="truncate">{child.label}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
                 return (
                   <button
                     key={path}
-                    onClick={() => navigate(path)}
+                    onClick={() => {
+                      setSulurOpen(false)
+                      sessionStorage.setItem('sulur_nav_open', 'false')
+                      navigate(path)
+                    }}
                     title={collapsed ? itemLabel : undefined}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                       collapsed ? 'justify-center' : ''
@@ -127,18 +217,6 @@ export default function AdminSidebar() {
                         ? { backgroundColor: 'rgba(212,129,58,0.18)', color: '#f7bf70' }
                         : { color: '#8ac5a8' }
                     }
-                    onMouseEnter={e => {
-                      if (!active) {
-                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'
-                        e.currentTarget.style.color = '#ffffff'
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (!active) {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                        e.currentTarget.style.color = '#8ac5a8'
-                      }
-                    }}
                   >
                     <Icon
                       size={17}
@@ -154,7 +232,6 @@ export default function AdminSidebar() {
         ))}
       </nav>
 
-      {/* User profile + sign out */}
       <div
         className="px-2 pb-3 pt-3 space-y-0.5"
         style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}
@@ -187,14 +264,6 @@ export default function AdminSidebar() {
             collapsed ? 'justify-center' : ''
           }`}
           style={{ color: '#f87171' }}
-          onMouseEnter={e => {
-            e.currentTarget.style.backgroundColor = 'rgba(220,38,38,0.12)'
-            e.currentTarget.style.color = '#fca5a5'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.backgroundColor = 'transparent'
-            e.currentTarget.style.color = '#f87171'
-          }}
         >
           <LogOut size={16} className="shrink-0" />
           {!collapsed && <span>Sign out</span>}
