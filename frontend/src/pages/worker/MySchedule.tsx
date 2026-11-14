@@ -1,231 +1,216 @@
-import { useEffect, useState } from 'react'
-import { Calendar, Clock, Sprout, Truck, CheckCircle2, ClipboardCheck, Wrench } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { CalendarDays, CalendarX2, CheckCircle2, List, PlayCircle } from 'lucide-react'
 import WorkerLayout from '../../components/layout/WorkerLayout'
+import { EmptyState, ErrorNote, ICON_STROKE, Segmented, StatTile, WorkerPage, cardCls } from '../../components/worker/ui'
+import { useFarmToday } from '../../hooks/useFarmToday'
+import MonthCalendar from '../../components/schedule/MonthCalendar'
+import TaskDetailsDialog from '../../components/schedule/TaskDetailsDialog'
+import {
+  OverdueBadge, PriorityBadge, TaskStatusBadge, addDays, byDateTime, formatDay, formatTime, isOpen, isOverdue, taskLabel,
+} from '../../components/schedule/taskMeta'
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { Schedule } from '../../types'
 
-const TYPE_ICON: Record<string, React.ReactNode> = {
-  harvest:     <Sprout   size={15} className="text-green-600" />,
-  transport:   <Truck    size={15} className="text-blue-600"  />,
-  inspection:  <ClipboardCheck size={15} className="text-purple-600" />,
-  maintenance: <Wrench   size={15} className="text-slate-600" />,
-  other:       <Calendar size={15} className="text-purple-600"/>,
-}
-
-const TYPE_BG: Record<string, string> = {
-  harvest:     'bg-green-100',
-  transport:   'bg-blue-100',
-  inspection:  'bg-purple-100',
-  maintenance: 'bg-slate-100',
-  other:       'bg-purple-100',
-}
-
-type FilterTab = 'all' | 'today' | 'upcoming'
-
-const localDate = (d = new Date()) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
-// Parse YYYY-MM-DD as a local date (new Date('YYYY-MM-DD') would be UTC)
-const formatDay = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString('en-MY', { weekday: 'short', month: 'short', day: 'numeric' })
-}
+type Tab = 'today' | 'upcoming' | 'all'
+type View = 'list' | 'calendar'
 
 export default function MySchedule() {
-  const [activeTab, setActiveTab] = useState<FilterTab>('today')
-  const [schedule, setSchedule] = useState<Schedule[]>([])
+  const { today } = useFarmToday()
+  const [tasks, setTasks]     = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setError]     = useState('')
+  const [view, setView]       = useState<View>('list')
+  const [tab, setTab]         = useState<Tab>('today')
+  const [month, setMonth]     = useState(() => today.slice(0, 7))
+  const [selectedDay, setSelectedDay] = useState(today)
+  const [viewing, setViewing] = useState<Schedule | null>(null)
+  const [busyId, setBusyId]   = useState<number | null>(null)
+  const [undo, setUndo]       = useState<{ task: Schedule; prev: Schedule['status'] } | null>(null)
+  const undoTimer = useRef<number>()
 
-  const today = new Date()
-  const todayStr = localDate(today)
-
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
+      // Only tasks assigned to the signed-in worker are returned
       const data = await apiClient.getMySchedule()
-      setSchedule(data.schedules.filter(s => s.status !== 'cancelled'))
+      setTasks(data.schedules.filter((s) => s.status !== 'cancelled'))
       setError('')
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not load your schedule.'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
+  useEffect(() => () => window.clearTimeout(undoTimer.current), [])
 
-  const markDone = async (id: number) => {
+  const setStatus = async (task: Schedule, status: Schedule['status']) => {
+    setBusyId(task.id)
     try {
-      await apiClient.updateScheduleStatus(id, 'completed')
+      await apiClient.updateScheduleStatus(task.id, status)
       await load()
+      return true
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not update the task.'))
+      return false
+    } finally {
+      setBusyId(null)
     }
   }
 
-  const isOverdue = (s: Schedule) => s.assigned_date < todayStr && s.status !== 'completed'
+  // Pending → Completed is a valid backend transition, so completion is one click
+  const complete = async (task: Schedule) => {
+    if (await setStatus(task, 'completed')) {
+      setViewing(null)
+      setUndo({ task, prev: task.status })
+      window.clearTimeout(undoTimer.current)
+      undoTimer.current = window.setTimeout(() => setUndo(null), 6000)
+    }
+  }
+  const start = async (task: Schedule) => {
+    if (await setStatus(task, 'in_progress')) setViewing(null)
+  }
 
-  const filtered = schedule.filter(item => {
-    if (activeTab === 'today')    return item.assigned_date === todayStr || isOverdue(item)
-    if (activeTab === 'upcoming') return item.assigned_date > todayStr
-    return true
-  })
+  const weekEnd = addDays(today, 6)
+  const overdue = tasks.filter((t) => isOverdue(t, today))
+  const todays = tasks.filter((t) => t.assigned_date === today)
+  const upcoming = tasks.filter((t) => isOpen(t) && t.assigned_date > today && t.assigned_date <= weekEnd)
 
-  const grouped = filtered.reduce<Record<string, Schedule[]>>((acc, item) => {
-    if (!acc[item.assigned_date]) acc[item.assigned_date] = []
-    acc[item.assigned_date].push(item)
-    return acc
-  }, {})
+  const listed = (tab === 'today'
+    ? [...overdue, ...todays]
+    : tab === 'upcoming' ? tasks.filter((t) => t.assigned_date > today)
+    : tasks
+  ).slice().sort(byDateTime)
+  const grouped = listed.reduce<Record<string, Schedule[]>>((acc, t) => { (acc[t.assigned_date] ??= []).push(t); return acc }, {})
+  const dayTasks = tasks.filter((t) => t.assigned_date === selectedDay).sort(byDateTime)
 
-  const todays         = schedule.filter(s => s.assigned_date === todayStr)
-  const completedToday = todays.filter(s => s.status === 'completed').length
-  const remainingToday = todays.length - completedToday
-  const upcomingCount  = schedule.filter(s => s.assigned_date > todayStr).length
-  const progress       = todays.length > 0 ? Math.round((completedToday / todays.length) * 100) : 0
+  const taskCard = (t: Schedule) => {
+    const done = t.status === 'completed'
+    const late = isOverdue(t, today)
+    return (
+      <li key={t.id} className={`${cardCls} overflow-hidden`}>
+        <button onClick={() => setViewing(t)} className="w-full text-left px-4 pt-3.5 pb-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-600">
+          <div className="flex items-start justify-between gap-2">
+            <p className={`text-sm font-semibold ${done ? 'text-gray-500' : 'text-gray-900'}`}>{taskLabel(t.task_type)}</p>
+            {done ? <TaskStatusBadge status={t.status} /> : <PriorityBadge priority={t.priority} />}
+          </div>
+          {t.details && <p className="mt-0.5 text-sm text-gray-600 line-clamp-2 break-words">{t.details}</p>}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+            <span className="tabular-nums">{t.scheduled_time ? formatTime(t.scheduled_time) : 'Any time'}</span>
+            {!done && <><span aria-hidden>·</span><TaskStatusBadge status={t.status} /></>}
+            {late && <OverdueBadge />}
+          </div>
+        </button>
+        {!done && (
+          <div className="flex gap-2 border-t border-gray-100 px-4 py-2.5">
+            {t.status === 'pending' && (
+              <button onClick={() => start(t)} disabled={busyId === t.id}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60">
+                <PlayCircle size={15} strokeWidth={ICON_STROKE} /> Start
+              </button>
+            )}
+            <button onClick={() => complete(t)} disabled={busyId === t.id}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-green-700 hover:bg-green-800 text-sm font-semibold text-white disabled:opacity-60">
+              <CheckCircle2 size={15} strokeWidth={2} /> {busyId === t.id ? 'Saving…' : 'Mark as Completed'}
+            </button>
+          </div>
+        )}
+      </li>
+    )
+  }
 
   return (
     <WorkerLayout>
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
+      <WorkerPage title="My Schedule"
+        subtitle={formatDay(today, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}>
 
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-            <Calendar size={22} className="text-purple-600" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">My Schedule</h1>
-            <p className="text-xs text-gray-500">{today.toLocaleDateString('en-MY', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+        <div className="grid grid-cols-3 gap-3">
+          <StatTile label="Today" value={loading ? '—' : todays.filter(isOpen).length} sub="still open" dot="bg-blue-500" />
+          <StatTile label="Overdue" value={loading ? '—' : overdue.length} sub="before today" dot="bg-red-500" alert={overdue.length > 0} />
+          <StatTile label="Upcoming" value={loading ? '—' : upcoming.length} sub="next 7 days" dot="bg-gray-400" />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {view === 'list' ? (
+            <Segmented<Tab> label="Which tasks" value={tab} onChange={setTab} options={[
+              { value: 'today', label: 'Today', count: loading ? undefined : overdue.length + todays.length },
+              { value: 'upcoming', label: 'Upcoming', count: loading ? undefined : tasks.filter((t) => t.assigned_date > today).length },
+              { value: 'all', label: 'All' },
+            ]} />
+          ) : (
+            <p className="text-sm font-medium text-gray-700">Calendar</p>
+          )}
+          <div role="group" aria-label="View" className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+            {([['list', List, 'List'], ['calendar', CalendarDays, 'Calendar']] as const).map(([v, Icon, label]) => (
+              <button key={v} onClick={() => setView(v)} aria-pressed={view === v} aria-label={`${label} view`}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors ${
+                  view === v ? 'bg-green-700 text-white' : 'text-gray-600 hover:bg-gray-100'
+                }`}>
+                <Icon size={15} strokeWidth={ICON_STROKE} />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Today progress bar */}
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-500 rounded-2xl p-4 text-white">
-          <div className="flex justify-between items-center mb-3">
-            <div>
-              <p className="text-sm font-semibold">Today's Progress</p>
-              <p className="text-xs text-purple-100">{completedToday} of {todays.length} tasks done</p>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold">{progress}%</p>
-            </div>
-          </div>
-          <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-            <div className="h-full bg-white rounded-full transition-all" style={{ width: `${progress}%` }} />
-          </div>
-          <div className="flex gap-4 mt-3">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-white" />
-              <span className="text-xs text-purple-100">{completedToday} Completed</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-white/40" />
-              <span className="text-xs text-purple-100">{remainingToday} Remaining</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-yellow-300" />
-              <span className="text-xs text-purple-100">{upcomingCount} Upcoming</span>
-            </div>
-          </div>
-        </div>
+        {error && <ErrorNote>{error}</ErrorNote>}
 
-        {/* Filter tabs */}
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-          {(['today', 'upcoming', 'all'] as FilterTab[]).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2 rounded-lg text-xs font-semibold capitalize transition-all ${
-                activeTab === tab ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {error && (
-          <p className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-xs">{error}</p>
-        )}
-
-        {/* Schedule list */}
         {loading ? (
-          <p className="text-center text-sm text-gray-400 py-8">Loading schedule…</p>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-            <Calendar size={28} className="mx-auto text-gray-300 mb-2" />
-            <p className="text-sm text-gray-500">
-              {activeTab === 'today' ? 'Nothing scheduled for today' : activeTab === 'upcoming' ? 'No upcoming tasks' : 'No tasks assigned yet'}
-            </p>
+          <p className="text-center text-sm text-gray-500 py-8">Loading schedule…</p>
+        ) : view === 'calendar' ? (
+          <div className="space-y-4">
+            <div className={`${cardCls} p-3`}>
+              <MonthCalendar compact tasks={tasks} today={today} month={month} onMonthChange={setMonth}
+                selected={selectedDay} onSelect={setSelectedDay} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">
+                {selectedDay === today ? 'Today' : formatDay(selectedDay, { weekday: 'long', day: 'numeric', month: 'short' })}
+              </p>
+              {dayTasks.length === 0
+                ? <p className={`${cardCls} p-6 text-center text-sm text-gray-500`}>No tasks on this day.</p>
+                : <ul className="space-y-2">{dayTasks.map(taskCard)}</ul>}
+            </div>
           </div>
+        ) : listed.length === 0 ? (
+          <EmptyState icon={tab === 'today' ? CheckCircle2 : CalendarX2}
+            title={tab === 'today' ? 'Nothing due today' : tab === 'upcoming' ? 'No upcoming tasks' : 'No tasks assigned yet'}
+            body={tab === 'today'
+              ? 'You are all caught up. Check Upcoming for work later this week.'
+              : 'Tasks your supervisor assigns to you will appear here.'}
+            action={tab === 'today' ? (
+              <button onClick={() => setTab('upcoming')} className="text-sm font-medium text-green-800 hover:underline">See upcoming tasks</button>
+            ) : undefined} />
         ) : (
           <div className="space-y-5">
             {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([date, items]) => (
-              <div key={date}>
-                <div className="flex items-center gap-2 mb-3">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                    {date === todayStr ? 'Today' : formatDay(date)}
+              <section key={date}>
+                <div className="flex items-center gap-2 mb-2">
+                  <p className={`text-xs font-semibold uppercase tracking-wide ${date < today ? 'text-red-700' : 'text-gray-600'}`}>
+                    {date === today ? 'Today' : formatDay(date, { weekday: 'short', day: 'numeric', month: 'short' })}
                   </p>
-                  <div className="flex-1 h-px bg-gray-100" />
-                  <span className="text-[10px] text-gray-400">{items.length} task{items.length === 1 ? '' : 's'}</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-[11px] text-gray-500">{items.length} task{items.length === 1 ? '' : 's'}</span>
                 </div>
-
-                <div className="space-y-2">
-                  {items.map(item => {
-                    const done = item.status === 'completed'
-                    return (
-                      <div
-                        key={item.id}
-                        className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3 ${done ? 'opacity-60' : ''}`}
-                      >
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${TYPE_BG[item.task_type] ?? TYPE_BG.other}`}>
-                          {TYPE_ICON[item.task_type] ?? TYPE_ICON.other}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-semibold text-sm leading-tight capitalize ${done ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                            {item.details || item.task_type}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            {item.scheduled_time && (
-                              <>
-                                <div className="flex items-center gap-1">
-                                  <Clock size={10} className="text-gray-400" />
-                                  <span className="text-[10px] text-gray-500">{item.scheduled_time.slice(0, 5)}</span>
-                                </div>
-                                <span className="text-gray-300">·</span>
-                              </>
-                            )}
-                            <span className="text-[10px] text-gray-500 capitalize">{item.task_type}</span>
-                            <span className="text-gray-300">·</span>
-                            <span className="text-[10px] text-gray-500 capitalize">{item.priority} priority</span>
-                          </div>
-                        </div>
-                        {done ? (
-                          <CheckCircle2 size={18} className="text-green-500 shrink-0" />
-                        ) : item.assigned_date > todayStr ? (
-                          <span className="text-[10px] bg-blue-50 text-blue-600 font-semibold px-2 py-1 rounded-full shrink-0">Soon</span>
-                        ) : (
-                          <div className="flex items-center gap-2 shrink-0">
-                            {isOverdue(item) && (
-                              <span className="text-[10px] bg-red-100 text-red-700 font-semibold px-2 py-1 rounded-full">Overdue</span>
-                            )}
-                            <button
-                              onClick={() => markDone(item.id)}
-                              className="text-[10px] bg-green-50 text-green-700 font-semibold px-2.5 py-1.5 rounded-full hover:bg-green-100 transition-colors"
-                            >
-                              Mark done
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+                <ul className="space-y-2">{items.map(taskCard)}</ul>
+              </section>
             ))}
           </div>
         )}
+      </WorkerPage>
 
-      </div>
+      <TaskDetailsDialog task={viewing} today={today} onClose={() => setViewing(null)}
+        worker={{ onStart: start, onComplete: complete }} busy={viewing ? busyId === viewing.id : false} />
+
+      {undo && (
+        <div role="status" className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] xl:bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 rounded-xl bg-gray-900 px-4 py-3 text-sm text-white shadow-lg">
+          <span>{taskLabel(undo.task.task_type)} marked completed</span>
+          <button className="font-semibold text-green-300 hover:text-green-200"
+            onClick={() => { const u = undo; setUndo(null); setStatus(u.task, u.prev) }}>
+            Undo
+          </button>
+        </div>
+      )}
     </WorkerLayout>
   )
 }

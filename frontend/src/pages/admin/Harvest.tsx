@@ -1,21 +1,39 @@
 ﻿import React, { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, X, Brain, ChevronDown, Search, Sprout } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Pencil, Trash2, X, Lightbulb, Search, Sprout, Eye } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
+import { useCreateFromQuery } from '../../hooks/useCreateFromQuery'
+import LifecycleBadge from '../../components/batch/LifecycleBadge'
+import { GRADES, isMixed, normalizeGrade } from '../../components/batch/GradeBadge'
+import GradeSummary from '../../components/batch/GradeSummary'
+import GradingFields from '../../components/batch/GradingFields'
+import {
+  EMPTY_GRADE_INPUTS, GradeInputs, fmtKg, gradeInputsFrom, gradesPayload, previewGrading, sameGrades,
+} from '../../components/batch/grading'
+import { useMarketabilityPolicy } from '../../hooks/useMarketabilityPolicy'
+import StatusGuide from '../../components/batch/StatusGuide'
+import IconButton from '../../components/ui/IconButton'
 import { apiClient, apiErrorMessage } from '../../services/api'
-import { Harvest, HarvestStatus, QualityTargets } from '../../types'
+import { BatchSummary, Harvest, HarvestStatus, QualityTargets } from '../../types'
+import AppSelect from '../../components/ui/AppSelect'
 
-const GRADE_STYLES: Record<string, string> = {
-  A: 'bg-green-100 text-green-800',
-  B: 'bg-blue-100  text-blue-800',
-  C: 'bg-amber-100 text-amber-800',
-  D: 'bg-red-100   text-red-800',
-}
+/** Raw filter values; labels are for display only */
+const GRADE_FILTERS: { value: string; label: string }[] = [
+  { value: 'all', label: 'All grades' },
+  ...GRADES.map((g) => ({ value: g, label: `Contains Grade ${g}` })),
+  { value: 'mixed', label: 'Mixed grades' },
+  { value: 'legacy', label: 'Legacy (single grade)' },
+  { value: 'ungraded', label: 'Ungraded' },
+]
 
-const STATUS_STYLES: Record<HarvestStatus, string> = {
-  pending:   'bg-gray-100 text-gray-700',
-  graded:    'bg-blue-100 text-blue-800',
-  processed: 'bg-green-100 text-green-800',
-  rejected:  'bg-red-100 text-red-800',
+function matchesGrade(h: Harvest, filter: string): boolean {
+  if (filter === 'all') return true
+  if (filter === 'ungraded') return h.grading_basis === 'ungraded'
+  if (filter === 'legacy') return h.grading_basis === 'legacy'
+  if (filter === 'mixed') return isMixed(h.quality_grade)
+  // A grade: batches holding any kg of it, or legacy batches graded as it
+  if (h.grade_quantities) return (h.grade_quantities[filter as keyof typeof h.grade_quantities] ?? 0) > 0
+  return normalizeGrade(h.quality_grade) === filter
 }
 
 const HARVEST_STATUSES: HarvestStatus[] = ['pending', 'graded', 'processed', 'rejected']
@@ -26,11 +44,14 @@ const EMPTY_FORM = {
   field_name:     '',
   harvest_date:   new Date().toISOString().split('T')[0],
   quantity_kg:    '',
-  quality_grade:  'A',
+  grades:         { ...EMPTY_GRADE_INPUTS } as GradeInputs,
   ripeness_level: '',
   harvest_status: 'pending' as HarvestStatus,
   spoilage_kg:    '0',
+  /** Graded batches: rejected after grading. Others: total rejected */
   rejected_kg:    '0',
+  non_marketable: '',
+  non_marketable_reason: 'damaged',
   notes:          '',
 }
 
@@ -40,7 +61,7 @@ function Modal({ open, title, onClose, children }: {
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-900">{title}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
@@ -64,10 +85,12 @@ function Toast({ msg, type }: { msg: string; type: 'success' | 'error' }) {
 }
 
 export default function HarvestPage() {
+  const navigate = useNavigate()
   const [harvests, setHarvests]   = useState<Harvest[]>([])
+  const [batchInfo, setBatchInfo] = useState<Record<number, BatchSummary>>({})
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
-  const [gradeFilter, setGrade]   = useState('All')
+  const [gradeFilter, setGrade]   = useState('all')
   const [modalOpen, setModal]     = useState(false)
   const [delConfirm, setDelConfirm] = useState<number | null>(null)
   const [editing, setEditing]     = useState<Harvest | null>(null)
@@ -80,6 +103,11 @@ export default function HarvestPage() {
   const [aiForm, setAiForm]       = useState({ ripeness_level: 5, days_since_last_harvest: 14, field_condition_score: 7 })
   const [toast, setToast]         = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [targets, setTargets]     = useState<QualityTargets>(DEFAULT_TARGETS)
+  const [targetsOpen, setTargetsOpen] = useState(false)
+  const [targetForm, setTargetForm] = useState({ max_spoilage_rate: '', max_rejection_rate: '' })
+  const [targetsSaving, setTargetsSaving] = useState(false)
+  const [formError, setFormError] = useState('')
+  const { policy } = useMarketabilityPolicy()
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type })
@@ -88,8 +116,9 @@ export default function HarvestPage() {
 
   const load = async () => {
     try {
-      const data = await apiClient.listHarvests()
+      const [data, summaries] = await Promise.all([apiClient.listHarvests(), apiClient.getBatchOverview()])
       setHarvests(data.items || [])
+      setBatchInfo(Object.fromEntries(summaries.map((s) => [s.harvest_id, s])))
     } catch (err) {
       setHarvests([])
       showToast(apiErrorMessage(err, 'Failed to load harvests'), 'error')
@@ -109,11 +138,40 @@ export default function HarvestPage() {
 
   useEffect(() => { load(); loadTargets() }, [])
 
+  const openTargets = () => {
+    setTargetForm({
+      max_spoilage_rate:  String(targets.max_spoilage_rate),
+      max_rejection_rate: String(targets.max_rejection_rate),
+    })
+    setTargetsOpen(true)
+  }
+
+  const saveTargets = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setTargetsSaving(true)
+    try {
+      const updated = await apiClient.updateQualityTargets({
+        max_spoilage_rate:  parseFloat(targetForm.max_spoilage_rate),
+        max_rejection_rate: parseFloat(targetForm.max_rejection_rate),
+      })
+      setTargets(updated)
+      setTargetsOpen(false)
+      showToast('Quality targets updated', 'success')
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Failed to update targets'), 'error')
+    } finally {
+      setTargetsSaving(false)
+    }
+  }
+
   const openCreate = () => {
     setEditing(null)
-    setForm({ ...EMPTY_FORM })
+    setForm({ ...EMPTY_FORM, grades: { ...EMPTY_GRADE_INPUTS } })
+    setFormError('')
     setModal(true)
   }
+
+  useCreateFromQuery(openCreate)
 
   const openEdit = (h: Harvest) => {
     setEditing(h)
@@ -121,27 +179,48 @@ export default function HarvestPage() {
       field_name:     h.field_name,
       harvest_date:   h.harvest_date,
       quantity_kg:    String(h.quantity_kg),
-      quality_grade:  h.quality_grade,
+      grades:         gradeInputsFrom(h.grade_quantities),
       ripeness_level: h.ripeness_level ? String(h.ripeness_level) : '',
       harvest_status: h.harvest_status,
       spoilage_kg:    String(h.spoilage_kg),
-      rejected_kg:    String(h.rejected_kg),
+      rejected_kg:    String(h.grading_basis === 'grade_based' ? (h.rejected_after_grading_kg ?? 0) : h.rejected_kg),
+      non_marketable: h.rejected_at_sorting_kg ? String(h.rejected_at_sorting_kg) : '',
+      non_marketable_reason: 'damaged',
       notes:          h.notes || '',
     })
+    setFormError('')
     setModal(true)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const grading = previewGrading(form.quantity_kg, form.grades, [], form.non_marketable)
+    const sortedOut = Number(form.non_marketable) || 0
+    if (!grading.empty && grading.error) {
+      setFormError(`Grading breakdown: ${grading.error}`)
+      return
+    }
+    if (editing?.grading_basis === 'grade_based' && grading.empty) {
+      setFormError('A graded batch keeps its grade quantities. Enter them again or cancel.')
+      return
+    }
+    setFormError('')
     setSubmitting(true)
     try {
       if (editing) {
+        const gradesChanged = !grading.empty && (
+          !sameGrades(form.grades, gradeInputsFrom(editing.grade_quantities))
+          || Math.round(sortedOut * 100) !== Math.round((editing.rejected_at_sorting_kg ?? 0) * 100)
+        )
+        const rejectedInput = parseFloat(form.rejected_kg) || 0
         await apiClient.updateHarvest(editing.id, {
-          quality_grade:  form.quality_grade as Harvest['quality_grade'],
+          grades:         gradesChanged ? gradesPayload(form.grades, form.non_marketable) : undefined,
+          ...(gradesChanged ? { non_marketable_kg: sortedOut, non_marketable_reason: form.non_marketable_reason } : {}),
           ripeness_level: form.ripeness_level ? parseFloat(form.ripeness_level) : undefined,
           harvest_status: form.harvest_status,
           spoilage_kg:    parseFloat(form.spoilage_kg) || 0,
-          rejected_kg:    parseFloat(form.rejected_kg) || 0,
+          // Graded: total rejection = non-marketable at sorting + rejected after grading
+          rejected_kg:    grading.empty ? rejectedInput : Math.round((sortedOut + rejectedInput) * 100) / 100,
           notes:          form.notes,
         })
         showToast('Harvest updated', 'success')
@@ -150,7 +229,8 @@ export default function HarvestPage() {
           field_name:     form.field_name,
           harvest_date:   form.harvest_date,
           quantity_kg:    parseFloat(form.quantity_kg),
-          quality_grade:  form.quality_grade as Harvest['quality_grade'],
+          grades:         gradesPayload(form.grades, form.non_marketable),
+          ...(sortedOut > 0 ? { non_marketable_kg: sortedOut, non_marketable_reason: form.non_marketable_reason } : {}),
           ripeness_level: form.ripeness_level ? parseFloat(form.ripeness_level) : undefined,
           notes:          form.notes,
         })
@@ -159,7 +239,7 @@ export default function HarvestPage() {
       setModal(false)
       load()
     } catch (err) {
-      showToast(apiErrorMessage(err, 'Failed to save harvest'), 'error')
+      setFormError(apiErrorMessage(err, 'Failed to save harvest'))
     } finally {
       setSubmitting(false)
     }
@@ -199,17 +279,22 @@ export default function HarvestPage() {
   }
 
   const filtered = harvests.filter((h) => {
-    const q = search.toLowerCase()
-    const matchSearch = h.field_name.toLowerCase().includes(q) || h.batch_number?.toLowerCase().includes(q)
-    const matchGrade  = gradeFilter === 'All' || h.quality_grade === gradeFilter
-    return matchSearch && matchGrade
+    const q = search.trim().toLowerCase()
+    const matchSearch = !q
+      || (h.field_name ?? '').toLowerCase().includes(q)
+      || (h.batch_number ?? '').toLowerCase().includes(q)
+    return matchSearch && matchesGrade(h, gradeFilter)
   })
 
   const totalQty       = filtered.reduce((s, h) => s + h.quantity_kg, 0)
   const totalSpoilage  = filtered.reduce((s, h) => s + h.spoilage_kg, 0)
   const totalRejected  = filtered.reduce((s, h) => s + h.rejected_kg, 0)
-  const totalYield     = filtered.reduce((s, h) => s + h.marketable_yield_kg, 0)
-  const yieldPct        = totalQty ? Math.round((totalYield / totalQty) * 1000) / 10 : 0
+  // Farm marketable yield is weighted by quantity and uses grade-based batches only
+  const gradeBased     = filtered.filter((h) => h.grading_basis === 'grade_based')
+  const gradedQty      = gradeBased.reduce((s, h) => s + h.quantity_kg, 0)
+  const gradedYield    = gradeBased.reduce((s, h) => s + h.marketable_yield_kg, 0)
+  const yieldPct       = gradedQty ? Math.round((gradedYield / gradedQty) * 1000) / 10 : null
+  const excluded       = filtered.length - gradeBased.length
   const spoilageRatePct  = totalQty ? Math.round((totalSpoilage / totalQty) * 1000) / 10 : 0
   const rejectionRatePct = totalQty ? Math.round((totalRejected / totalQty) * 1000) / 10 : 0
   const spoilageOverTarget  = spoilageRatePct  > targets.max_spoilage_rate
@@ -226,9 +311,9 @@ export default function HarvestPage() {
           </div>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors self-start sm:self-auto"
           >
-            <Plus size={16} /> New Harvest
+            <Plus size={16} strokeWidth={2} /> New Harvest
           </button>
         </div>
 
@@ -237,29 +322,49 @@ export default function HarvestPage() {
           {[
             { label: 'Total Batches', value: harvests.length },
             { label: 'Total Volume', value: `${totalQty.toLocaleString()} kg` },
-            { label: 'Marketable Yield', value: `${yieldPct}%` },
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
-              <p className="text-xs text-gray-400 uppercase tracking-wide">{s.label}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">{s.label}</p>
               <p className="text-xl font-bold text-gray-900 mt-0.5">{s.value}</p>
             </div>
           ))}
-          <div className={`rounded-xl border shadow-sm px-4 py-3 ${spoilageOverTarget ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'}`}>
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Spoilage Rate</p>
-            <p className={`text-xl font-bold mt-0.5 ${spoilageOverTarget ? 'text-red-700' : 'text-gray-900'}`}>
-              {spoilageRatePct}% <span className="text-xs font-medium text-gray-400">/ target {targets.max_spoilage_rate}%</span>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">
+              <span title="Sum of marketable kg divided by sum of harvested kg, over batches with recorded grade quantities. Legacy and ungraded batches are left out."
+                className="cursor-help">Marketable Yield</span>
+            </p>
+            <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{yieldPct != null ? `${yieldPct}%` : '—'}</p>
+            <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+              {gradeBased.length ? `${fmtKg(Math.round(gradedYield * 100) / 100)} marketable` : 'No grade-based batches'}
+              {excluded > 0 && ` · ${excluded} excluded`}
             </p>
           </div>
-          <div className={`rounded-xl border shadow-sm px-4 py-3 ${rejectionOverTarget ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'}`}>
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Rejection Rate</p>
-            <p className={`text-xl font-bold mt-0.5 ${rejectionOverTarget ? 'text-red-700' : 'text-gray-900'}`}>
-              {rejectionRatePct}% <span className="text-xs font-medium text-gray-400">/ target {targets.max_rejection_rate}%</span>
-            </p>
-          </div>
+          {[
+            { label: 'Spoilage Rate',  rate: spoilageRatePct,  target: targets.max_spoilage_rate,  over: spoilageOverTarget },
+            { label: 'Rejection Rate', rate: rejectionRatePct, target: targets.max_rejection_rate, over: rejectionOverTarget },
+          ].map((c) => (
+            <div key={c.label} className={`rounded-xl border shadow-sm px-4 py-3 ${c.over ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">{c.label}</p>
+                <button
+                  type="button"
+                  onClick={openTargets}
+                  title="Edit quality targets"
+                  aria-label={`Edit ${c.label.toLowerCase()} target`}
+                  className="-mr-1.5 -my-1 inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+                >
+                  <Pencil size={14} strokeWidth={1.75} />
+                </button>
+              </div>
+              <p className={`text-xl font-bold mt-0.5 ${c.over ? 'text-red-700' : 'text-gray-900'}`}>
+                {c.rate}% <span className="text-xs font-medium text-gray-500">/ target {c.target}%</span>
+              </p>
+            </div>
+          ))}
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
           <div className="relative flex-1 max-w-sm">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -267,20 +372,18 @@ export default function HarvestPage() {
               placeholder="Search by batch # or field name…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              aria-label="Search harvests"
+              className="w-full h-9 pl-9 pr-4 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
-          <div className="relative">
-            <select
-              value={gradeFilter}
-              onChange={(e) => setGrade(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-            >
-              {['All', 'A', 'B', 'C', 'D'].map((g) => (
-                <option key={g}>{g === 'All' ? 'All Grades' : `Grade ${g}`}</option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <AppSelect size="sm" aria-label="Filter by grade" value={gradeFilter} onChange={setGrade}
+            highlighted={gradeFilter !== 'all'} triggerClassName="sm:w-52"
+            options={GRADE_FILTERS} />
+          <div className="sm:ml-auto flex items-center gap-3">
+            {(search || gradeFilter !== 'all') && (
+              <span className="text-xs text-gray-500">{filtered.length} of {harvests.length} batches</span>
+            )}
+            <StatusGuide />
           </div>
         </div>
 
@@ -299,73 +402,59 @@ export default function HarvestPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[680px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    {['Batch #', 'Field Name', 'Date', 'Quantity (kg)', 'Grade', 'Ripeness', 'Status', 'Yield', 'Actions'].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">
+                    {[
+                      ['Batch', 'w-[28%]'],
+                      ['Harvested', ''],
+                      ['Quantity', 'text-right'],
+                      ['Grade', ''],
+                      ['Lifecycle', ''],
+                      ['Actions', 'text-right'],
+                    ].map(([h, cls]) => (
+                      <th key={h} className={`text-left px-4 py-3 text-xs text-gray-600 font-semibold uppercase tracking-wide whitespace-nowrap ${cls}`}>
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((h, i) => (
-                    <tr
-                      key={h.id}
-                      className={`border-b border-gray-50 hover:bg-gray-50/60 transition-colors ${
-                        i % 2 === 0 ? '' : 'bg-gray-50/30'
-                      }`}
-                    >
-                      <td className="px-4 py-3 font-mono text-xs text-gray-700">{h.batch_number}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{h.field_name}</td>
-                      <td className="px-4 py-3 text-gray-600">{h.harvest_date}</td>
-                      <td className="px-4 py-3 font-semibold text-gray-900">{h.quantity_kg.toLocaleString()}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${GRADE_STYLES[h.quality_grade] || 'bg-gray-100 text-gray-700'}`}>
-                          Grade {h.quality_grade}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {h.ripeness_level != null ? `${h.ripeness_level}/10` : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_STYLES[h.harvest_status] || 'bg-gray-100 text-gray-700'}`}>
-                          {h.harvest_status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`font-semibold ${h.marketable_yield_percent < 90 ? 'text-amber-600' : 'text-gray-900'}`}>
-                          {h.marketable_yield_percent}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
+                  {filtered.map((h) => {
+                    const info = batchInfo[h.id]
+                    return (
+                      <tr key={h.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
+                        <td className="px-4 py-3">
                           <button
-                            onClick={() => openAI(h)}
-                            className="p-1.5 rounded-lg hover:bg-purple-50 text-purple-500 hover:text-purple-700 transition-colors"
-                            title="Ask PineTrack Agent"
+                            onClick={() => navigate(`/harvest/${h.id}`)}
+                            className="text-sm font-bold text-gray-900 hover:text-green-700 whitespace-nowrap tabular-nums"
                           >
-                            <Brain size={15} />
+                            {h.batch_number}
                           </button>
-                          <button
-                            onClick={() => openEdit(h)}
-                            className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 hover:text-blue-700 transition-colors"
-                            title="Edit"
-                          >
-                            <Pencil size={15} />
-                          </button>
-                          <button
-                            onClick={() => setDelConfirm(h.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[240px]" title={h.field_name}>{h.field_name}</p>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">{h.harvest_date}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap tabular-nums">
+                          {h.quantity_kg.toLocaleString()} kg
+                        </td>
+                        <td className="px-4 py-3">
+                          <GradeSummary harvest={h} />
+                        </td>
+                        <td className="px-4 py-3">
+                          {info ? <LifecycleBadge code={info.lifecycle_status} label={info.lifecycle_label} /> : <span className="text-gray-400">—</span>}
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center justify-end gap-1">
+                            <IconButton icon={Eye} label={`View ${h.batch_number}`} onClick={() => navigate(`/harvest/${h.id}`)} />
+                            <IconButton icon={Lightbulb} label={`PineTrack Agent insights for ${h.batch_number}`} onClick={() => openAI(h)} />
+                            <IconButton icon={Pencil} label={`Edit ${h.batch_number}`} onClick={() => openEdit(h)} />
+                            <span className="mx-0.5 h-4 w-px bg-gray-200" aria-hidden />
+                            <IconButton icon={Trash2} label={`Delete ${h.batch_number}`} onClick={() => setDelConfirm(h.id)} danger />
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -416,19 +505,7 @@ export default function HarvestPage() {
                 required
               />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Quality Grade *</label>
-              <select
-                value={form.quality_grade}
-                onChange={(e) => setForm({ ...form, quality_grade: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                {['A', 'B', 'C', 'D'].map((g) => (
-                  <option key={g} value={g}>Grade {g}{g === 'A' ? ' (Best)' : g === 'D' ? ' (Poor)' : ''}</option>
-                ))}
-              </select>
-            </div>
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Ripeness Level (0–10)</label>
               <input
                 type="number"
@@ -440,20 +517,73 @@ export default function HarvestPage() {
               />
             </div>
 
+            <div className="col-span-2 border-t border-gray-100 pt-4">
+              <p className="text-sm font-semibold text-gray-900">Grading Breakdown</p>
+              <p className="text-xs text-gray-500 mt-0.5 mb-3">
+                {editing?.grading_basis === 'legacy'
+                  ? `Legacy record graded as a single Grade ${editing.quality_grade}. Enter the kg of each grade to switch it to grade-based yield, or leave blank to keep it as is.`
+                  : 'Kilograms of each grade, as sorted by the farmer. Leave all blank if the batch has not been graded yet.'}
+              </p>
+              <GradingFields
+                total={form.quantity_kg}
+                values={form.grades}
+                onChange={(grades) => setForm({ ...form, grades })}
+                nonMarketable={form.non_marketable}
+                onNonMarketableChange={(v) => setForm({ ...form, non_marketable: v })}
+                reason={form.non_marketable_reason}
+                onReasonChange={(v) => setForm({ ...form, non_marketable_reason: v })}
+                emptyHint={editing?.grading_basis === 'grade_based'
+                  ? 'A graded batch must keep its grade quantities.'
+                  : 'No grades entered: the batch stays ungraded.'}
+                idPrefix="harvest-grade"
+              />
+            </div>
+
             {editing && (
               <>
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Harvest Status</label>
-                  <select
+                  <AppSelect
+                    aria-label="Harvest status"
                     value={form.harvest_status}
-                    onChange={(e) => setForm({ ...form, harvest_status: e.target.value as HarvestStatus })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 capitalize"
-                  >
-                    {HARVEST_STATUSES.map((s) => (
-                      <option key={s} value={s} className="capitalize">{s}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setForm({ ...form, harvest_status: v as HarvestStatus })}
+                    options={HARVEST_STATUSES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+                  />
                 </div>
+                {(() => {
+                  const g = previewGrading(form.quantity_kg, form.grades, policy?.marketable_grades ?? editing.marketable_grades ?? [], form.non_marketable)
+                  const spoiled = parseFloat(form.spoilage_kg) || 0
+                  const rejected = parseFloat(form.rejected_kg) || 0
+                  return !g.empty ? (
+                    <div className="col-span-2 grid grid-cols-2 gap-4 bg-gray-50 rounded-lg p-3">
+                      <div>
+                        <label htmlFor="spoilage_kg" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Spoilage (kg)</label>
+                        <input
+                          id="spoilage_kg"
+                          type="number"
+                          value={form.spoilage_kg}
+                          onChange={(e) => setForm({ ...form, spoilage_kg: e.target.value })}
+                          min="0" step="0.01"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="rejected_kg" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Rejected after grading (kg)</label>
+                        <input
+                          id="rejected_kg"
+                          type="number"
+                          value={form.rejected_kg}
+                          onChange={(e) => setForm({ ...form, rejected_kg: e.target.value })}
+                          min="0" step="0.01"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                        />
+                      </div>
+                      <p className="col-span-2 text-xs text-gray-600">
+                        Fruit spoiled or rejected after grading is deducted from the graded quantities; non-marketable fruit at sorting is entered above.
+                        {g.reconciled && ` Marketable quantity: ${fmtKg(Math.max(Math.round((g.marketable - spoiled - rejected) * 100) / 100, 0))} (calculated on save).`}
+                      </p>
+                    </div>
+                  ) : (
                 <div className="col-span-2 grid grid-cols-2 gap-4 bg-gray-50 rounded-lg p-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Spoilage (kg)</label>
@@ -476,9 +606,11 @@ export default function HarvestPage() {
                     />
                   </div>
                   <p className="col-span-2 text-xs text-gray-500">
-                    Marketable yield is calculated automatically: {Math.max(parseFloat(form.quantity_kg || '0') - (parseFloat(form.spoilage_kg) || 0) - (parseFloat(form.rejected_kg) || 0), 0).toFixed(1)} kg
+                    {editing.grading_basis === 'legacy' ? 'Legacy calculation' : 'Provisional, until graded'}: marketable = harvested − spoilage − rejected = {Math.max(parseFloat(form.quantity_kg || '0') - (parseFloat(form.spoilage_kg) || 0) - (parseFloat(form.rejected_kg) || 0), 0).toFixed(2)} kg
                   </p>
                 </div>
+                  )
+                })()}
               </>
             )}
 
@@ -493,14 +625,56 @@ export default function HarvestPage() {
               />
             </div>
           </div>
+          {formError && (
+            <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{formError}</p>
+          )}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setModal(false)}
               className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
               Cancel
             </button>
             <button type="submit" disabled={submitting}
-              className="flex-1 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
+              className="flex-1 px-4 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
               {submitting ? 'Saving…' : editing ? 'Update Harvest' : 'Create Harvest'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Quality targets */}
+      <Modal open={targetsOpen} title="Quality Targets" onClose={() => setTargetsOpen(false)}>
+        <form onSubmit={saveTargets} className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Maximum acceptable rates, as a percentage of harvested weight. Rate cards turn red when a target is exceeded.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            {([
+              ['max_spoilage_rate',  'Max Spoilage (%)'],
+              ['max_rejection_rate', 'Max Rejection (%)'],
+            ] as const).map(([key, lbl]) => (
+              <div key={key}>
+                <label htmlFor={key} className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{lbl}</label>
+                <input
+                  id={key}
+                  type="number"
+                  value={targetForm[key]}
+                  onChange={(e) => setTargetForm({ ...targetForm, [key]: e.target.value })}
+                  min="0" max="100" step="0.1"
+                  required
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500">These are the same targets as in Settings; a change here applies everywhere.</p>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={() => setTargetsOpen(false)}
+              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={targetsSaving}
+              className="flex-1 px-4 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
+              {targetsSaving ? 'Saving…' : 'Save Targets'}
             </button>
           </div>
         </form>
@@ -529,7 +703,9 @@ export default function HarvestPage() {
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm">
               <p className="font-medium text-gray-700">{aiHarvest.field_name}</p>
-              <p className="text-gray-500">Harvested {aiHarvest.harvest_date} · Grade {aiHarvest.quality_grade} · {aiHarvest.quantity_kg} kg</p>
+              <p className="text-gray-500">
+                Harvested {aiHarvest.harvest_date} · {isMixed(aiHarvest.quality_grade) ? 'Mixed grades' : normalizeGrade(aiHarvest.quality_grade) ? `Grade ${normalizeGrade(aiHarvest.quality_grade)}` : 'Ungraded'} · {aiHarvest.quantity_kg} kg
+              </p>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -556,7 +732,7 @@ export default function HarvestPage() {
               disabled={aiLoading}
               className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
             >
-              <Brain size={16} />
+              <Lightbulb size={16} strokeWidth={1.75} />
               {aiLoading ? 'Analyzing…' : 'Ask PineTrack Agent'}
             </button>
 

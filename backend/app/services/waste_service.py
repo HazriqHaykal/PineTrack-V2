@@ -9,6 +9,7 @@ from datetime import datetime, date
 from app.models import Waste, Harvest
 from app.schemas import WasteCreate, WasteUpdate
 from typing import List, Optional, Dict, Tuple
+from app.services.batch_service import BatchService
 
 
 class WasteService:
@@ -52,6 +53,8 @@ class WasteService:
             notes=waste_data.notes
         )
         db.add(waste)
+        db.flush()
+        BatchService.log_waste_change(db, None, waste, user_id)
         db.commit()
         db.refresh(waste)
         return waste
@@ -94,7 +97,8 @@ class WasteService:
     def update_waste(
         db: Session,
         waste_id: int,
-        waste_data: WasteUpdate
+        waste_data: WasteUpdate,
+        actor_id: Optional[int] = None
     ) -> Optional[Waste]:
         """Update waste record with whichever fields were provided"""
         waste = db.query(Waste).filter(Waste.id == waste_id).first()
@@ -125,21 +129,24 @@ class WasteService:
             if field in changes and changes[field] is None:
                 del changes[field]
 
+        before = BatchService.waste_snapshot(waste)
         for field, value in changes.items():
             setattr(waste, field, value)
 
+        BatchService.log_waste_change(db, before, waste, actor_id)
         waste.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(waste)
         return waste
 
     @staticmethod
-    def delete_waste(db: Session, waste_id: int) -> bool:
+    def delete_waste(db: Session, waste_id: int, actor_id: Optional[int] = None) -> bool:
         """Delete waste record"""
         waste = db.query(Waste).filter(Waste.id == waste_id).first()
         if not waste:
             return False
 
+        BatchService.log_waste_removed(db, waste, actor_id)
         db.delete(waste)
         db.commit()
         return True

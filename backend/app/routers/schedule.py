@@ -27,7 +27,8 @@ def create_schedule(
     Create a new schedule/task (admin only)
 
     - **worker_id**: Worker the task is assigned to
-    - **task_type**: Type of task (harvest, transport, inspection, maintenance, other)
+    - **task_type**: inspection, sorting_grading, packaging, transport_preparation, transport (delivery),
+      waste_handling, harvest, other (maintenance is accepted for older tasks)
     - **assigned_date**: Date of task
     - **scheduled_time**: Optional time of task
     - **priority**: Priority level (low, medium, high)

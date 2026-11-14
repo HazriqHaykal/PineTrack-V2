@@ -1,24 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ClipboardList, Sprout, Recycle, Plus } from 'lucide-react'
+import { Sprout, Recycle, Plus } from 'lucide-react'
 import WorkerLayout from '../../components/layout/WorkerLayout'
+import { EmptyState, ErrorNote, Segmented, StatTile, WorkerPage, cardCls, primaryBtn } from '../../components/worker/ui'
 import { apiClient, apiErrorMessage } from '../../services/api'
+import GradeBadge, { GRADES, GRADE_META } from '../../components/batch/GradeBadge'
 import { Harvest, Waste } from '../../types'
 
 type Tab = 'harvest' | 'waste'
 
-const GRADE_BADGE: Record<string, string> = {
-  A: 'bg-green-100 text-green-800',
-  B: 'bg-blue-100 text-blue-800',
-  C: 'bg-amber-100 text-amber-800',
-  D: 'bg-red-100 text-red-800',
-}
-
+/** Grading status, same semantic colours as task and transport badges */
 const STATUS_BADGE: Record<string, string> = {
-  pending:   'bg-gray-100 text-gray-600',
-  graded:    'bg-blue-100 text-blue-700',
-  processed: 'bg-green-100 text-green-700',
-  rejected:  'bg-red-100 text-red-700',
+  pending:   'bg-amber-50 text-amber-800 ring-amber-200',
+  graded:    'bg-blue-50 text-blue-800 ring-blue-200',
+  processed: 'bg-green-50 text-green-800 ring-green-200',
+  rejected:  'bg-red-50 text-red-800 ring-red-200',
 }
 
 export default function MyRecords() {
@@ -42,59 +38,33 @@ export default function MyRecords() {
 
   return (
     <WorkerLayout>
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
+      <WorkerPage title="My Records" subtitle="Everything you have logged">
 
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-            <ClipboardList size={22} className="text-green-600" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">My Records</h1>
-            <p className="text-xs text-gray-500">Everything you have logged</p>
-          </div>
-        </div>
-
-        {/* Totals */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-green-50 rounded-2xl border border-green-100 p-3 shadow-sm">
-            <p className="text-2xl font-bold text-green-700">{totalHarvestKg.toLocaleString()} kg</p>
-            <p className="text-[10px] text-green-600 uppercase tracking-wide mt-0.5">{harvests.length} harvest batches</p>
-          </div>
-          <div className="bg-orange-50 rounded-2xl border border-orange-100 p-3 shadow-sm">
-            <p className="text-2xl font-bold text-orange-600">{totalWasteKg.toLocaleString()} kg</p>
-            <p className="text-[10px] text-orange-500 uppercase tracking-wide mt-0.5">{waste.length} waste entries</p>
-          </div>
+          <StatTile label="Harvested" value={`${totalHarvestKg.toLocaleString()} kg`} sub={`${harvests.length} batches`} dot="bg-green-600" />
+          <StatTile label="Waste logged" value={`${totalWasteKg.toLocaleString()} kg`} sub={`${waste.length} entries`} dot="bg-gray-400" />
         </div>
 
-        {/* Tabs */}
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-          {([['harvest', 'Harvests'], ['waste', 'Waste']] as [Tab, string][]).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setTab(value)}
-              className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-                tab === value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <Segmented<Tab> label="Record type" value={tab} onChange={setTab} options={[
+          { value: 'harvest', label: 'Harvests', count: harvests.length },
+          { value: 'waste', label: 'Waste', count: waste.length },
+        ]} />
 
-        {error && (
-          <p className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-xs">{error}</p>
-        )}
+        {error && <ErrorNote>{error}</ErrorNote>}
 
         {loading ? (
           <p className="text-center text-sm text-gray-400 py-8">Loading records…</p>
         ) : tab === 'harvest' ? (
           harvests.length === 0 ? (
-            <Empty icon={<Sprout size={28} />} text="No harvests logged yet" action="Log a harvest" onClick={() => navigate('/harvest-entry')} />
+            <Empty icon={Sprout} text="No harvests logged yet" action="Log a harvest" onClick={() => navigate('/harvest-entry')} />
           ) : (
             <div className="space-y-2">
               {harvests.map(h => (
-                <div key={h.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                <button
+                  key={h.id}
+                  onClick={() => navigate(`/harvest/${h.id}`)}
+                  className={`${cardCls} block w-full text-left p-4 hover:border-green-600 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-semibold text-sm text-gray-900 font-mono">{h.batch_number}</p>
@@ -103,28 +73,41 @@ export default function MyRecords() {
                     <p className="text-sm font-bold text-gray-900 shrink-0">{h.quantity_kg} kg</p>
                   </div>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${GRADE_BADGE[h.quality_grade] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {GRADE_BADGE[h.quality_grade] ? `Grade ${h.quality_grade}` : 'Ungraded'}
-                    </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${STATUS_BADGE[h.harvest_status] ?? STATUS_BADGE.pending}`}>
+                    <GradeBadge grade={h.quality_grade} />
+                    <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-medium ring-1 ring-inset capitalize ${STATUS_BADGE[h.harvest_status] ?? STATUS_BADGE.pending}`}>
                       {h.harvest_status}
                     </span>
-                    {(h.spoilage_kg > 0 || h.rejected_kg > 0) && (
-                      <span className="text-[10px] text-gray-500">
-                        {h.marketable_yield_kg} kg marketable
+                    {h.grading_basis === 'ungraded' ? (
+                      <span className="text-[11px] text-amber-800">Grades not recorded yet</span>
+                    ) : (
+                      <span className="text-[11px] text-gray-600 tabular-nums">
+                        {h.marketable_yield_kg.toLocaleString()} kg marketable ({h.marketable_yield_percent}%)
+                        {h.grading_basis === 'legacy' && ' · legacy'}
                       </span>
                     )}
                   </div>
-                </div>
+                  {h.grade_quantities && (
+                    <div className="mt-2">
+                      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-gray-100" aria-hidden>
+                        {GRADES.filter(g => h.grade_quantities![g] > 0).map(g => (
+                          <span key={g} className={GRADE_META[g].dot} style={{ width: `${(h.grade_quantities![g] / h.quantity_kg) * 100}%` }} />
+                        ))}
+                      </div>
+                      <p className="mt-1 text-[11px] text-gray-500 tabular-nums">
+                        {GRADES.map(g => `${g} ${h.grade_quantities![g].toLocaleString()} kg`).join(' · ')}
+                      </p>
+                    </div>
+                  )}
+                </button>
               ))}
             </div>
           )
         ) : waste.length === 0 ? (
-          <Empty icon={<Recycle size={28} />} text="No waste logged yet" action="Log waste" onClick={() => navigate('/waste-submit')} />
+          <Empty icon={Recycle} text="No waste logged yet" action="Log waste" onClick={() => navigate('/waste-submit')} />
         ) : (
           <div className="space-y-2">
             {waste.map(w => (
-              <div key={w.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <div key={w.id} className={`${cardCls} p-4`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-semibold text-sm text-gray-900 capitalize">{w.waste_type.replace('_', ' ')}</p>
@@ -135,7 +118,7 @@ export default function MyRecords() {
                   <p className="text-sm font-bold text-gray-900 shrink-0">{w.quantity_kg} kg</p>
                 </div>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 capitalize">
+                  <span className="inline-flex px-2 py-0.5 rounded-md text-xs font-medium ring-1 ring-inset bg-gray-50 text-gray-700 ring-gray-200 capitalize">
                     {w.classification.replace('-', ' ')}
                   </span>
                   {w.disposal_method && (
@@ -148,22 +131,15 @@ export default function MyRecords() {
           </div>
         )}
 
-      </div>
+      </WorkerPage>
     </WorkerLayout>
   )
 }
 
-function Empty({ icon, text, action, onClick }: { icon: React.ReactNode; text: string; action: string; onClick: () => void }) {
+function Empty({ icon, text, action, onClick }: { icon: React.ElementType; text: string; action: string; onClick: () => void }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-      <div className="text-gray-300 flex justify-center mb-2">{icon}</div>
-      <p className="text-sm text-gray-500">{text}</p>
-      <button
-        onClick={onClick}
-        className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-semibold hover:bg-green-700 transition-colors"
-      >
-        <Plus size={13} /> {action}
-      </button>
-    </div>
+    <EmptyState icon={icon} title={text} action={
+      <button onClick={onClick} className={`${primaryBtn} py-2`}><Plus size={15} /> {action}</button>
+    } />
   )
 }

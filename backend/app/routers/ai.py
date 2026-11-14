@@ -2,13 +2,18 @@
 AI Recommendation Engine API Routes
 """
 
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.config import get_db
 from app.middleware.rbac import get_current_user, require_worker, require_admin
 from app.schemas import AILogCreate, AILogResponse, AILogListResponse
-from app.models import Harvest
+from app.models import Harvest, Waste
 from app.services.ai_service import AIService
+from app.services.gemini_service import GeminiService
+from app.services.waste_analysis_service import MAX_PER_REQUEST, WasteAnalysisService
 
 router = APIRouter()
 
@@ -126,6 +131,63 @@ def predict_waste_classification(
     AIService.create_ai_log(db, ai_log, current_user.get("user_id"))
 
     return prediction
+
+
+# ── Waste analysis ───────────────────────────────────────────────────────────
+
+class WasteAnalysisRequest(BaseModel):
+    waste_ids: List[int] = Field(..., min_length=1, max_length=MAX_PER_REQUEST)
+
+
+def _visible_waste(db: Session, current_user: dict, ids: List[int] = None):
+    """Waste records this user may see: all for admins, their own for workers"""
+    query = db.query(Waste)
+    if current_user.get("role") != "admin":
+        query = query.filter(Waste.user_id == current_user.get("user_id"))
+    if ids is not None:
+        query = query.filter(Waste.id.in_(ids))
+    return query.all()
+
+
+@router.get("/waste-analysis")
+def get_waste_analyses(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Latest stored PineTrack Agent analysis for each waste record the user can see,
+    plus the assumed recovery rates used for value estimates.
+    Records never analysed are absent from `items`.
+    """
+    analyses = WasteAnalysisService.latest(db, _visible_waste(db, current_user))
+    return {
+        "items": list(analyses.values()),
+        "rates": WasteAnalysisService.rates(),
+        "agent_available": GeminiService.is_configured(),
+    }
+
+
+@router.post("/waste-analysis")
+def analyse_waste(
+    body: WasteAnalysisRequest,
+    current_user: dict = Depends(require_worker),
+    db: Session = Depends(get_db)
+):
+    """
+    Ask PineTrack Agent to analyse up to 25 waste records and recommend what to do with them.
+    Uses built-in rules when Gemini is unavailable; each result names its source.
+    Workers can only analyse their own records.
+    """
+    ids = list(dict.fromkeys(body.waste_ids))
+    records = _visible_waste(db, current_user, ids)
+    missing = set(ids) - {w.id for w in records}
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Waste record(s) not found or not yours: {', '.join(map(str, sorted(missing)))}"
+        )
+    records.sort(key=lambda w: ids.index(w.id))
+    return {"items": WasteAnalysisService.analyse(db, records, current_user.get("user_id"))}
 
 
 @router.get("/recommendations")

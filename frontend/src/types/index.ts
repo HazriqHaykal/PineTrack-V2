@@ -44,13 +44,28 @@ export interface PaginatedResponse<T> {
 
 export type HarvestStatus = 'pending' | 'graded' | 'processed' | 'rejected'
 
+export type GradeLetter = 'A' | 'B' | 'C' | 'D'
+
+/** kg per grade as entered by the farmer; grades left out count as 0 kg */
+export type GradeQuantities = Partial<Record<GradeLetter, number>>
+
+/**
+ * grade_based: a grading breakdown is recorded (FR08)
+ * legacy:      one overall grade, recorded before breakdowns existed
+ * ungraded:    not graded yet
+ */
+export type GradingBasis = 'grade_based' | 'legacy' | 'ungraded'
+
 export interface Harvest {
   id: number
   batch_number: string
   field_name: string
   harvest_date: string
   quantity_kg: number
-  quality_grade: 'A' | 'B' | 'C' | 'D'
+  /** A-D, "mixed" for a breakdown with several grades, or "ungraded" */
+  quality_grade: string
+  /** Sent when creating or re-grading a batch */
+  grades?: GradeQuantities
   ripeness_level?: number
   harvest_status: HarvestStatus
   spoilage_kg: number
@@ -59,10 +74,71 @@ export interface Harvest {
   marketable_yield_percent: number
   spoilage_rate_percent: number
   rejection_rate_percent: number
+  grading_basis: GradingBasis
+  grade_quantities: Record<GradeLetter, number> | null
+  marketable_grades: GradeLetter[] | null
+  graded_marketable_kg: number | null
+  /** Grades the marketability policy excludes */
+  non_marketable_kg: number | null
+  /** Non-marketable kg sorted out at harvest (part of rejected_kg, logged as waste) */
+  rejected_at_sorting_kg: number | null
+  rejected_after_grading_kg: number | null
+  grading_yield_percent: number | null
+  grading_policy_version: number | null
   notes?: string
   worker_id: number
   created_at: string
   updated_at: string
+}
+
+/** Quantity-weighted yield over grade-based batches; legacy and ungraded batches are counted apart */
+export interface FarmYield {
+  graded_batches: number
+  harvested_kg: number
+  marketable_kg: number
+  graded_marketable_kg: number
+  non_marketable_kg: number
+  spoilage_kg: number
+  rejected_kg: number
+  marketable_yield_percent: number | null
+  grading_yield_percent: number | null
+  grade_kg: Record<GradeLetter, number>
+  grade_percent: Record<GradeLetter, number>
+  legacy_batches: number
+  legacy_kg: number
+  ungraded_batches: number
+  ungraded_kg: number
+}
+
+export interface MarketabilityPolicy {
+  version: number
+  marketable_grades: GradeLetter[]
+  non_marketable_grades: GradeLetter[]
+  note?: string | null
+  created_at: string
+  created_by?: string | null
+  is_current: boolean
+  explanation: string
+}
+
+export interface BatchGrading {
+  basis: GradingBasis
+  grades: { grade: GradeLetter; quantity_kg: number; percent: number; is_marketable: boolean }[]
+  harvested_kg: number
+  graded_marketable_kg: number | null
+  non_marketable_kg: number | null
+  rejected_at_sorting_kg: number | null
+  rejected_after_grading_kg: number | null
+  spoilage_kg: number
+  rejected_kg: number
+  marketable_kg: number
+  marketable_yield_percent: number
+  grading_yield_percent: number | null
+  marketable_grades: GradeLetter[] | null
+  policy_version: number | null
+  current_policy_version: number | null
+  legacy_grade: string | null
+  policy_explanation: string
 }
 
 export interface HarvestStats {
@@ -77,6 +153,7 @@ export interface HarvestStats {
   spoilage_rate_percent?: number
   rejection_rate_percent?: number
   marketable_yield_percent?: number
+  grading?: FarmYield
 }
 
 export interface QualityTargets {
@@ -99,7 +176,9 @@ export interface Transport {
   vehicle_number: string
   cargo_weight_kg?: number | null
   notes?: string | null
+  user_id?: number
   created_at: string
+  updated_at?: string
 }
 
 export interface TransportEfficiency {
@@ -137,13 +216,16 @@ export interface Schedule {
   id: number
   worker_id: number
   worker_name?: string
-  task_type: 'harvest' | 'transport' | 'inspection' | 'maintenance' | 'other'
+  task_type:
+    | 'inspection' | 'sorting_grading' | 'packaging' | 'transport_preparation' | 'transport' | 'waste_handling'
+    | 'harvest' | 'maintenance' | 'other'
   assigned_date: string
   scheduled_time?: string | null
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
   details?: string | null
   priority?: 'low' | 'medium' | 'high'
   created_at: string
+  updated_at?: string
 }
 
 export interface AIHarvestPrediction {
@@ -187,7 +269,7 @@ export interface AILog {
   prediction_type: string
   input_data: Record<string, unknown>
   prediction_result: string
-  confidence_score: number
+  confidence_score: number | null
   model_version: string
   created_at: string
 }
@@ -214,9 +296,36 @@ export interface AIRecommendations {
   source: 'gemini' | 'rules'
   model_version: string
   generated_at: string
+  /** The farm summary the agent was given for this set */
+  snapshot?: FarmSnapshot | null
+}
+
+/** Aggregated farm data sent to the agent (backend AIService.build_farm_snapshot) */
+export interface FarmSnapshot {
+  period_days: number
+  date: string
+  targets: { max_spoilage_rate_percent: number; max_rejection_rate_percent: number }
+  harvest: {
+    batches: number
+    total_kg: number
+    spoilage_rate_percent: number
+    rejection_rate_percent: number
+    grade_counts: Record<string, number>
+    ungraded_pending_batches: number
+    by_field: { field: string; batches: number; kg: number; loss_rate_percent: number; avg_ripeness: number | null }[]
+  }
+  waste: { records: number; total_kg: number; waste_rate_percent: number; by_type_kg: Record<string, number> }
+  transport: {
+    total: number; pending: number; in_transit: number; delivered: number; delivered_late: number
+    overdue_not_delivered: { destination: string; scheduled_date: string; status: string }[]
+  }
+  tasks: { open: number; overdue: number; high_priority_open: number; completed: number }
 }
 
 export interface PeriodKpis {
+  marketable_yield_percent: number | null
+  marketable_kg: number
+  graded_batches: number
   harvest_volume_kg: number
   harvest_batches: number
   avg_batch_kg: number
@@ -232,6 +341,8 @@ export interface AnalyticsOverview {
   kpis: { current: PeriodKpis; previous: PeriodKpis; period_days: number }
   harvest_trend: { month: string; kg: number; batches: number }[]
   grade_distribution: { grade: string; count: number; percent: number }[]
+  grading: FarmYield
+  yield_trend: { month: string; graded_batches: number; harvested_kg: number; marketable_kg: number; marketable_yield_percent: number | null }[]
   waste_by_type: { type: string; kg: number }[]
   transport_trend: { month: string; delivered: number; delayed: number }[]
   worker_performance: { worker_id: number; name: string; tasks: number; completed: number }[]
@@ -247,4 +358,198 @@ export interface AppSettings {
   language: string
   notifications: Record<string, boolean>
   security: Record<string, boolean>
+}
+
+// ── Batch lifecycle & traceability ───────────────────────────────────────────
+
+export type LifecycleStatus =
+  | 'awaiting_inspection'
+  | 'ready_for_dispatch'
+  | 'partially_allocated'
+  | 'fully_allocated'
+  | 'in_transit'
+  | 'partially_delivered'
+  | 'delivered'
+  | 'closed'
+
+export interface BatchLifecycle {
+  code: LifecycleStatus
+  label: string
+  reason: string
+}
+
+/** All quantities in kg, calculated by the backend */
+export interface BatchQuantities {
+  unit: 'kg'
+  grading_basis: GradingBasis
+  marketable_yield_percent: number
+  harvested_kg: number
+  spoilage_kg: number
+  rejected_kg: number
+  /** Grades the marketability policy excludes (none by default) */
+  non_marketable_kg: number
+  rejected_at_sorting_kg: number
+  marketable_kg: number
+  pending_kg: number
+  in_transit_kg: number
+  reserved_kg: number
+  delivered_kg: number
+  dispatched_kg: number
+  available_kg: number
+  withheld_kg: number
+  over_allocated_kg: number
+  unquantified_transports: number
+  waste_recorded_kg: number
+  recorded_losses_kg: number
+  unclassified_losses_kg: number
+  waste_exceeds_losses_kg: number
+  waste_policy: string
+}
+
+export interface BatchEvent {
+  id: number
+  batch_id: number
+  event_type: string
+  actor_user_id?: number | null
+  actor_name: string
+  related_module: 'harvest' | 'transport' | 'waste'
+  related_record_id?: number | null
+  description: string
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface BatchEventList extends PaginatedResponse<BatchEvent> {
+  event_types: string[]
+  history_complete: boolean
+  history_note?: string | null
+}
+
+export interface BatchDetails {
+  batch: Harvest
+  created_by?: string | null
+  lifecycle: BatchLifecycle
+  quantities: BatchQuantities
+  grading: BatchGrading
+  transports: { items: Transport[]; hidden_count: number }
+  waste: { items: Waste[]; hidden_count: number }
+  history_complete: boolean
+  history_note?: string | null
+}
+
+export interface BatchSummary {
+  harvest_id: number
+  lifecycle_status: LifecycleStatus
+  lifecycle_label: string
+  marketable_kg: number
+  reserved_kg: number
+  delivered_kg: number
+  available_kg: number
+}
+
+// ── Waste analysis (PineTrack Agent) ─────────────────────────────────────────
+
+export type RecoveryRoute = 'processing' | 'low_grade' | 'feed' | 'compost' | 'dispose' | 'review'
+
+/** Assumed RM/kg range for a handling route; null when no value is estimated */
+export interface RecoveryRate {
+  route: RecoveryRoute
+  label: string
+  low: number | null
+  high: number | null
+  basis: string
+}
+
+export interface WasteAnalysis {
+  waste_id: number
+  route: RecoveryRoute
+  route_label: string
+  action: string
+  explanation: string
+  alternatives: string[]
+  warning: string
+  suitable_for_reuse: boolean
+  confidence: number
+  /** quantity x assumed rate, calculated by the backend (never by the model) */
+  value_low: number | null
+  value_high: number | null
+  rate_low: number | null
+  rate_high: number | null
+  source: 'gemini' | 'rules'
+  model_version: string
+  analysed_at: string
+  /** The record changed after this analysis ran */
+  stale: boolean
+}
+
+export interface WasteAnalysisList {
+  items: WasteAnalysis[]
+  rates: RecoveryRate[]
+  agent_available: boolean
+}
+
+// ── Harvest & Profit Planner (FR12) ──────────────────────────────────────────
+
+export type PlannerMode = 'target_profit' | 'forecast'
+
+/** Money in RM, quantities in kg, land in ha; variable cost is per marketable kg */
+export interface PlannerInput {
+  mode: PlannerMode
+  selling_price_per_kg: number
+  variable_cost_per_kg: number
+  fixed_cost: number
+  marketable_yield_percent: number
+  productivity_kg_per_ha: number
+  target_profit?: number
+  planned_harvest_kg?: number
+  land_area_ha?: number
+}
+
+export interface PlannerResult {
+  mode: PlannerMode
+  calculation_version: string
+  harvest_kg: number
+  marketable_kg: number
+  land_ha: number
+  revenue: number
+  variable_cost: number
+  fixed_cost: number
+  total_cost: number
+  profit: number
+  profit_margin_percent: number | null
+  contribution_per_kg: number
+  break_even_marketable_kg: number | null
+  harvest_source: 'required' | 'planned_harvest' | 'land_area'
+  assumptions: Record<string, number | string | null>
+  notes: string[]
+  disclaimer: string
+  steps: { label: string; formula: string; working: string }[]
+}
+
+export interface PlannerScenarioResult {
+  label: string
+  result: PlannerResult | null
+  error: string | null
+}
+
+export interface WhatIfResult {
+  scenarios: { label: string; inputs: Record<string, number>; result: PlannerResult | null; error: string | null }[]
+  rules: { field: string; label: string; unit: string; conservative: string; optimistic: string }[]
+  note: string
+}
+
+export interface HistoricalYield {
+  available: boolean
+  marketable_yield_percent: number | null
+  period_start: string
+  period_end: string
+  months: number
+  included_batches: number
+  harvested_kg: number
+  marketable_kg: number
+  excluded_legacy_batches: number
+  excluded_ungraded_batches: number
+  min_batches: number
+  rules: string
+  message: string | null
 }

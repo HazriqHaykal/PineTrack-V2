@@ -143,6 +143,59 @@ python seed.py --reset    # wipe every table first, then seed
 
 `--reset` deletes all existing data in the database `DATABASE_URL` points to.
 
+## Batch lifecycle and traceability
+
+Each harvest batch has a details page (`/harvest/<id>`). Admins open it with the eye icon on Harvest Management; workers open it from a batch card in My Records. It shows the batch's quantities, lifecycle, linked transports and waste, and a timeline of everything that happened to it.
+
+**Quantities** are calculated by the backend in kilograms, to 0.01 kg, using decimal arithmetic:
+
+| Quantity | Calculation |
+|---|---|
+| Marketable | Harvested − Spoilage − Rejected |
+| Reserved | Cargo weight of linked transports that are pending or in transit |
+| Delivered | Cargo weight of linked transports marked delivered |
+| Dispatched | In transit + Delivered (cumulative) |
+| Available | Marketable − Reserved − Delivered (0 for a batch rejected at grading; the rest shows as withheld) |
+
+The cargo weight on a batch-linked transport is the only record of allocated stock. Cancelled transports hold none.
+
+**Waste records** linked to a batch classify the spoilage and rejection already entered on it (for example, 12 kg spoilage recorded as 12 kg of rotten fruit). They are never subtracted from stock a second time. The details page flags waste that exceeds the recorded losses.
+
+**Rules the backend enforces**
+
+- A transport linked to a batch needs a cargo weight, and the batch must have that much available. Editing a transport only counts the difference from its previous weight.
+- Rejected batches cannot be allocated.
+- Spoilage and rejection cannot rise above what existing transport commitments leave. A batch with pending or in-transit transports cannot be rejected until they are cancelled or completed.
+- Delivered transports keep their batch and cargo weight, and cannot be cancelled or deleted.
+- A batch with linked transports or waste cannot be deleted.
+- Concurrent allocations are serialised: PostgreSQL locks the batch row (`SELECT ... FOR UPDATE`); SQLite takes its database-wide write lock, so concurrent writes wait their turn (up to 5 seconds) rather than running in parallel.
+
+**Lifecycle status** is derived, never chosen. The first rule that matches wins:
+
+1. Rejected at grading, or nothing marketable: **Closed / Rejected**
+2. Any transport in transit: **In Transit**
+3. Something delivered, nothing reserved or available: **Delivered**
+4. Something delivered: **Partially Delivered**
+5. Stock reserved, nothing available: **Fully Allocated**
+6. Stock reserved: **Partially Allocated**
+7. Grading status still pending: **Awaiting Inspection**
+8. Otherwise: **Ready for Dispatch**
+
+The original grading status (pending, graded, processed, rejected) is kept and shown alongside.
+
+**Timeline events** are written by the backend in the same database transaction as the change they describe, and only when something actually changed, so a repeated request adds no duplicate. They cover:
+
+- batch creation
+- grading, spoilage and rejection changes
+- transport allocation, dispatch, delivery, cancellation and deletion
+- waste records added, changed or removed
+
+Batches created before this feature have no earlier events. Their page says the earlier history is unavailable rather than inventing it.
+
+### Upgrading an existing database
+
+The only schema change is a new `batch_events` table. The backend creates it on startup, and existing tables and data are not changed. To apply it by hand instead, run `database/migrations/001_batch_events.sql` in the Supabase SQL editor.
+
 ## Tests
 
 ```bash
@@ -173,11 +226,14 @@ PinetrackV2/
 │   └── src/
 │       ├── pages/admin/       Admin pages
 │       ├── pages/worker/      Worker pages
+│       ├── pages/BatchDetails.tsx  Batch details and timeline (admin and worker)
 │       ├── components/layout/ Sidebars and page shells
+│       ├── components/batch/  Lifecycle badge
 │       ├── services/          API client and login state
 │       └── types/             Shared TypeScript types
 └── database/
-    └── schema.sql             Reference PostgreSQL schema
+    ├── schema.sql             Reference PostgreSQL schema
+    └── migrations/            Hand-run SQL for schema changes
 ```
 
 ## API
@@ -188,7 +244,7 @@ Every endpoint is under `/api` and, apart from login and register, needs an `Aut
 |---|---|
 | `/api/auth` | Register, login, current user, token refresh |
 | `/api/users` | User management, own profile and statistics |
-| `/api/harvest` | Batches, statistics, quality targets |
+| `/api/harvest` | Batches, statistics, quality targets, batch details, lifecycle, reconciliation, timeline |
 | `/api/transport` | Deliveries, status updates, efficiency |
 | `/api/schedule` | Tasks, assignment, a worker's own schedule |
 | `/api/waste` | Waste records and statistics |
@@ -205,3 +261,5 @@ Every endpoint is under `/api` and, apart from login and register, needs an `Aut
 - Timezone and language settings are saved but do not change the interface.
 - PineTrack Agent's recommendation buttons open the related page; they do not create tasks.
 - A deactivated user's existing login token keeps working until it expires (24 hours).
+- Scheduled tasks have no link to a harvest batch, so they do not appear on a batch's page or timeline.
+- Transports created before allocation checks may have no cargo weight. They are listed but not counted, and the batch page says so.

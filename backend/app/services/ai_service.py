@@ -12,6 +12,7 @@ from app.models import AILog, Harvest, Transport, Waste, Schedule, QualityTarget
 from app.schemas import AILogCreate
 from app.services.gemini_service import GeminiService, GeminiError
 from typing import Optional, Dict, List, Tuple
+from app.services.yield_calc import farm_yield
 import json
 import logging
 
@@ -414,6 +415,12 @@ class AIService:
                 "spoilage_rate_percent": round(spoilage_kg / total_kg * 100, 1) if total_kg else 0.0,
                 "rejection_rate_percent": round(rejected_kg / total_kg * 100, 1) if total_kg else 0.0,
                 "grade_counts": grades,
+                # Farmer-recorded grade quantities (no AI grading); weighted over grade-based batches only
+                "graded_yield": {
+                    k: v for k, v in farm_yield([h.yield_breakdown for h in harvests]).items()
+                    if k in ("graded_batches", "harvested_kg", "marketable_kg", "marketable_yield_percent",
+                             "grade_kg", "legacy_batches", "ungraded_batches")
+                },
                 "ungraded_pending_batches": sum(1 for h in harvests if h.harvest_status == "pending"),
                 "by_field": field_rows,
             },
@@ -449,14 +456,11 @@ class AIService:
         harvest, waste, transport, tasks = snapshot["harvest"], snapshot["waste"], snapshot["transport"], snapshot["tasks"]
         targets = snapshot["targets"]
 
-        if harvest["batches"] == 0:
-            return [{
-                "type": "harvest", "priority": "low", "title": "No recent harvest data",
-                "description": f"No harvests were recorded in the last {snapshot['period_days']} days, so there is nothing to analyse yet.",
-                "confidence": 90, "impact": "Enables recommendations", "action": "Log harvest batches",
-            }]
+        # Without recent harvests there is nothing to judge quality against. Missing data is not a
+        # recommendation; the page shows it as a notice. Delivery and task checks still apply.
+        has_harvests = harvest["batches"] > 0
 
-        if harvest["spoilage_rate_percent"] > targets["max_spoilage_rate_percent"]:
+        if has_harvests and harvest["spoilage_rate_percent"] > targets["max_spoilage_rate_percent"]:
             recs.append({
                 "type": "waste", "priority": "high", "title": "Spoilage rate is above target",
                 "description": (
@@ -468,7 +472,7 @@ class AIService:
                 "action": "Review harvest timing",
             })
 
-        if harvest["rejection_rate_percent"] > targets["max_rejection_rate_percent"]:
+        if has_harvests and harvest["rejection_rate_percent"] > targets["max_rejection_rate_percent"]:
             recs.append({
                 "type": "harvest", "priority": "high", "title": "Rejection rate is above target",
                 "description": (
@@ -520,7 +524,7 @@ class AIService:
                 "confidence": 88, "impact": "Faster dispatch", "action": "Grade pending batches",
             })
 
-        if not recs:
+        if not recs and has_harvests:
             recs.append({
                 "type": "harvest", "priority": "low", "title": "Operations are within targets",
                 "description": (
@@ -539,7 +543,8 @@ class AIService:
             f"Here is a summary of the farm's operations for the last {snapshot['period_days']} days:\n"
             f"{json.dumps(snapshot, indent=2)}\n\n"
             "Give between 3 and 5 recommendations for the farm manager, most important first. "
-            "Each must be grounded in specific numbers from the summary. For each give: type "
+            "Each must be grounded in specific numbers from the summary. If a section has no records "
+            "(for example zero harvest batches), do not make recommendations about it. For each give: type "
             "(harvest, waste, transport or schedule), priority, a short title, a description of two sentences "
             "at most, your confidence as a whole number from 0 to 100, the expected impact in a few words, "
             "and a short action label for a button."
@@ -603,8 +608,8 @@ class AIService:
             harvest_id=None,
             prediction_type="recommendations",
             input_data={"source": source, "items": items, "snapshot": snapshot},
-            prediction_result=f"{len(items)} recommendations generated",
-            confidence_score=round(sum(i["confidence"] for i in items) / len(items) / 100, 3),
+            prediction_result=f"{len(items)} recommendation{'' if len(items) == 1 else 's'} generated",
+            confidence_score=round(sum(i["confidence"] for i in items) / len(items) / 100, 3) if items else None,
             model_version=model,
         )
         return AIService.create_ai_log(db, log, user_id)
@@ -626,6 +631,8 @@ class AIService:
             "source": data.get("source", "rules"),
             "model_version": log.model_version,
             "generated_at": log.created_at,
+            # The farm summary the agent was given, so the page can show what it looked at
+            "snapshot": data.get("snapshot"),
         }
 
     # ── Metrics ───────────────────────────────────────────────────────────

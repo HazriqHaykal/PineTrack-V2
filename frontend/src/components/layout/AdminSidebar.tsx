@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Sprout, Truck, Calendar, Recycle,
-  Brain, BarChart3, FileText, Users, Settings,
+  Lightbulb, BarChart3, Calculator, FileText, Users, Settings,
   ChevronLeft, ChevronRight, LogOut, UserCircle, Shield,
 } from 'lucide-react'
 import { authService } from '../../services/auth'
@@ -21,8 +21,9 @@ const NAV_SECTIONS = [
   {
     label: 'Intelligence',
     items: [
-      { icon: Brain,     label: 'PineTrack Agent', path: '/admin/ai-insights' },
+      { icon: Lightbulb, label: 'PineTrack Agent', path: '/admin/ai-insights' },
       { icon: BarChart3, label: 'Analytics',   path: '/analytics'         },
+      { icon: Calculator, label: 'Harvest & Profit Planner', path: '/profit-planner' },
     ],
   },
   {

@@ -8,6 +8,7 @@ from sqlalchemy import desc
 from datetime import date, timedelta
 from app.models import Harvest, Transport, Waste, Schedule, User, QualityTarget, AILog
 from typing import Dict, List, Optional
+from app.services.yield_calc import farm_yield
 
 
 def _month_keys(months: int, today: date) -> List[date]:
@@ -45,7 +46,12 @@ class AnalyticsService:
         waste_kg = sum(w.quantity_kg for w in waste)
         delays = [(t.actual_delivery - t.scheduled_date).days for t in delivered]
 
+        grading = farm_yield([h.yield_breakdown for h in harvests])
         return {
+            # Quantity-weighted over grade-based batches; None when none were graded by grade in the period
+            "marketable_yield_percent": grading["marketable_yield_percent"],
+            "marketable_kg": round(grading["marketable_kg"], 1),
+            "graded_batches": grading["graded_batches"],
             "harvest_volume_kg": round(total_kg, 1),
             "harvest_batches": len(harvests),
             "avg_batch_kg": round(total_kg / len(harvests), 1) if harvests else 0.0,
@@ -155,12 +161,15 @@ class AnalyticsService:
         waste = db.query(Waste).filter(Waste.waste_date >= trend_start).all()
 
         harvest_by_month = {m: {"kg": 0.0, "batches": 0} for m in month_starts}
+        yields_by_month: Dict[date, List[Dict]] = {m: [] for m in month_starts}
         grades: Dict[str, int] = {}
         for h in harvests:
-            bucket = harvest_by_month.get(h.harvest_date.replace(day=1))
+            month = h.harvest_date.replace(day=1)
+            bucket = harvest_by_month.get(month)
             if bucket is not None:
                 bucket["kg"] += h.quantity_kg
                 bucket["batches"] += 1
+                yields_by_month[month].append(h.yield_breakdown)
             grade = h.quality_grade or "ungraded"
             grades[grade] = grades.get(grade, 0) + 1
 
@@ -215,6 +224,19 @@ class AnalyticsService:
             "harvest_trend": [
                 {"month": m.strftime("%b"), "kg": round(v["kg"], 1), "batches": v["batches"]}
                 for m, v in harvest_by_month.items()
+            ],
+            # FR09: grade distribution in kg and quantity-weighted marketable yield,
+            # from grade-based batches only; legacy and ungraded batches are reported apart
+            "grading": farm_yield([h.yield_breakdown for h in harvests]),
+            "yield_trend": [
+                {
+                    "month": m.strftime("%b"),
+                    "graded_batches": monthly["graded_batches"],
+                    "harvested_kg": monthly["harvested_kg"],
+                    "marketable_kg": monthly["marketable_kg"],
+                    "marketable_yield_percent": monthly["marketable_yield_percent"],
+                }
+                for m, monthly in ((m, farm_yield(rows)) for m, rows in yields_by_month.items())
             ],
             "grade_distribution": [
                 {"grade": g, "count": c, "percent": _percent(c, total_graded)}

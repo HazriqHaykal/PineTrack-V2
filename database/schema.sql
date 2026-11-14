@@ -103,6 +103,43 @@ CREATE TABLE IF NOT EXISTS ai_logs (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Batch traceability timeline (one row per recorded change to a harvest batch)
+CREATE TABLE IF NOT EXISTS batch_events (
+    id SERIAL PRIMARY KEY,
+    batch_id INTEGER NOT NULL REFERENCES harvest(id) ON DELETE CASCADE,
+    event_type VARCHAR(50) NOT NULL,
+    actor_user_id INTEGER REFERENCES users(id),
+    related_module VARCHAR(20) NOT NULL,
+    related_record_id INTEGER,
+    description TEXT NOT NULL,
+    metadata TEXT NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Marketability policy versions (which grades count as marketable)
+CREATE TABLE IF NOT EXISTS marketability_policies (
+    id SERIAL PRIMARY KEY,
+    marketable_grades VARCHAR(20) NOT NULL,
+    note TEXT,
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Grading breakdown: kilograms of each grade in a harvest batch
+CREATE TABLE IF NOT EXISTS harvest_grades (
+    id SERIAL PRIMARY KEY,
+    harvest_id INTEGER NOT NULL REFERENCES harvest(id) ON DELETE CASCADE,
+    grade VARCHAR(1) NOT NULL,
+    quantity_kg FLOAT NOT NULL,
+    is_marketable BOOLEAN NOT NULL,
+    policy_id INTEGER REFERENCES marketability_policies(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_harvest_grades_harvest_grade UNIQUE (harvest_id, grade),
+    CONSTRAINT ck_harvest_grades_quantity_nonnegative CHECK (quantity_kg >= 0),
+    CONSTRAINT ck_harvest_grades_grade CHECK (grade IN ('A', 'B', 'C', 'D'))
+);
+
 -- Indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_harvest_user_date ON harvest(user_id, harvest_date);
 CREATE INDEX IF NOT EXISTS idx_harvest_status ON harvest(harvest_status);
@@ -114,3 +151,5 @@ CREATE INDEX IF NOT EXISTS idx_schedules_status ON schedules(status);
 CREATE INDEX IF NOT EXISTS idx_waste_user_date ON waste(user_id, waste_date);
 CREATE INDEX IF NOT EXISTS idx_ai_logs_harvest_id ON ai_logs(harvest_id);
 CREATE INDEX IF NOT EXISTS idx_ai_logs_created_at ON ai_logs(created_at);
+CREATE INDEX IF NOT EXISTS ix_batch_events_batch_id ON batch_events(batch_id);
+CREATE INDEX IF NOT EXISTS ix_harvest_grades_harvest_id ON harvest_grades(harvest_id);
