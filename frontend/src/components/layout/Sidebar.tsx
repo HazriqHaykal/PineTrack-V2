@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
+  Layers,
   Sprout,
   Truck,
   Calendar,
@@ -16,13 +17,14 @@ import {
 import { authService } from '../../services/auth'
 
 const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-  { icon: Sprout,          label: 'Harvest',   path: '/harvest'   },
-  { icon: Truck,           label: 'Transport', path: '/transport' },
-  { icon: Calendar,        label: 'Schedule',  path: '/schedule'  },
-  { icon: Recycle,         label: 'Waste',     path: '/waste'     },
-  { icon: BarChart3,       label: 'Analytics', path: '/analytics' },
-  { icon: Brain,           label: 'PineTrack Agent', path: '/ai'        },
+  { icon: LayoutDashboard, label: 'Dashboard',       path: '/dashboard'   },
+  { icon: Layers,          label: 'Sulur Inventory', path: '/admin/sulur' },
+  { icon: Sprout,          label: 'Harvest',         path: '/harvest'     },
+  { icon: Truck,           label: 'Transport',       path: '/transport'   },
+  { icon: Calendar,        label: 'Schedule',        path: '/schedule'    },
+  { icon: Recycle,         label: 'Waste',           path: '/waste'       },
+  { icon: BarChart3,       label: 'Analytics',       path: '/analytics'   },
+  { icon: Brain,           label: 'PineTrack Agent', path: '/ai'          },
 ]
 
 export default function Sidebar() {
@@ -42,7 +44,6 @@ export default function Sidebar() {
         collapsed ? 'w-[68px]' : 'w-60'
       } h-full`}
     >
-      {/* Logo */}
       <div className={`flex items-center border-b border-slate-700/60 h-16 ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
@@ -66,7 +67,6 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         {NAV_ITEMS.map(({ icon: Icon, label, path }) => {
           const active = location.pathname === path || location.pathname.startsWith(path + '/')
@@ -88,7 +88,6 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* User block */}
       <div className="px-2 pb-3 border-t border-slate-700/60 pt-3 space-y-0.5">
         <div
           className={`flex items-center gap-3 px-3 py-2 rounded-lg ${

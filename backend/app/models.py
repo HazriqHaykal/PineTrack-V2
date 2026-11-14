@@ -323,3 +323,127 @@ class AppSetting(Base):
     id = Column(Integer, primary_key=True, index=True)
     data = Column(Text, nullable=False, default="{}")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+
+# ==============================================================================
+# SULUR INVENTORY & TRACKING MODULE (MUHAMMAD ARIF OMAR BIN AKASHAH)
+# ==============================================================================
+
+class SulurBatch(Base):
+    """Pineapple seed (sulur) batch registry, grading, and certification status."""
+    __tablename__ = "sulur_batches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    batch_code = Column(String(50), unique=True, index=True, nullable=False)
+    variety = Column(String(50), nullable=False)  # MD2, Moris, Josapine, N36, Yankee
+    sulur_type = Column(String(30), nullable=False, default="sucker")  # sucker (sulur tangkai/bapa), slip, crown
+    size_grade = Column(String(20), nullable=False, default="Grade A")  # Grade A (>400g / 30-45cm), Grade B, Grade C
+    initial_quantity = Column(Integer, nullable=False)
+    available_quantity = Column(Integer, nullable=False)
+    reserved_quantity = Column(Integer, nullable=False, default=0)
+    planted_quantity = Column(Integer, nullable=False, default=0)
+    sold_quantity = Column(Integer, nullable=False, default=0)
+    damaged_quantity = Column(Integer, nullable=False, default=0)
+    source_plot = Column(String(100), nullable=False)  # e.g., Block A - Seri Nanas Farm
+    storage_location = Column(String(100), nullable=False, default="Nursery Shed 1")
+    date_received = Column(Date, nullable=False)
+    treatment_status = Column(String(30), nullable=False, default="raw")  # raw, curing, fungicide_treated, ready_to_plant
+    stock_status = Column(String(30), nullable=False, default="available")  # available, reserved, low_stock, depleted, damaged
+    
+    # Management Quality Certification (Addressing Supervisor Feedback)
+    is_certified = Column(Boolean, default=False, nullable=False)
+    certificate_number = Column(String(60), unique=True, nullable=True)
+    certified_by = Column(String(100), nullable=True)
+    certified_date = Column(Date, nullable=True)
+    quality_remarks = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", backref="sulur_batches")
+    movements = relationship("SulurMovement", back_populates="batch", cascade="all, delete-orphan")
+
+
+class SulurMovement(Base):
+    """Full stock movement ledger for batch traceability."""
+    __tablename__ = "sulur_movements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    batch_id = Column(Integer, ForeignKey("sulur_batches.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    movement_type = Column(String(30), nullable=False)  # stock_in, stock_out, reserve, release_reserve, plant, sell, transfer, damage
+    quantity = Column(Integer, nullable=False)
+    destination_or_plot = Column(String(120), nullable=True)
+    movement_date = Column(Date, nullable=False)
+    remarks = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    batch = relationship("SulurBatch", back_populates="movements")
+    user = relationship("User", backref="sulur_movements")
+
+    @property
+    def batch_code(self) -> str:
+        return self.batch.batch_code if self.batch else ""
+
+    @property
+    def recorded_by_name(self) -> str:
+        if not self.user:
+            return ""
+        return self.user.full_name or self.user.username
+
+
+class SulurReferenceConfig(Base):
+    """LPNM/MPIB reference values for planting density, nutrient rate, selling price, and costs per variety."""
+    __tablename__ = "sulur_reference_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    variety = Column(String(50), unique=True, index=True, nullable=False)  # MD2, Moris, Josapine, N36
+    default_planting_density_ha = Column(Integer, nullable=False, default=43500)  # trees per hectare
+    npk_fertilizer_kg_per_1000 = Column(Float, nullable=False, default=42.0)  # kg NPK per 1,000 sulur
+    foliar_fertilizer_l_per_1000 = Column(Float, nullable=False, default=3.5)  # liters foliar per 1,000 sulur
+    sulur_unit_cost_rm = Column(Float, nullable=False, default=0.80)  # RM per sulur seed
+    sulur_selling_price_rm = Column(Float, nullable=False, default=1.50)  # LPNM reference selling price per sulur
+    fruit_selling_price_rm_kg = Column(Float, nullable=False, default=3.50)  # Expected fruit price RM/kg
+    avg_fruit_weight_kg = Column(Float, nullable=False, default=1.6)  # Expected kg per harvested fruit
+    nutrient_cost_per_1000_rm = Column(Float, nullable=False, default=360.0)  # RM nutrient cost per 1,000 sulur
+    operational_cost_per_ha_rm = Column(Float, nullable=False, default=5000.0)  # RM labour/land prep per ha
+    min_stock_threshold = Column(Integer, nullable=False, default=5000)  # Low stock alert threshold
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class SulurPlanRecord(Base):
+    """Saved seed quantity, nutrient estimation, profit calculation, and rule-based DSS recommendations."""
+    __tablename__ = "sulur_plan_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    plan_title = Column(String(120), nullable=False)
+    variety = Column(String(50), nullable=False)
+    plan_mode = Column(String(30), nullable=False, default="cultivation")  # cultivation or sulur_sales
+    land_area_ha = Column(Float, nullable=False)
+    planting_density_ha = Column(Integer, nullable=False, default=43500)
+    mortality_buffer_percent = Column(Float, nullable=False, default=5.0)
+    required_sulur = Column(Integer, nullable=False)
+    available_sulur_at_plan = Column(Integer, nullable=False, default=0)
+    stock_shortfall = Column(Integer, nullable=False, default=0)
+
+    # Nutrient estimations
+    estimated_npk_kg = Column(Float, nullable=False, default=0.0)
+    estimated_foliar_liters = Column(Float, nullable=False, default=0.0)
+
+    # Financial & Profit estimations (RM)
+    sulur_cost_rm = Column(Float, nullable=False, default=0.0)
+    nutrient_cost_rm = Column(Float, nullable=False, default=0.0)
+    operational_cost_rm = Column(Float, nullable=False, default=0.0)
+    total_cost_rm = Column(Float, nullable=False, default=0.0)
+    estimated_revenue_rm = Column(Float, nullable=False, default=0.0)
+    projected_profit_rm = Column(Float, nullable=False, default=0.0)
+    roi_percent = Column(Float, nullable=False, default=0.0)
+
+    # Rule-based DSS JSON string of recommendations
+    recommendations_json = Column(Text, nullable=False, default="[]")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", backref="sulur_plans")

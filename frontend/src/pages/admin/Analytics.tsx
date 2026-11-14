@@ -9,6 +9,8 @@ import AdminLayout from '../../components/layout/AdminLayout'
 import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
 import { GRADES, GRADE_HEX } from '../../components/batch/GradeBadge'
 import { AnalyticsOverview, PeriodKpis } from '../../types'
+import { SulurAnalyticsSection } from '../../components/sulur/SulurModuleBridge'
+
 
 interface KpiRow { metric: string; value: string; change: string; positive: boolean }
 
@@ -356,6 +358,7 @@ export default function AnalyticsPage() {
           </table>
         </div>
       </div>
+          <SulurAnalyticsSection />
     </AdminLayout>
   )
 }

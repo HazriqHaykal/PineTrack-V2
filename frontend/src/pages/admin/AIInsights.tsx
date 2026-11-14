@@ -6,7 +6,13 @@ import AgentOverview from '../../components/agent/AgentOverview'
 import AskAgent from '../../components/agent/AskAgent'
 import AgentHistory from '../../components/agent/AgentHistory'
 import { apiClient, apiErrorMessage } from '../../services/api'
+<<<<<<< HEAD
 import { AIMetrics, AIRecommendations, AIStatus } from '../../types'
+=======
+import { AILog, AIMetrics, AIRecommendation, AIRecommendations, AIStatus } from '../../types'
+import { SulurIntelligenceSection } from '../../components/sulur/SulurModuleBridge'
+
+>>>>>>> origin/arif-sulur-module
 
 type Tab = 'overview' | 'ask' | 'history'
 const TABS: { key: Tab; label: string }[] = [
@@ -104,6 +110,11 @@ export default function AIInsights() {
           {tab === 'history' && <AgentHistory status={status} metrics={metrics} />}
         </div>
       </div>
+<<<<<<< HEAD
+=======
+
+          <SulurIntelligenceSection />
+>>>>>>> origin/arif-sulur-module
     </AdminLayout>
   )
 }
