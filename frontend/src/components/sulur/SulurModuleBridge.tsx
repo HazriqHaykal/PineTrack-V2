@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { authService } from '../../services/auth';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// VITE_API_URL ends in /api (see .env.example); these calls add /api/sulur themselves
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
 
 const DEFAULT_VARIETY_DATA = [
   { variety: 'MD2', available: 11500, reserved: 2000, planted: 1500 },

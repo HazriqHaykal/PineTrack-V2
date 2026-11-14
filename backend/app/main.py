@@ -9,11 +9,7 @@ import logging
 from sqlalchemy import text
 from app.config import Base, engine, is_sqlite
 from app import models  # noqa: F401 - registers the tables on Base.metadata
-<<<<<<< HEAD
-from app.routers import auth, harvest, transport, waste, schedule, ai, reports, users, analytics, planner
-=======
-from app.routers import auth, harvest, transport, waste, schedule, ai, reports, users, analytics, sulur
->>>>>>> origin/arif-sulur-module
+from app.routers import auth, harvest, transport, waste, schedule, ai, reports, users, analytics, planner, sulur
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -73,11 +69,8 @@ app.include_router(schedule.router, prefix="/api/schedule", tags=["schedule"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(reports.router, prefix="/api", tags=["reports"])
 app.include_router(analytics.router, prefix="/api", tags=["analytics"])
-<<<<<<< HEAD
 app.include_router(planner.router, prefix="/api/planner", tags=["planner"])
-=======
 app.include_router(sulur.router, prefix="/api/sulur", tags=["sulur"])
->>>>>>> origin/arif-sulur-module
 
 @app.get("/")
 def read_root():

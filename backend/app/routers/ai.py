@@ -190,22 +190,30 @@ def analyse_waste(
     return {"items": WasteAnalysisService.analyse(db, records, current_user.get("user_id"))}
 
 
+# all = both modules, post_harvest = harvest/transport/schedule/waste, sulur = Sulur Inventory.
+# Defaults to post_harvest, which is what this endpoint returned before scopes existed.
+SCOPE_QUERY = Query("post_harvest", pattern="^(all|post_harvest|sulur)$",
+                    description="Which module's data the agent analyses")
+
+
 @router.get("/recommendations")
 def get_recommendations(
+    scope: str = SCOPE_QUERY,
     current_user: dict = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """Latest farm-wide recommendations (admin only); generated on first use"""
-    return AIService.get_recommendations(db, current_user.get("user_id"))
+    """Latest recommendations for a scope (admin only); generated on first use and cached per scope"""
+    return AIService.get_recommendations(db, current_user.get("user_id"), scope=scope)
 
 
 @router.post("/recommendations/refresh")
 def refresh_recommendations(
+    scope: str = SCOPE_QUERY,
     current_user: dict = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """Generate a new set of recommendations from the current farm data (admin only)"""
-    return AIService.get_recommendations(db, current_user.get("user_id"), refresh=True)
+    """Generate a new set of recommendations for a scope from the current data (admin only)"""
+    return AIService.get_recommendations(db, current_user.get("user_id"), refresh=True, scope=scope)
 
 
 @router.get("/logs", response_model=AILogListResponse)

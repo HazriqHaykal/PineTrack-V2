@@ -1,8 +1,10 @@
-import { CalendarDays, Recycle, Sprout, Truck } from 'lucide-react'
+import { CalendarDays, Layers, Recycle, Sprout, Truck } from 'lucide-react'
 
 /** Display names for the prediction types stored in ai_logs; the raw values stay unchanged */
 export const PREDICTION_LABEL: Record<string, string> = {
-  recommendations:      'Farm Recommendations',
+  recommendations:       'Post-Harvest Recommendations',
+  recommendations_sulur: 'Sulur Recommendations',
+  recommendations_all:   'All-Module Recommendations',
   harvest_timing:       'Harvest Timing',
   waste_classification: 'Waste Classification',
   waste_analysis:       'Waste Recommendation',
@@ -49,6 +51,7 @@ export const REC_CATEGORY: Record<string, { label: string; icon: React.ElementTy
   waste:     { label: 'Waste',      icon: Recycle,      path: '/waste',     module: 'Waste Management' },
   transport: { label: 'Transport',  icon: Truck,        path: '/transport', module: 'Transport' },
   schedule:  { label: 'Scheduling', icon: CalendarDays, path: '/schedule',  module: 'Scheduling' },
+  sulur:     { label: 'Sulur Inventory', icon: Layers, path: '/admin/sulur/stock', module: 'Sulur Stock & Batches' },
 }
 
 export const PRIORITY_BADGE: Record<string, { label: string; cls: string }> = {
@@ -56,6 +59,9 @@ export const PRIORITY_BADGE: Record<string, { label: string; cls: string }> = {
   medium: { label: 'Medium priority', cls: 'text-amber-800 bg-amber-50 ring-amber-200' },
   low:    { label: 'Low priority',    cls: 'text-gray-600 bg-white ring-gray-200' },
 }
+
+/** Farm recommendation sets, one prediction type per analysis scope */
+export const isRecommendationSet = (t: string) => t === 'recommendations' || t.startsWith('recommendations_')
 
 export const formatWhen = (iso: string) =>
   new Date(iso).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })

@@ -282,7 +282,7 @@ export interface AIStatus {
 
 export interface AIRecommendation {
   id: number
-  type: 'harvest' | 'waste' | 'transport' | 'schedule'
+  type: 'harvest' | 'waste' | 'transport' | 'schedule' | 'sulur'
   priority: 'high' | 'medium' | 'low'
   title: string
   description: string
@@ -296,8 +296,56 @@ export interface AIRecommendations {
   source: 'gemini' | 'rules'
   model_version: string
   generated_at: string
-  /** The farm summary the agent was given for this set */
-  snapshot?: FarmSnapshot | null
+  /** Which module(s) this set analysed; older cached sets have none (post-harvest) */
+  scope?: AnalysisScope
+  /** The data the agent was given for this set */
+  snapshot?: FarmSnapshot | SulurOnlySnapshot | null
+}
+
+/** Shared intelligence scope: both modules, or one of them */
+export type AnalysisScope = 'all' | 'post_harvest' | 'sulur'
+
+/** Sulur Inventory data sent to the agent (backend SulurInsightsService.build_snapshot). Quantities are pieces. */
+export interface SulurSnapshot {
+  unit: string
+  period_days: number
+  date: string
+  storage_days_limit: number
+  batches: number
+  certified_batches: number
+  totals: { available: number; reserved: number; planted: number; sold: number; damaged: number }
+  by_variety: {
+    variety: string; batches: number; available: number; reserved: number; planted: number
+    sold: number; damaged: number; min_stock_threshold: number; below_threshold: boolean
+  }[]
+  aging_batches: { batch_code: string; variety: string; days_stored: number; treatment_status: string; available: number }[]
+  uncertified_batches: { batch_code: string; variety: string; available: number }[]
+  uncertified_count: number
+  movements_in_period: Record<string, number>
+}
+
+export interface SulurOnlySnapshot {
+  scope: 'sulur'
+  period_days: number
+  date: string
+  sulur: SulurSnapshot
+}
+
+/** GET /analytics/sulur. Quantities are sulur pieces, never kg. */
+export interface SulurPeriodKpis { stock_in: number; planted: number; sold: number; damaged: number; movements: number }
+export interface SulurAnalytics {
+  generated_at: string
+  unit: string
+  has_data: boolean
+  batches: number
+  certified_batches: number
+  totals: SulurSnapshot['totals']
+  by_variety: SulurSnapshot['by_variety']
+  by_grade: { name: string; batches: number; available: number }[]
+  by_treatment: { name: string; batches: number; available: number }[]
+  movement_trend: { month: string; stock_in: number; plant: number; sell: number; damage: number }[]
+  kpis: { current: SulurPeriodKpis; previous: SulurPeriodKpis; period_days: number }
+  alerts: { below_threshold: number; aging_batches: number; uncertified_batches: number }
 }
 
 /** Aggregated farm data sent to the agent (backend AIService.build_farm_snapshot) */
@@ -320,6 +368,9 @@ export interface FarmSnapshot {
     overdue_not_delivered: { destination: string; scheduled_date: string; status: string }[]
   }
   tasks: { open: number; overdue: number; high_priority_open: number; completed: number }
+  scope?: AnalysisScope
+  /** Present when the scope is "all" */
+  sulur?: SulurSnapshot
 }
 
 export interface PeriodKpis {

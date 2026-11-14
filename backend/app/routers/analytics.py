@@ -15,6 +15,7 @@ from app.config import get_db
 from app.middleware.rbac import require_admin
 from app.models import AppSetting, Harvest, HarvestGrade, MarketabilityPolicy, Transport, Waste, Schedule, User
 from app.services.analytics_service import AnalyticsService
+from app.services.sulur_insights_service import SulurInsightsService
 
 router = APIRouter()
 
@@ -47,6 +48,20 @@ def get_analytics_overview(
     - **months**: How many calendar months the trend charts cover
     """
     return AnalyticsService.get_overview(db, months)
+
+
+@router.get("/analytics/sulur")
+def get_sulur_analytics(
+    months: int = Query(6, ge=1, le=24),
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Sulur Inventory analytics (admin only). Read-only; quantities are sulur pieces, not kg.
+
+    - **months**: How many calendar months the movement trend covers
+    """
+    return SulurInsightsService.get_overview(db, months)
 
 
 @router.get("/settings")

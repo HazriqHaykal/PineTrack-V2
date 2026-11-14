@@ -329,7 +329,6 @@ class AILogListResponse(BaseModel):
     skip: int = 0
     limit: int = 100
 
-<<<<<<< HEAD
 # Batch traceability schemas
 class BatchLifecycle(BaseModel):
     code: str
@@ -512,7 +511,6 @@ class HistoricalYieldResponse(BaseModel):
     min_batches: int
     rules: str
     message: Optional[str] = None
-=======
 
 
 # ==============================================================================
@@ -661,4 +659,3 @@ class SulurPlanResponse(BaseModel):
 
     class Config:
         from_attributes = True
->>>>>>> origin/arif-sulur-module

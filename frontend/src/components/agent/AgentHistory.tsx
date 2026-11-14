@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, ChevronDown, RefreshCw, X } from 'lucide-react'
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { AILog, AIMetrics, AIStatus } from '../../types'
-import { PREDICTION_LABEL, SourceBadge, Source, confidenceMeaning, formatWhen, modelName, predictionLabel, sourceOf } from './agentMeta'
+import { PREDICTION_LABEL, SourceBadge, Source, confidenceMeaning, formatWhen, isRecommendationSet, modelName, predictionLabel, sourceOf } from './agentMeta'
 import AppSelect from '../../components/ui/AppSelect'
 
 const PAGE = 500
@@ -46,12 +46,14 @@ function LogDetails({ log }: { log: AILog }) {
         {r.explanation && <p className="mt-1">{r.explanation}</p>}
       </>
     )
-  } else if (log.prediction_type === 'recommendations') {
+  } else if (isRecommendationSet(log.prediction_type)) {
     const items: { title: string; priority: string }[] = Array.isArray(d.items) ? d.items : []
     const batches = d.snapshot?.harvest?.batches
+    const sulurBatches = d.snapshot?.sulur?.batches
     body = (
       <>
-        {typeof batches === 'number' && <p>Based on the last {d.snapshot.period_days} days: {batches} harvest batch{batches === 1 ? '' : 'es'}, {d.snapshot.waste?.records ?? 0} waste records.</p>}
+        {typeof batches === 'number' && <p>Post-harvest, last {d.snapshot.period_days} days: {batches} harvest batch{batches === 1 ? '' : 'es'}, {d.snapshot.waste?.records ?? 0} waste records.</p>}
+        {typeof sulurBatches === 'number' && <p>Sulur Inventory: {sulurBatches} batch{sulurBatches === 1 ? '' : 'es'}, {(d.snapshot.sulur.totals?.available ?? 0).toLocaleString()} sulur available.</p>}
         {items.length > 0
           ? <ul className="mt-1 list-disc pl-4 space-y-0.5">{items.map((i, n) => <li key={n}>{i.title} <span className="text-gray-500">({i.priority})</span></li>)}</ul>
           : <p className="mt-1">No recommendations in this set.</p>}
@@ -66,7 +68,7 @@ function LogDetails({ log }: { log: AILog }) {
       {log.confidence_score != null && (
         <p className="text-gray-600">
           <span className="font-medium text-gray-700">
-            Confidence {Math.round(log.confidence_score * 100)}%{log.prediction_type === 'recommendations' ? ' (average of the set)' : ''}.
+            Confidence {Math.round(log.confidence_score * 100)}%{isRecommendationSet(log.prediction_type) ? ' (average of the set)' : ''}.
           </span>{' '}
           {confidenceMeaning(log.prediction_type, source)}
         </p>

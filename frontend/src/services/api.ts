@@ -22,6 +22,8 @@ import {
   UserStats,
   AIStatus,
   AIRecommendations,
+  AnalysisScope,
+  SulurAnalytics,
   AnalyticsOverview,
   AppSettings,
   BatchDetails,
@@ -342,6 +344,11 @@ class APIClient {
   }
 
   // ── Analytics & settings ──────────────────────────────────────────────
+  async getSulurAnalytics(months = 6): Promise<SulurAnalytics> {
+    const res = await this.client.get('/analytics/sulur', { params: { months } })
+    return res.data
+  }
+
   async getAnalyticsOverview(months = 6): Promise<AnalyticsOverview> {
     const res = await this.client.get('/analytics/overview', { params: { months } })
     return res.data
@@ -397,14 +404,15 @@ class APIClient {
     return res.data
   }
 
-  async getAIRecommendations(): Promise<AIRecommendations> {
-    const res = await this.client.get('/ai/recommendations')
+  /** Cached recommendations for a scope; the backend generates and caches each scope separately */
+  async getAIRecommendations(scope: AnalysisScope = 'post_harvest'): Promise<AIRecommendations> {
+    const res = await this.client.get('/ai/recommendations', { params: { scope } })
     return res.data
   }
 
-  async refreshAIRecommendations(): Promise<AIRecommendations> {
+  async refreshAIRecommendations(scope: AnalysisScope = 'post_harvest'): Promise<AIRecommendations> {
     // Gemini can take a while to answer
-    const res = await this.client.post('/ai/recommendations/refresh', null, { timeout: 60000 })
+    const res = await this.client.post('/ai/recommendations/refresh', null, { params: { scope }, timeout: 60000 })
     return res.data
   }
 
