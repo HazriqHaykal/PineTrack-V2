@@ -5,6 +5,7 @@ import MarketabilityPolicyCard from '../../components/batch/MarketabilityPolicyC
 import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
 import AppSelect from '../../components/ui/AppSelect'
 
+import { tr, lang, setLang, LANGUAGES } from '../../i18n'
 interface ToggleSetting { id: string; label: string; desc: string; value: boolean }
 
 export default function AdminSettings() {
@@ -20,14 +21,14 @@ export default function AdminSettings() {
       const blob = await apiClient.exportAllData()
       saveBlob(blob, `pinetrack-export-${new Date().toISOString().split('T')[0]}.zip`)
     } catch (err) {
-      setSaveError(apiErrorMessage(err, 'Export failed.'))
+      setSaveError(apiErrorMessage(err, tr("Export failed.")))
     } finally {
       setExporting(false)
     }
   }
   const [farmName, setFarmName] = useState('PineTrack Farm')
   const [timezone, setTimezone] = useState('Asia/Kuala_Lumpur')
-  const [language, setLanguage] = useState('English')
+  const [language, setLanguage] = useState(LANGUAGES.find((l) => l.code === lang)!.label)
 
   const [maxSpoilageRate, setMaxSpoilageRate] = useState('5')
   const [maxRejectionRate, setMaxRejectionRate] = useState('5')
@@ -41,17 +42,16 @@ export default function AdminSettings() {
         setMaxSpoilageRate(String(t.max_spoilage_rate))
         setMaxRejectionRate(String(t.max_rejection_rate))
       })
-      .catch((err) => setTargetsError(apiErrorMessage(err, 'Could not load quality targets.')))
+      .catch((err) => setTargetsError(apiErrorMessage(err, tr("Could not load quality targets."))))
 
     apiClient.getSettings()
       .then(s => {
         setFarmName(s.farm_name)
         setTimezone(s.timezone)
-        setLanguage(s.language)
         // Stored toggles override the defaults below; unknown ids are ignored
         setNotifications(prev => prev.map(n => n.id in s.notifications ? { ...n, value: s.notifications[n.id] } : n))
       })
-      .catch((err) => setSaveError(apiErrorMessage(err, 'Could not load settings.')))
+      .catch((err) => setSaveError(apiErrorMessage(err, tr("Could not load settings."))))
   }, [])
 
   const handleSaveTargets = async () => {
@@ -65,18 +65,18 @@ export default function AdminSettings() {
       setTargetsSaved(true)
       setTimeout(() => setTargetsSaved(false), 3000)
     } catch (err) {
-      setTargetsError(apiErrorMessage(err, 'Failed to save targets.'))
+      setTargetsError(apiErrorMessage(err, tr("Failed to save targets.")))
     } finally {
       setTargetsSaving(false)
     }
   }
 
   const [notifications, setNotifications] = useState<ToggleSetting[]>([
-    { id: 'harvest_alerts',   label: 'Harvest Alerts',      desc: 'Notify when harvest batches are logged',       value: true  },
-    { id: 'waste_threshold',  label: 'Waste Threshold',     desc: 'Alert when waste exceeds 5% of harvest',      value: true  },
-    { id: 'ai_insights',      label: 'Agent Recommendations', desc: 'Notify when PineTrack Agent has new recommendations',      value: true  },
-    { id: 'transport_delay',  label: 'Transport Delays',    desc: 'Alert when deliveries are overdue',           value: false },
-    { id: 'weekly_report',    label: 'Weekly Reports',      desc: 'Auto-generate reports every Monday',          value: true  },
+    { id: 'harvest_alerts',   label: tr("Harvest Alerts"),      desc: tr("Notify when harvest batches are logged"),       value: true  },
+    { id: 'waste_threshold',  label: tr("Waste Threshold"),     desc: tr("Alert when waste exceeds 5% of harvest"),      value: true  },
+    { id: 'ai_insights',      label: tr("Agent Recommendations"), desc: tr("Notify when PineTrack Agent has new recommendations"),      value: true  },
+    { id: 'transport_delay',  label: tr("Transport Delays"),    desc: tr("Alert when deliveries are overdue"),           value: false },
+    { id: 'weekly_report',    label: tr("Weekly Reports"),      desc: tr("Auto-generate reports every Monday"),          value: true  },
   ])
 
   const toggle = (
@@ -99,8 +99,11 @@ export default function AdminSettings() {
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+      // Switch the display language once the rest of the settings are saved
+      const chosen = LANGUAGES.find((l) => l.label === language)
+      if (chosen && chosen.code !== lang) setLang(chosen.code)
     } catch (err) {
-      setSaveError(apiErrorMessage(err, 'Failed to save settings.'))
+      setSaveError(apiErrorMessage(err, tr("Failed to save settings.")))
     } finally {
       setSaving(false)
     }
@@ -126,7 +129,7 @@ export default function AdminSettings() {
   )
 
   return (
-    <AdminLayout title="Settings" subtitle="System configuration and preferences">
+    <AdminLayout title={tr("Settings")} subtitle={tr("System configuration and preferences")}>
 
       {/* Save bar */}
       <div className="flex items-center gap-3 mb-6">
@@ -136,12 +139,12 @@ export default function AdminSettings() {
           className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-semibold text-sm hover:bg-green-700 active:scale-[0.98] transition-all shadow-md shadow-green-100 disabled:opacity-60"
         >
           <Save size={15} />
-          {saving ? 'Saving…' : 'Save Changes'}
+          {saving ? tr("Saving…") : tr("Save Changes")}
         </button>
         {saveError && <p className="text-sm text-red-600">{saveError}</p>}
         {saved && (
           <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
-            <CheckCircle2 size={16} /> Settings saved!
+            <CheckCircle2 size={16} /> {tr("Settings saved!")}
           </div>
         )}
       </div>
@@ -155,11 +158,11 @@ export default function AdminSettings() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
               <Settings size={15} className="text-slate-600" />
-              <h3 className="text-sm font-bold text-gray-900">General</h3>
+              <h3 className="text-sm font-bold text-gray-900">{tr("General")}</h3>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Farm / Organisation Name</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{tr("Farm / Organisation Name")}</label>
                 <input
                   value={farmName}
                   onChange={e => setFarmName(e.target.value)}
@@ -168,13 +171,13 @@ export default function AdminSettings() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Timezone</label>
-                  <AppSelect aria-label="Timezone" value={timezone} onChange={setTimezone}
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{tr("Timezone")}</label>
+                  <AppSelect aria-label={tr("Timezone")} value={timezone} onChange={setTimezone}
                     options={['Asia/Kuala_Lumpur', 'Asia/Singapore', 'UTC'].map((t) => ({ value: t, label: t }))} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Language</label>
-                  <AppSelect aria-label="Language" value={language} onChange={setLanguage}
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{tr("Language")}</label>
+                  <AppSelect aria-label={tr("Language")} value={language} onChange={setLanguage}
                     options={['English', 'Bahasa Melayu'].map((l) => ({ value: l, label: l }))} />
                 </div>
               </div>
@@ -185,15 +188,15 @@ export default function AdminSettings() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
               <Target size={15} className="text-slate-600" />
-              <h3 className="text-sm font-bold text-gray-900">Quality Targets</h3>
+              <h3 className="text-sm font-bold text-gray-900">{tr("Quality Targets")}</h3>
             </div>
             <div className="p-5 space-y-4">
               <p className="text-xs text-gray-500 -mt-1">
-                Maximum acceptable spoilage and rejection rates for harvest batches. The Harvest module flags any batch exceeding these thresholds.
+                {tr("Maximum acceptable spoilage and rejection rates for harvest batches. The Harvest module flags any batch exceeding these thresholds.")}
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Max Spoilage Rate (%)</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{tr("Max Spoilage Rate (%)")}</label>
                   <input
                     type="number"
                     min="0" max="100" step="0.1"
@@ -203,7 +206,7 @@ export default function AdminSettings() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Max Rejection Rate (%)</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{tr("Max Rejection Rate (%)")}</label>
                   <input
                     type="number"
                     min="0" max="100" step="0.1"
@@ -220,11 +223,11 @@ export default function AdminSettings() {
                   disabled={targetsSaving}
                   className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition-colors disabled:opacity-60"
                 >
-                  {targetsSaving ? 'Saving…' : 'Save Targets'}
+                  {targetsSaving ? tr("Saving…") : tr("Save Targets")}
                 </button>
                 {targetsSaved && (
                   <div className="flex items-center gap-1.5 text-green-600 text-xs font-semibold">
-                    <CheckCircle2 size={14} /> Saved
+                    <CheckCircle2 size={14} /> {tr("Saved")}
                   </div>
                 )}
               </div>
@@ -235,20 +238,20 @@ export default function AdminSettings() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
               <Database size={15} className="text-slate-600" />
-              <h3 className="text-sm font-bold text-gray-900">Data Management</h3>
+              <h3 className="text-sm font-bold text-gray-900">{tr("Data Management")}</h3>
             </div>
             <div className="p-5 space-y-3">
               <div className="flex items-center justify-between py-2">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Export All Data</p>
-                  <p className="text-xs text-gray-500">Download every table as CSV files in one zip</p>
+                  <p className="text-sm font-medium text-gray-900">{tr("Export All Data")}</p>
+                  <p className="text-xs text-gray-500">{tr("Download every table as CSV files in one zip")}</p>
                 </div>
                 <button
                   onClick={handleExport}
                   disabled={exporting}
                   className="px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-50 transition-colors disabled:opacity-60"
                 >
-                  {exporting ? 'Exporting…' : 'Export CSV'}
+                  {exporting ? tr("Exporting…") : tr("Export CSV")}
                 </button>
               </div>
             </div>
@@ -266,11 +269,11 @@ export default function AdminSettings() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
               <Bell size={15} className="text-slate-600" />
-              <h3 className="text-sm font-bold text-gray-900">Notification Preferences</h3>
+              <h3 className="text-sm font-bold text-gray-900">{tr("Notification Preferences")}</h3>
             </div>
             <div className="px-5">
               <p className="text-xs text-gray-500 pt-4">
-                Saved with your settings. Alerts currently appear on the dashboard; email and push delivery is not set up.
+                {tr("Saved with your settings. Alerts currently appear on the dashboard; email and push delivery is not set up.")}
               </p>
               {notifications.map(item => (
                 <ToggleRow key={item.id} item={item} onToggle={() => toggle(setNotifications, item.id)} />

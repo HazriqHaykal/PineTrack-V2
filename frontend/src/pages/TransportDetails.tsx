@@ -12,11 +12,12 @@ import { apiClient, apiErrorMessage } from '../services/api'
 import { authService } from '../services/auth'
 import { BatchEvent, Transport } from '../types'
 
+import { tr, locale } from '../i18n'
 const fmtKg = (n: number) => `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg`
 const fmtDate = (iso: string) =>
-  new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })
+  new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
 const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  new Date(iso).toLocaleString(locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 type HistoryState =
   | { state: 'unlinked' }
@@ -34,14 +35,14 @@ function DeliveryStepper({ t, dispatchedAt }: { t: Transport; dispatchedAt?: str
   const currentIdx = FLOW.indexOf(t.status)
   // Only dates the backend actually stores, or that the event log recorded
   const dates: Record<string, string | undefined> = {
-    pending: `Planned ${fmtDate(t.scheduled_date)}`,
-    in_transit: dispatchedAt ? `Dispatched ${fmtTime(dispatchedAt)}` : undefined,
-    delivered: t.actual_delivery ? `Delivered ${fmtDate(t.actual_delivery)}` : undefined,
+    pending: tr("Planned {0}", fmtDate(t.scheduled_date)),
+    in_transit: dispatchedAt ? tr("Dispatched {0}", fmtTime(dispatchedAt)) : undefined,
+    delivered: t.actual_delivery ? tr("Delivered {0}", fmtDate(t.actual_delivery)) : undefined,
   }
 
   return (
     <div>
-      <ol className={`flex items-start ${cancelled ? 'opacity-50' : ''}`} aria-label="Delivery progress">
+      <ol className={`flex items-start ${cancelled ? 'opacity-50' : ''}`} aria-label={tr("Delivery progress")}>
         {FLOW.map((s, i) => {
           const done = !cancelled && (i < currentIdx || (i === currentIdx && s === 'delivered'))
           const current = !cancelled && i === currentIdx
@@ -72,7 +73,7 @@ function DeliveryStepper({ t, dispatchedAt }: { t: Transport; dispatchedAt?: str
       {cancelled && (
         <p className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800">
           <Ban size={16} strokeWidth={1.75} className="shrink-0 mt-0.5" />
-          <span><span className="font-semibold">Cancelled.</span> This delivery was called off and its cargo no longer counts against any batch.</span>
+          <span><span className="font-semibold">{tr("Cancelled.")}</span> {tr("This delivery was called off and its cargo no longer counts against any batch.")}</span>
         </p>
       )}
     </div>
@@ -97,7 +98,7 @@ export default function TransportDetails() {
 
   const load = useCallback(async () => {
     if (!Number.isInteger(id) || id <= 0) {
-      setError({ status: 404, msg: 'Transport not found' })
+      setError({ status: 404, msg: tr("Transport not found") })
       setLoading(false)
       return
     }
@@ -121,12 +122,12 @@ export default function TransportDetails() {
           .catch((err) => {
             // Assigned drivers may not have access to the batch itself
             const status = (err as { response?: { status?: number } })?.response?.status
-            setHistory(status === 403 ? { state: 'denied' } : { state: 'error', msg: apiErrorMessage(err, 'Could not load the history') })
+            setHistory(status === 403 ? { state: 'denied' } : { state: 'error', msg: apiErrorMessage(err, tr("Could not load the history")) })
           })
       }
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status
-      setError({ status, msg: apiErrorMessage(err, 'Failed to load the transport') })
+      setError({ status, msg: apiErrorMessage(err, tr("Failed to load the transport")) })
     } finally {
       setLoading(false)
     }
@@ -149,7 +150,7 @@ export default function TransportDetails() {
       load()
     } catch (err) {
       setPending(null)
-      setActionError(apiErrorMessage(err, 'The change could not be saved'))
+      setActionError(apiErrorMessage(err, tr("The change could not be saved")))
     } finally {
       setBusy(false)
     }
@@ -163,7 +164,7 @@ export default function TransportDetails() {
     body = (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500 text-sm">
         <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin mb-3" />
-        Loading transport…
+        {tr("Loading transport…")}
       </div>
     )
   } else if (error && !t) {
@@ -172,13 +173,13 @@ export default function TransportDetails() {
       <div className="flex flex-col items-center justify-center h-64 text-center bg-white rounded-xl border border-gray-100 shadow-sm px-4">
         {denied ? <ShieldAlert size={36} className="text-gray-300 mb-2" /> : <AlertTriangle size={36} className="text-gray-300 mb-2" />}
         <p className="font-medium text-gray-800">
-          {denied ? 'You do not have access to this transport' : error.status === 404 ? 'Transport not found' : 'Could not load this transport'}
+          {denied ? tr("You do not have access to this transport") : error.status === 404 ? tr("Transport not found") : tr("Could not load this transport")}
         </p>
         <p className="text-sm text-gray-500 mt-1">{error.msg}</p>
         <div className="flex gap-2 mt-4">
-          <button onClick={() => navigate(backPath)} className={btnSecondary}>Back</button>
+          <button onClick={() => navigate(backPath)} className={btnSecondary}>{tr("Back")}</button>
           {!denied && error.status !== 404 && (
-            <button onClick={load} className="px-4 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium">Try again</button>
+            <button onClick={load} className="px-4 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium">{tr("Try again")}</button>
           )}
         </div>
       </div>
@@ -193,18 +194,18 @@ export default function TransportDetails() {
       : undefined
 
     const facts: [string, React.ReactNode][] = [
-      ['Harvest batch', t.harvest_id && history.state === 'denied'
-        ? <>{t.batch_number ?? `Batch #${t.harvest_id}`}</>
+      [tr("Harvest batch"), t.harvest_id && history.state === 'denied'
+        ? <>{t.batch_number ?? tr("Batch #{0}", t.harvest_id)}</>
         : t.harvest_id
-        ? <Link to={`/harvest/${t.harvest_id}`} className="text-green-800 hover:underline">{t.batch_number ?? `Batch #${t.harvest_id}`}</Link>
-        : <span className="text-gray-500">Unlinked (external cargo)</span>],
-      ['Driver', <>{t.driver_name || '—'}<span className="block text-xs font-normal text-gray-500">{t.driver_id ? 'Assigned worker account' : 'External driver'}</span></>],
-      ['Vehicle number', t.vehicle_number || '—'],
-      ['Cargo weight', t.cargo_weight_kg != null ? fmtKg(t.cargo_weight_kg) : <span className="text-gray-500">Not recorded</span>],
-      ['Scheduled date', fmtDate(t.scheduled_date)],
-      ['Actual delivery', t.actual_delivery ? fmtDate(t.actual_delivery) : <span className="text-gray-500">Not delivered yet</span>],
-      ['Created', fmtTime(t.created_at)],
-      ['Last updated', t.updated_at ? fmtTime(t.updated_at) : '—'],
+        ? <Link to={`/harvest/${t.harvest_id}`} className="text-green-800 hover:underline">{t.batch_number ?? tr("Batch #{0}", t.harvest_id)}</Link>
+        : <span className="text-gray-500">{tr("Unlinked (external cargo)")}</span>],
+      [tr("Driver"), <>{t.driver_name || '—'}<span className="block text-xs font-normal text-gray-500">{t.driver_id ? tr("Assigned worker account") : tr("External driver")}</span></>],
+      [tr("Vehicle number"), t.vehicle_number || '—'],
+      [tr("Cargo weight"), t.cargo_weight_kg != null ? fmtKg(t.cargo_weight_kg) : <span className="text-gray-500">{tr("Not recorded")}</span>],
+      [tr("Scheduled date"), fmtDate(t.scheduled_date)],
+      [tr("Actual delivery"), t.actual_delivery ? fmtDate(t.actual_delivery) : <span className="text-gray-500">{tr("Not delivered yet")}</span>],
+      [tr("Created"), fmtTime(t.created_at)],
+      [tr("Last updated"), t.updated_at ? fmtTime(t.updated_at) : '—'],
     ]
 
     body = (
@@ -213,7 +214,7 @@ export default function TransportDetails() {
         <section className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-gray-500 tabular-nums">Transport #{t.id}</p>
+              <p className="text-xs font-medium text-gray-500 tabular-nums">{tr("Transport #")}{t.id}</p>
               <div className="flex flex-wrap items-center gap-2 mt-0.5">
                 <h1 className="text-2xl font-bold text-gray-900 break-words mr-1">{t.destination}</h1>
                 <TransportStatusBadge status={t.status} />
@@ -236,17 +237,17 @@ export default function TransportDetails() {
                 <>
                   <button onClick={() => navigate(`/transport?edit=${t.id}`)}
                     className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    <Pencil size={15} strokeWidth={1.75} /> Edit
+                    <Pencil size={15} strokeWidth={1.75} /> {tr("Edit")}
                   </button>
                   <button onClick={() => setPending({ kind: 'delete' })} disabled={locked}
-                    title={locked ? "Delivered transports stay in their batch's history and cannot be deleted" : 'Delete transport'}
-                    aria-label="Delete transport"
+                    title={locked ? tr("Delivered transports stay in their batch's history and cannot be deleted") : tr("Delete transport")}
+                    aria-label={tr("Delete transport")}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-500 disabled:hover:border-gray-200">
                     <Trash2 size={15} strokeWidth={1.75} />
                   </button>
                 </>
               )}
-              <button onClick={load} disabled={loading} aria-label="Refresh" title="Refresh"
+              <button onClick={load} disabled={loading} aria-label={tr("Refresh")} title={tr("Refresh")}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-60">
                 <RefreshCw size={15} strokeWidth={1.75} className={loading ? 'animate-spin' : ''} />
               </button>
@@ -267,7 +268,7 @@ export default function TransportDetails() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           {/* Facts */}
           <section className="lg:col-span-3 bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Delivery details</h2>
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">{tr("Delivery details")}</h2>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
               {facts.map(([name, value]) => (
                 <div key={name} className="min-w-0">
@@ -277,34 +278,34 @@ export default function TransportDetails() {
               ))}
             </dl>
             <div className="mt-5 pt-4 border-t border-gray-100">
-              <p className="text-xs text-gray-500">Notes</p>
+              <p className="text-xs text-gray-500">{tr("Notes")}</p>
               {t.notes
                 ? <p className="mt-1 text-sm text-gray-800 whitespace-pre-wrap break-words">{t.notes}</p>
-                : <p className="mt-1 text-sm text-gray-500">No notes.</p>}
+                : <p className="mt-1 text-sm text-gray-500">{tr("No notes.")}</p>}
             </div>
           </section>
 
           {/* History */}
           <section className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">History</h2>
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">{tr("History")}</h2>
             {history.state === 'unlinked' ? (
               <p className="flex gap-2 text-sm text-gray-600">
                 <Info size={15} className="shrink-0 mt-0.5 text-gray-400" />
-                History is recorded on harvest batches. This delivery is not linked to one, so only its current status and dates are shown.
+                {tr("History is recorded on harvest batches. This delivery is not linked to one, so only its current status and dates are shown.")}
               </p>
             ) : history.state === 'loading' ? (
-              <p className="text-sm text-gray-500">Loading history…</p>
+              <p className="text-sm text-gray-500">{tr("Loading history…")}</p>
             ) : history.state === 'denied' ? (
               <p className="flex gap-2 text-sm text-gray-600">
                 <Info size={15} className="shrink-0 mt-0.5 text-gray-400" />
-                History is kept on the harvest batch, which is managed by another user. The current status and dates are shown above.
+                {tr("History is kept on the harvest batch, which is managed by another user. The current status and dates are shown above.")}
               </p>
             ) : history.state === 'error' ? (
               <p className="text-sm text-gray-600">{history.msg}</p>
             ) : history.items.length === 0 ? (
               <p className="flex gap-2 text-sm text-gray-600">
                 <History size={15} className="shrink-0 mt-0.5 text-gray-400" />
-                No events are recorded for this delivery on {t.batch_number ?? 'its batch'}.
+                {tr("No events are recorded for this delivery on")} {t.batch_number ?? tr("its batch")}.
               </p>
             ) : (
               <ol className="relative space-y-4">
@@ -331,7 +332,7 @@ export default function TransportDetails() {
             )}
             {history.state === 'ready' && (
               <p className="mt-4 text-xs text-gray-500">
-                From the event log of {t.batch_number ?? 'the linked batch'}. Events recorded while this delivery was linked to a different batch appear on that batch.
+                {tr("From the event log of")} {t.batch_number ?? tr("the linked batch")}{tr(". Events recorded while this delivery was linked to a different batch appear on that batch.")}
                 {!history.complete && history.note ? ` ${history.note}` : ''}
               </p>
             )}
@@ -340,11 +341,11 @@ export default function TransportDetails() {
 
         <ConfirmDialog
           open={pending !== null}
-          title={pending?.kind === 'status' ? pending.action.confirmTitle : 'Delete this transport?'}
+          title={pending?.kind === 'status' ? pending.action.confirmTitle : tr("Delete this transport?")}
           body={pending?.kind === 'status'
             ? pending.action.confirmBody
-            : 'The record is removed permanently. If it is linked to a batch, its reserved cargo is released. This cannot be undone.'}
-          confirmLabel={pending?.kind === 'status' ? pending.action.confirmLabel : 'Delete'}
+            : tr("The record is removed permanently. If it is linked to a batch, its reserved cargo is released. This cannot be undone.")}
+          confirmLabel={pending?.kind === 'status' ? pending.action.confirmLabel : tr("Delete")}
           danger={pending?.kind === 'delete' || (pending?.kind === 'status' && pending.action.danger)}
           busy={busy}
           onConfirm={confirm}
@@ -358,7 +359,7 @@ export default function TransportDetails() {
     <Layout>
       <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
         <button onClick={() => navigate(backPath)} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 mb-3">
-          <ArrowLeft size={15} /> {isAdmin ? 'Transport Management' : 'Transport Updates'}
+          <ArrowLeft size={15} /> {isAdmin ? tr("Transport Management") : tr("Transport Updates")}
         </button>
         {body}
       </div>

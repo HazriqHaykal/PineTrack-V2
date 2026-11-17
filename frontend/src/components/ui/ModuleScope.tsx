@@ -1,10 +1,11 @@
 import { useSearchParams } from 'react-router-dom'
 import { AnalysisScope } from '../../types'
 
+import { tr } from '../../i18n'
 export const SCOPE_OPTIONS: { value: AnalysisScope; label: string }[] = [
-  { value: 'all',          label: 'All Modules' },
-  { value: 'sulur',        label: 'Sulur Inventory' },
-  { value: 'post_harvest', label: 'Post-Harvest Management' },
+  { value: 'all',          label: tr("All Modules") },
+  { value: 'sulur',        label: tr("Sulur Inventory") },
+  { value: 'post_harvest', label: tr("Post-Harvest Management") },
 ]
 
 export const scopeLabel = (s: AnalysisScope) => SCOPE_OPTIONS.find((o) => o.value === s)?.label ?? s
@@ -41,7 +42,7 @@ export function ModuleScopeSelect({ value, onChange, disabled }: {
   return (
     <div
       role="radiogroup"
-      aria-label="Module scope"
+      aria-label={tr("Module scope")}
       className="inline-flex max-w-full overflow-x-auto rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm"
       onKeyDown={(e) => {
         if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); move(1) }

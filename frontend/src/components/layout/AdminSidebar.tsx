@@ -4,6 +4,8 @@ import { ChevronLeft, ChevronRight, ChevronDown, LogOut, UserCircle, Shield } fr
 import { authService } from '../../services/auth'
 import { ADMIN_NAV, NavGroup, NavLink, activeGroupId, allowed, isLinkActive } from './adminNav'
 
+import { tr } from '../../i18n'
+import LanguageToggle from '../ui/LanguageToggle'
 const OPEN_KEY = 'admin_nav_open_groups'
 
 const C = {
@@ -166,23 +168,23 @@ export default function AdminSidebar() {
         {!collapsed ? (
           <div className="min-w-0 flex-1">
             <p className="font-logo font-bold text-[1.15rem] leading-none tracking-tight">
-              <span className="text-white">PINE</span><span style={{ color: '#f5922a' }}>TRACK v2</span>
+              <span className="text-white">{tr("PINE")}</span><span style={{ color: '#f5922a' }}>{tr("TRACK v2")}</span>
             </p>
             <div className="flex items-center gap-1 mt-1">
               <Shield size={9} style={{ color: C.text }} />
               <p className="text-[9px] uppercase tracking-widest font-semibold" style={{ color: C.text }}>
-                Admin Portal
+                {tr("Admin Portal")}
               </p>
             </div>
           </div>
         ) : (
-          <p className="font-logo font-bold text-base text-white mx-auto leading-none">P</p>
+          <p className="font-logo font-bold text-base text-white mx-auto leading-none">{tr("P")}</p>
         )}
 
         {!collapsed && (
           <button
             onClick={() => setCollapsed(true)}
-            aria-label="Collapse sidebar"
+            aria-label={tr("Collapse sidebar")}
             className="p-1.5 rounded-md transition-colors shrink-0 ml-1 hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f29b38]/70"
             style={{ color: '#56a880' }}
           >
@@ -192,7 +194,7 @@ export default function AdminSidebar() {
         {collapsed && (
           <button
             onClick={() => setCollapsed(false)}
-            aria-label="Expand sidebar"
+            aria-label={tr("Expand sidebar")}
             className="absolute right-0 translate-x-1/2 p-1 rounded-full shadow border z-10"
             style={{ backgroundColor: C.bg, borderColor: 'rgba(255,255,255,0.1)', color: C.text, top: '22px' }}
           >
@@ -201,7 +203,7 @@ export default function AdminSidebar() {
         )}
       </div>
 
-      <nav aria-label="Admin" className="flex-1 px-2 py-4 overflow-y-auto space-y-5">
+      <nav aria-label={tr("Admin")} className="flex-1 px-2 py-4 overflow-y-auto space-y-5">
         {sections.map((section) => (
           <div key={section.label} role="group" aria-label={section.label}>
             {collapsed ? (
@@ -231,9 +233,9 @@ export default function AdminSidebar() {
         ))}
       </nav>
 
-      <div className="px-2 pb-3 pt-3 space-y-0.5" style={{ borderTop: `1px solid ${C.divider}` }} role="group" aria-label="Account">
+      <div className="px-2 pb-3 pt-3 space-y-0.5" style={{ borderTop: `1px solid ${C.divider}` }} role="group" aria-label={tr("Account")}>
         {!collapsed && (
-          <p className="px-3 mb-1 text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: C.muted }}>Account</p>
+          <p className="px-3 mb-1 text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: C.muted }}>{tr("Account")}</p>
         )}
         <div className={`flex items-center gap-3 px-3 py-2 rounded-lg ${collapsed ? 'justify-center' : ''}`}>
           <div
@@ -248,7 +250,7 @@ export default function AdminSidebar() {
                 {user?.full_name || user?.username}
               </p>
               <p className="text-[9px] uppercase tracking-wider" style={{ color: C.muted }}>
-                Administrator
+                {tr("Administrator")}
               </p>
             </div>
           )}
@@ -256,13 +258,14 @@ export default function AdminSidebar() {
 
         <button
           onClick={handleLogout}
-          title={collapsed ? 'Sign out' : undefined}
+          title={collapsed ? tr("Sign out") : undefined}
           className={`${rowBase} px-3 py-2 text-xs hover:bg-white/[0.06] ${collapsed ? 'justify-center' : ''}`}
           style={{ color: '#f87171' }}
         >
           <LogOut size={16} className="shrink-0" />
-          {!collapsed && <span>Sign out</span>}
+          {!collapsed && <span>{tr("Sign out")}</span>}
         </button>
+        {!collapsed && <div className="px-3 pt-2"><LanguageToggle dark /></div>}
       </div>
     </aside>
   )

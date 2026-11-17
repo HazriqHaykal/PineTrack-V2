@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Schedule } from '../../types'
 import { TASK_STATUS_META, TaskStatus, byDateTime, formatTime, isOverdue, taskLabel } from './taskMeta'
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+import { tr, locale } from '../../i18n'
+const WEEKDAYS = [tr("Mon"), tr("Tue"), tr("Wed"), tr("Thu"), tr("Fri"), tr("Sat"), tr("Sun")]
 
 /** "YYYY-MM" → the Monday-first grid of ISO dates covering that month */
 export function monthGrid(month: string): { iso: string; inMonth: boolean }[] {
@@ -26,7 +27,7 @@ export function shiftMonth(month: string, delta: number): string {
 
 const monthTitle = (month: string) => {
   const [y, m] = month.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-MY', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' })
 }
 
 export default function MonthCalendar({ tasks, today, month, onMonthChange, selected, onSelect, onOpenTask, compact }: {
@@ -55,13 +56,13 @@ export default function MonthCalendar({ tasks, today, month, onMonthChange, sele
         <div className="flex items-center gap-1">
           <button onClick={() => { onMonthChange(today.slice(0, 7)); onSelect(today) }}
             className="h-8 px-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-            Today
+            {tr("Today")}
           </button>
-          <button onClick={() => onMonthChange(shiftMonth(month, -1))} aria-label="Previous month"
+          <button onClick={() => onMonthChange(shiftMonth(month, -1))} aria-label={tr("Previous month")}
             className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50">
             <ChevronLeft size={16} strokeWidth={1.75} />
           </button>
-          <button onClick={() => onMonthChange(shiftMonth(month, 1))} aria-label="Next month"
+          <button onClick={() => onMonthChange(shiftMonth(month, 1))} aria-label={tr("Next month")}
             className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50">
             <ChevronRight size={16} strokeWidth={1.75} />
           </button>
@@ -88,7 +89,7 @@ export default function MonthCalendar({ tasks, today, month, onMonthChange, sele
               tabIndex={0}
               onClick={() => onSelect(iso)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(iso) } }}
-              aria-label={`${iso}, ${list.length} task${list.length === 1 ? '' : 's'}${overdue ? ', some overdue' : ''}`}
+              aria-label={tr("{0}, {1} task{2}{3}", iso, list.length, list.length === 1 ? '' : 's', overdue ? ', some overdue' : '')}
               className={`relative border-r border-b border-gray-200 text-left cursor-pointer outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-green-600 ${
                 compact ? 'min-h-[52px] p-1' : 'min-h-[92px] p-1.5'
               } ${isSelected ? 'bg-green-50' : inMonth ? 'bg-white hover:bg-gray-50' : 'bg-gray-50/70 hover:bg-gray-100/70'}`}
@@ -130,11 +131,11 @@ export default function MonthCalendar({ tasks, today, month, onMonthChange, sele
                     </button>
                   ))}
                   {list.length > shown.length && (
-                    <p className="px-1 text-[11px] font-medium text-gray-500">+{list.length - shown.length} more</p>
+                    <p className="px-1 text-[11px] font-medium text-gray-500">+{list.length - shown.length} {tr("more")}</p>
                   )}
                 </div>
               )}
-              {overdue && <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" title="Has overdue tasks" />}
+              {overdue && <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" title={tr("Has overdue tasks")} />}
             </div>
           )
         })}
@@ -146,7 +147,7 @@ export default function MonthCalendar({ tasks, today, month, onMonthChange, sele
             <span className={`h-2 w-2 rounded-full ${TASK_STATUS_META[s].dot}`} />{TASK_STATUS_META[s].label}
           </span>
         ))}
-        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-500" />Has overdue</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-500" />{tr("Has overdue")}</span>
       </div>
     </div>
   )

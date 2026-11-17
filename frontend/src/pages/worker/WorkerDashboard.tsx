@@ -13,6 +13,7 @@ import { authService } from '../../services/auth'
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { Schedule } from '../../types'
 
+import { tr } from '../../i18n'
 /** Page where the work for each task type is recorded */
 const TYPE_PATH: Record<string, string> = {
   harvest:               '/harvest-entry',
@@ -23,13 +24,13 @@ const TYPE_PATH: Record<string, string> = {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'New Harvest', hint: 'Record and grade a batch', icon: Sprout,  path: '/harvest-entry' },
-  { label: 'Deliveries',  hint: 'Update transport status',  icon: Truck,   path: '/transport-update' },
-  { label: 'Log Waste',   hint: 'Record unusable produce',  icon: Recycle, path: '/waste-submit' },
+  { label: tr("New Harvest"), hint: tr("Record and grade a batch"), icon: Sprout,  path: '/harvest-entry' },
+  { label: tr("Deliveries"),  hint: tr("Update transport status"),  icon: Truck,   path: '/transport-update' },
+  { label: tr("Log Waste"),   hint: tr("Record unusable produce"),  icon: Recycle, path: '/waste-submit' },
 ]
 
 function greetingFor(hour: number) {
-  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  return tr(hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening')
 }
 
 export default function WorkerDashboard() {
@@ -51,7 +52,7 @@ export default function WorkerDashboard() {
       ).sort(byDateTime))
       setError('')
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not load your tasks.'))
+      setError(apiErrorMessage(err, tr("Could not load your tasks.")))
     } finally {
       setLoading(false)
     }
@@ -65,7 +66,7 @@ export default function WorkerDashboard() {
       await apiClient.updateScheduleStatus(task.id, status)
       await load()
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not update the task.'))
+      setError(apiErrorMessage(err, tr("Could not update the task.")))
     } finally {
       setBusyId(null)
     }
@@ -83,11 +84,11 @@ export default function WorkerDashboard() {
     completed: tasks.filter(t => t.status === 'completed').length,
   }
   const open = counts.pending + counts.in_progress
-  const name = user?.full_name || user?.username || 'Worker'
+  const name = user?.full_name || user?.username || tr("Worker")
 
   return (
     <WorkerLayout>
-      <WorkerPage title="My Tasks" subtitle={formatDay(today, { weekday: 'long', day: 'numeric', month: 'long' })}>
+      <WorkerPage title={tr("My Tasks")} subtitle={formatDay(today, { weekday: 'long', day: 'numeric', month: 'long' })}>
 
         {/* Greeting */}
         <section className="rounded-xl bg-green-800 px-5 py-4 text-white">
@@ -95,23 +96,23 @@ export default function WorkerDashboard() {
           <p className="text-lg font-semibold leading-snug truncate">{name}</p>
           <p className="mt-2 flex items-center gap-1.5 text-sm text-green-50">
             <CalendarCheck size={15} strokeWidth={ICON_STROKE} />
-            {loading ? 'Checking your tasks…'
-              : open === 0 ? 'Nothing left to do today'
-              : `${open} task${open === 1 ? '' : 's'} still to do today`}
+            {loading ? tr("Checking your tasks…")
+              : open === 0 ? tr("Nothing left to do today")
+              : tr("{0} task{1} still to do today", open, open === 1 ? '' : 's')}
           </p>
         </section>
 
         {/* Summary */}
         <div className="grid grid-cols-3 gap-3">
           {(['pending', 'in_progress', 'completed'] as const).map((s) => (
-            <StatTile key={s} label={s === 'completed' ? 'Done' : TASK_STATUS_META[s].label}
+            <StatTile key={s} label={s === 'completed' ? tr("Done") : TASK_STATUS_META[s].label}
               value={loading ? '—' : counts[s]} dot={TASK_STATUS_META[s].dot} />
           ))}
         </div>
 
         {/* Quick actions */}
         <div>
-          <ListHeading>Quick Actions</ListHeading>
+          <ListHeading>{tr("Quick Actions")}</ListHeading>
           <div className="grid grid-cols-3 gap-3">
             {QUICK_ACTIONS.map(({ label, hint, icon: Icon, path }) => (
               <Link key={path} to={path}
@@ -132,19 +133,19 @@ export default function WorkerDashboard() {
         <div>
           <ListHeading action={
             <Link to="/my-schedule" className="inline-flex items-center gap-0.5 text-sm font-medium text-green-800 hover:underline">
-              Full schedule <ChevronRight size={15} />
+              {tr("Full schedule")} <ChevronRight size={15} />
             </Link>
           }>
-            Today's Tasks
+            {tr("Today's Tasks")}
           </ListHeading>
 
           {error && <div className="mb-3"><ErrorNote>{error}</ErrorNote></div>}
 
           {loading ? (
-            <p className="py-8 text-center text-sm text-gray-500">Loading tasks…</p>
+            <p className="py-8 text-center text-sm text-gray-500">{tr("Loading tasks…")}</p>
           ) : tasks.length === 0 ? (
-            <EmptyState icon={PackageOpen} title="No tasks for today"
-              body="When your supervisor assigns you work, it will appear here. You can still record a harvest or log waste above." />
+            <EmptyState icon={PackageOpen} title={tr("No tasks for today")}
+              body={tr("When your supervisor assigns you work, it will appear here. You can still record a harvest or log waste above.")} />
           ) : (
             <ul className="space-y-3">
               {tasks.map(task => {
@@ -172,7 +173,7 @@ export default function WorkerDashboard() {
                           <span className="inline-flex items-center gap-1">
                             <Clock size={12} strokeWidth={ICON_STROKE} />
                             {late ? formatDay(task.assigned_date, { day: 'numeric', month: 'short' })
-                              : task.scheduled_time ? formatTime(task.scheduled_time) : 'Any time today'}
+                              : task.scheduled_time ? formatTime(task.scheduled_time) : tr("Any time today")}
                           </span>
                         </div>
                       </div>
@@ -184,12 +185,12 @@ export default function WorkerDashboard() {
                           <button onClick={() => startTask(task)} disabled={busyId === task.id}
                             className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60">
                             <PlayCircle size={15} strokeWidth={ICON_STROKE} />
-                            {task.status === 'pending' ? 'Start' : 'Open'}
+                            {task.status === 'pending' ? tr("Start") : tr("Open")}
                           </button>
                         )}
                         <button onClick={() => setStatus(task, 'completed')} disabled={busyId === task.id}
                           className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-60">
-                          <CheckCircle2 size={15} strokeWidth={2} /> {busyId === task.id ? 'Saving…' : 'Mark as Completed'}
+                          <CheckCircle2 size={15} strokeWidth={2} /> {busyId === task.id ? tr("Saving…") : tr("Mark as Completed")}
                         </button>
                       </div>
                     )}

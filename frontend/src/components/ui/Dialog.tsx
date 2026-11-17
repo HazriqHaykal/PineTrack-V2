@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react'
 import { X } from 'lucide-react'
 
+import { tr } from '../../i18n'
 /**
  * Modal shell whose header and footer stay put while the body scrolls.
  * Pass `as="form"` with `onSubmit` to make the body + footer a single form.
@@ -36,7 +37,7 @@ export function Dialog({ open, title, subtitle, onClose, footer, children, size 
             <h3 className="font-semibold text-gray-900">{title}</h3>
             {subtitle && <div className="mt-0.5 text-sm text-gray-600">{subtitle}</div>}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close"
+          <button type="button" onClick={onClose} aria-label={tr("Close")}
             className="p-1.5 -mr-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800">
             <X size={18} strokeWidth={1.75} />
           </button>
@@ -79,9 +80,9 @@ export function ConfirmDialog({ open, title, body, confirmLabel, danger, busy, o
       size="sm"
       footer={
         <>
-          <button type="button" onClick={onClose} className={btnSecondary}>Go back</button>
+          <button type="button" onClick={onClose} className={btnSecondary}>{tr("Go back")}</button>
           <button type="button" onClick={onConfirm} disabled={busy} className={danger ? btnDanger : btnPrimary}>
-            {busy ? 'Working…' : confirmLabel}
+            {busy ? tr("Working…") : confirmLabel}
           </button>
         </>
       }

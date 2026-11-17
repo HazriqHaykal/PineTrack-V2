@@ -4,6 +4,8 @@ import { Eye, EyeOff } from 'lucide-react'
 import { apiClient } from '../services/api'
 import { authService } from '../services/auth'
 
+import { tr } from '../i18n'
+import LanguageToggle from '../components/ui/LanguageToggle'
 export default function RegisterPage() {
   const navigate = useNavigate()
   const [showPw, setShowPw] = useState(false)
@@ -24,7 +26,7 @@ export default function RegisterPage() {
     e.preventDefault()
     setError('')
     if (form.password.length < 6) {
-      setError('Password must be at least 6 characters.')
+      setError(tr("Password must be at least 6 characters."))
       return
     }
     setLoading(true)
@@ -33,7 +35,7 @@ export default function RegisterPage() {
       authService.setTokens(tokens)
       navigate(tokens.user.role === 'admin' ? '/dashboard' : '/my-tasks')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed. Username or email may already exist.')
+      setError(err.response?.data?.detail || tr("Registration failed. Username or email may already exist."))
     } finally {
       setLoading(false)
     }
@@ -42,15 +44,16 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-6 py-12">
       <div className="w-full max-w-md">
+        <div className="flex justify-end mb-3"><LanguageToggle /></div>
         <div className="flex justify-center mb-8">
           <p className="font-logo font-bold text-2xl leading-none tracking-tight">
-            <span style={{ color: '#162f25' }}>Pine</span><span style={{ color: '#f5922a' }}>Track</span>
+            <span style={{ color: '#162f25' }}>{tr("Pine")}</span><span style={{ color: '#f5922a' }}>{tr("Track")}</span>
           </p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-1">Create account</h2>
-          <p className="text-gray-500 text-sm mb-8">Join PineTrack to manage your farm</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">{tr("Create account")}</h2>
+          <p className="text-gray-500 text-sm mb-8">{tr("Join PineTrack to manage your farm")}</p>
 
           {error && (
             <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
@@ -60,9 +63,9 @@ export default function RegisterPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {[
-              { name: 'full_name', label: 'Full Name', type: 'text', placeholder: 'Your full name' },
-              { name: 'username',  label: 'Username',  type: 'text', placeholder: 'Choose a username' },
-              { name: 'email',     label: 'Email',     type: 'email', placeholder: 'your@email.com' },
+              { name: 'full_name', label: tr("Full Name"), type: 'text', placeholder: tr("Your full name") },
+              { name: 'username',  label: tr("Username"),  type: 'text', placeholder: tr("Choose a username") },
+              { name: 'email',     label: tr("Email"),     type: 'email', placeholder: 'your@email.com' },
             ].map((field) => (
               <div key={field.name}>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">{field.label}</label>
@@ -79,14 +82,14 @@ export default function RegisterPage() {
             ))}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{tr("Password")}</label>
               <div className="relative">
                 <input
                   type={showPw ? 'text' : 'password'}
                   name="password"
                   value={form.password}
                   onChange={handleChange}
-                  placeholder="Min. 6 characters"
+                  placeholder={tr("Min. 6 characters")}
                   className="w-full px-4 py-2.5 pr-11 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
                   required
                 />
@@ -105,14 +108,14 @@ export default function RegisterPage() {
               disabled={loading}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors disabled:opacity-60 text-sm mt-2"
             >
-              {loading ? 'Creating account…' : 'Create Account'}
+              {loading ? tr("Creating account…") : tr("Create Account")}
             </button>
           </form>
 
           <p className="text-center text-sm text-gray-500 mt-6">
-            Already have an account?{' '}
+            {tr("Already have an account?")}{' '}
             <Link to="/login" className="text-green-600 hover:text-green-700 font-semibold">
-              Sign In
+              {tr("Sign In")}
             </Link>
           </p>
         </div>

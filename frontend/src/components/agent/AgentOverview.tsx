@@ -1,115 +1,70 @@
-import React from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronRight, Info, RefreshCw } from 'lucide-react'
-import { AIMetrics, AIRecommendation, AIRecommendations, AIStatus, AnalysisScope, FarmSnapshot, SulurSnapshot } from '../../types'
+import { Link, useNavigate } from 'react-router-dom'
+import { ChevronDown, ChevronRight, Info, RefreshCw } from 'lucide-react'
+import { AIRecommendation, AIRecommendations, AIStatus, AnalysisScope, FarmSnapshot, SulurSnapshot } from '../../types'
 import { scopeLabel } from '../ui/ModuleScope'
 import { PRIORITY_BADGE, REC_CATEGORY, SourceBadge, confidenceMeaning, formatWhen } from './agentMeta'
 
+import { tr } from '../../i18n'
 const ICON = { size: 16, strokeWidth: 1.75 } as const
 // The rule engine used to emit this as a "recommendation"; older cached sets may still contain it
 const LEGACY_NO_DATA_TITLE = 'No recent harvest data'
 
-function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub: string }) {
+/** One line of farm data the agent was given, linking to the module it came from */
+interface DataRow { label: string; value: string; note?: string; warn?: boolean; path: string }
+
+function DataList({ title, caption, rows }: { title: string; caption: string; rows: DataRow[] }) {
+  const navigate = useNavigate()
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
-      <p className="text-xs font-medium text-gray-600">{label}</p>
-      <p className="text-2xl font-bold text-gray-900 mt-0.5 tabular-nums">{value}</p>
-      <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
+    <div>
+      <p className="px-5 pt-3 text-xs font-semibold text-gray-800">{title}</p>
+      <p className="px-5 text-[11px] text-gray-500">{caption}</p>
+      <ul className="mt-1.5 divide-y divide-gray-100">
+        {rows.map((r) => (
+          <li key={r.label}>
+            <button onClick={() => navigate(r.path)} className="group flex w-full items-center gap-3 px-5 py-2 text-left hover:bg-gray-50">
+              <span className="flex-1 text-sm text-gray-700">{r.label}</span>
+              <span className={`text-sm font-semibold tabular-nums ${r.warn ? 'text-red-700' : 'text-gray-900'}`}>{r.value}</span>
+              {r.note && <span className="w-28 truncate text-right text-xs text-gray-500" title={r.note}>{r.note}</span>}
+              <ChevronRight {...ICON} size={14} className="text-gray-300 group-hover:text-gray-500" />
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
 
-/** What the agent was shown, so each recommendation can be checked against the numbers */
-function FarmConditions({ s }: { s: FarmSnapshot }) {
-  const navigate = useNavigate()
-  const over = (v: number, max: number) => v > max
-  const rows: { label: string; value: string; note?: string; warn?: boolean; path: string }[] = [
-    { label: 'Harvest batches', value: `${s.harvest.batches}`, note: `${s.harvest.total_kg.toLocaleString()} kg`, path: '/harvest' },
+function farmRows(s: FarmSnapshot): DataRow[] {
+  return [
+    { label: tr("Harvest batches"), value: `${s.harvest.batches}`, note: `${s.harvest.total_kg.toLocaleString()} kg`, path: '/harvest' },
     ...(s.harvest.batches > 0 ? [
-      { label: 'Spoilage rate', value: `${s.harvest.spoilage_rate_percent}%`, note: `target ${s.targets.max_spoilage_rate_percent}%`,
-        warn: over(s.harvest.spoilage_rate_percent, s.targets.max_spoilage_rate_percent), path: '/harvest' },
-      { label: 'Rejection rate', value: `${s.harvest.rejection_rate_percent}%`, note: `target ${s.targets.max_rejection_rate_percent}%`,
-        warn: over(s.harvest.rejection_rate_percent, s.targets.max_rejection_rate_percent), path: '/harvest' },
+      { label: tr("Spoilage rate"), value: `${s.harvest.spoilage_rate_percent}%`, note: tr("target {0}%", s.targets.max_spoilage_rate_percent),
+        warn: s.harvest.spoilage_rate_percent > s.targets.max_spoilage_rate_percent, path: '/harvest' },
+      { label: tr("Rejection rate"), value: `${s.harvest.rejection_rate_percent}%`, note: tr("target {0}%", s.targets.max_rejection_rate_percent),
+        warn: s.harvest.rejection_rate_percent > s.targets.max_rejection_rate_percent, path: '/harvest' },
     ] : []),
-    { label: 'Waste logged', value: `${s.waste.total_kg.toLocaleString()} kg`, note: `${s.waste.records} records`, path: '/waste' },
-    { label: 'Overdue deliveries', value: `${s.transport.overdue_not_delivered.length}`, note: `${s.transport.in_transit} in transit`,
+    { label: tr("Waste logged"), value: `${s.waste.total_kg.toLocaleString()} kg`, note: tr("{0} records", s.waste.records), path: '/waste' },
+    { label: tr("Overdue deliveries"), value: `${s.transport.overdue_not_delivered.length}`, note: tr("{0} in transit", s.transport.in_transit),
       warn: s.transport.overdue_not_delivered.length > 0, path: '/transport' },
-    { label: 'Overdue tasks', value: `${s.tasks.overdue}`, note: `${s.tasks.open} open`, warn: s.tasks.overdue > 0, path: '/schedule' },
+    { label: tr("Overdue tasks"), value: `${s.tasks.overdue}`, note: tr("{0} open", s.tasks.open), warn: s.tasks.overdue > 0, path: '/schedule' },
   ]
-  return (
-    <section className="bg-white rounded-xl border border-gray-100 shadow-sm">
-      <div className="px-5 pt-4 pb-3">
-        <h2 className="text-sm font-semibold text-gray-900">Post-Harvest conditions</h2>
-        <p className="text-xs text-gray-500 mt-0.5">What the agent looked at: last {s.period_days} days, up to {s.date}. Weights in kg.</p>
-      </div>
-      <ul className="border-t border-gray-100 divide-y divide-gray-100">
-        {rows.map((r) => (
-          <li key={r.label}>
-            <button onClick={() => navigate(r.path)}
-              className="group flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-50">
-              <span className="flex-1 text-sm text-gray-700">{r.label}</span>
-              <span className={`text-sm font-semibold tabular-nums ${r.warn ? 'text-red-700' : 'text-gray-900'}`}>{r.value}</span>
-              {r.note && <span className="w-24 text-right text-xs text-gray-500 tabular-nums">{r.note}</span>}
-              <ChevronRight {...ICON} size={14} className="text-gray-300 group-hover:text-gray-500" />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
 }
 
-/** Sulur stock position the agent was given. Quantities are sulur pieces, kept apart from post-harvest kg. */
-function SulurConditions({ s }: { s: SulurSnapshot }) {
-  const navigate = useNavigate()
+function sulurRows(s: SulurSnapshot): DataRow[] {
   const below = s.by_variety.filter((v) => v.below_threshold)
-  const rows: { label: string; value: string; note?: string; warn?: boolean; path: string }[] = [
-    { label: 'Sulur batches', value: `${s.batches}`, note: `${s.certified_batches} certified`, path: '/admin/sulur/stock' },
-    { label: 'Available sulur', value: s.totals.available.toLocaleString(), note: `${s.totals.reserved.toLocaleString()} reserved`, path: '/admin/sulur/stock' },
-    { label: 'Varieties below minimum', value: `${below.length}`, note: below.map((v) => v.variety).join(', ') || undefined,
+  return [
+    { label: tr("Sulur batches"), value: `${s.batches}`, note: tr("{0} certified", s.certified_batches), path: '/admin/sulur/stock' },
+    { label: tr("Available sulur"), value: s.totals.available.toLocaleString(), note: tr("{0} reserved", s.totals.reserved.toLocaleString()), path: '/admin/sulur/stock' },
+    { label: tr("Varieties below minimum"), value: `${below.length}`, note: below.map((v) => v.variety).join(', ') || undefined,
       warn: below.length > 0, path: '/admin/sulur/stock' },
-    { label: `Stored over ${s.storage_days_limit} days untreated`, value: `${s.aging_batches.length}`,
+    { label: tr("Stored over {0} days untreated", s.storage_days_limit), value: `${s.aging_batches.length}`,
       warn: s.aging_batches.length > 0, path: '/admin/sulur/stock' },
-    { label: 'Awaiting certification', value: `${s.uncertified_count}`, path: '/admin/sulur/stock' },
-    { label: `Planted, last ${s.period_days} days`, value: (s.movements_in_period.plant ?? 0).toLocaleString(), path: '/admin/sulur/movements' },
+    { label: tr("Awaiting certification"), value: `${s.uncertified_count}`, path: '/admin/sulur/stock' },
   ]
-  return (
-    <section className="bg-white rounded-xl border border-gray-100 shadow-sm">
-      <div className="px-5 pt-4 pb-3">
-        <h2 className="text-sm font-semibold text-gray-900">Sulur Inventory conditions</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Current stock, up to {s.date}. Quantities are {s.unit}.</p>
-      </div>
-      <ul className="border-t border-gray-100 divide-y divide-gray-100">
-        {rows.map((r) => (
-          <li key={r.label}>
-            <button onClick={() => navigate(r.path)}
-              className="group flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-50">
-              <span className="flex-1 text-sm text-gray-700">{r.label}</span>
-              <span className={`text-sm font-semibold tabular-nums ${r.warn ? 'text-red-700' : 'text-gray-900'}`}>{r.value}</span>
-              {r.note && <span className="w-24 truncate text-right text-xs text-gray-500" title={r.note}>{r.note}</span>}
-              <ChevronRight {...ICON} size={14} className="text-gray-300 group-hover:text-gray-500" />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
 }
 
-function Notice({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-      <Info {...ICON} className="shrink-0 mt-0.5 text-blue-700" />
-      <div>
-        <p className="font-medium">{title}</p>
-        <p className="mt-0.5 text-blue-900/80">{children}</p>
-      </div>
-    </div>
-  )
-}
-
+/** One recommendation: short by default, the reasoning on request */
 function RecommendationCard({ rec, source }: { rec: AIRecommendation; source: 'gemini' | 'rules' }) {
-  const navigate = useNavigate()
   const cat = REC_CATEGORY[rec.type] ?? REC_CATEGORY.harvest
   const pri = PRIORITY_BADGE[rec.priority] ?? PRIORITY_BADGE.medium
   const Icon = cat.icon
@@ -122,23 +77,28 @@ function RecommendationCard({ rec, source }: { rec: AIRecommendation; source: 'g
         <span className={`inline-flex px-1.5 py-px rounded text-[11px] font-medium ring-1 ring-inset ${pri.cls}`}>{pri.label}</span>
       </div>
       <h3 className="mt-1.5 text-sm font-semibold text-gray-900">{rec.title}</h3>
-      <p className="mt-0.5 text-sm text-gray-700 leading-relaxed">{rec.description}</p>
-      {rec.impact && <p className="mt-1.5 text-xs text-gray-600"><span className="font-medium text-gray-700">Expected impact:</span> {rec.impact}</p>}
+      {/* Two lines by default; the full text is under "Why this recommendation?" */}
+      <p className="mt-0.5 text-sm text-gray-700 leading-relaxed line-clamp-2">{rec.description}</p>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Navigation only; nothing is changed until the user acts in the module */}
-        <button onClick={() => navigate(cat.path)}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-800 hover:border-green-700 hover:bg-green-50/50">
-          {rec.action || `Open ${cat.module}`} <ChevronRight {...ICON} size={14} className="text-gray-400" />
-        </button>
-        <span className="text-xs text-gray-500">Opens {cat.module}</span>
-        <details className="group w-full sm:w-auto sm:ml-auto text-xs">
-          <summary className="cursor-pointer list-none text-gray-500 hover:text-gray-800 select-none">
-            <span className="group-open:hidden">Details</span><span className="hidden group-open:inline">Hide details</span>
+        <Link to={cat.path}
+          className="inline-flex items-center gap-1.5 min-h-8 px-3 py-1 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-800 hover:border-green-700 hover:bg-green-50/50">
+          {rec.action || tr("Open {0}", cat.module)} <ChevronRight {...ICON} size={14} className="text-gray-400" />
+        </Link>
+        <details className="group w-full text-xs">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-gray-600 hover:text-gray-900 select-none">
+            {tr("Why this recommendation?")}
+            <ChevronDown {...ICON} size={13} className="transition-transform group-open:rotate-180" />
           </summary>
-          <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-gray-700 sm:max-w-sm">
-            <p><span className="font-medium">Confidence {rec.confidence}%</span> · {source === 'gemini' ? 'from Gemini' : 'from built-in rules'}</p>
-            <p className="mt-1 text-gray-600">{confidenceMeaning('recommendations', source)}</p>
+          <div className="mt-2 space-y-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-gray-700">
+            <p className="text-sm leading-relaxed">{rec.description}</p>
+            {rec.impact && <p><span className="font-medium">{tr("Expected impact:")}</span> {rec.impact}</p>}
+            <p className="text-gray-600">
+              <span className="font-medium text-gray-700">{tr("Confidence")} {rec.confidence}%</span>
+              {' · '}{source === 'gemini' ? tr("from Gemini") : tr("from built-in rules")}. {confidenceMeaning('recommendations', source)}
+            </p>
+            <p className="text-gray-600">{tr("Opens {0}. Nothing changes until you act there.", cat.module)}</p>
           </div>
         </details>
       </div>
@@ -146,16 +106,15 @@ function RecommendationCard({ rec, source }: { rec: AIRecommendation; source: 'g
   )
 }
 
-export default function AgentOverview({ scope, status, recs, metrics, loading, refreshing, onRegenerate }: {
+/** Recommendations for the selected module, plus the farm data they were based on */
+export default function AgentOverview({ scope, status, recs, loading, refreshing, onRegenerate }: {
   scope: AnalysisScope
   status: AIStatus | null
   recs: AIRecommendations | null
-  metrics: AIMetrics | null
   loading: boolean
   refreshing: boolean
   onRegenerate: () => void
 }) {
-  const navigate = useNavigate()
   const snapshot = recs?.snapshot ?? null
   // A Sulur-only set has no post-harvest section; a post-harvest set has no Sulur section
   const farm: FarmSnapshot | null = snapshot && 'harvest' in snapshot ? snapshot : null
@@ -163,86 +122,86 @@ export default function AgentOverview({ scope, status, recs, metrics, loading, r
   const noHarvestData = farm ? farm.harvest.batches === 0 : false
   const noSulurData = sulur ? sulur.batches === 0 : false
   const items = (recs?.items ?? []).filter((r) => !(noHarvestData && r.title === LEGACY_NO_DATA_TITLE))
-  const high = items.filter((r) => r.priority === 'high').length
   const fellBack = status?.gemini_configured && recs?.source === 'rules'
 
   return (
-    <div className="space-y-4">
-      {noHarvestData && (
-        <Notice title="No recent harvest data available.">
-          No harvests were recorded in the last {farm!.period_days} days, so recommendations about harvest quality and losses are limited until new batches are recorded.
-          {' '}<button onClick={() => navigate('/harvest?new=1')} className="font-medium underline underline-offset-2 hover:no-underline">Record a harvest</button>
-        </Notice>
-      )}
-      {noSulurData && (
-        <Notice title="No Sulur batches recorded yet.">
-          The agent only analyses recorded Sulur Inventory data, so it gives no Sulur recommendations until batches are added.
-          {' '}<button onClick={() => navigate('/admin/sulur/stock')} className="font-medium underline underline-offset-2 hover:no-underline">Open Stock &amp; Batches</button>
-        </Notice>
-      )}
-
-      <div className="grid grid-cols-2 gap-4 lg:max-w-xl">
-        <Stat label="Active recommendations" value={loading ? '—' : items.length}
-          sub={loading ? 'Loading…' : high ? `${high} high priority` : 'None high priority'} />
-        <Stat label="Total predictions" value={metrics ? metrics.total_predictions.toLocaleString() : '—'} sub="All time, all agent tools" />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4 items-start">
-        <section className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 pb-3">
-            <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-gray-900">Recommendations</h2>
-              {recs && (
-                <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                  <SourceBadge source={recs.source} model={recs.model_version} />
-                  <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 ring-1 ring-inset ring-gray-200">
-                    Data: {scopeLabel(recs.scope ?? scope)}
-                  </span>
-                  Generated {formatWhen(recs.generated_at)}
-                </p>
-              )}
-            </div>
-            <button onClick={onRegenerate} disabled={refreshing || loading}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-green-700 hover:bg-green-800 text-white text-sm font-medium disabled:opacity-60">
-              <RefreshCw {...ICON} size={15} className={refreshing ? 'animate-spin' : ''} />
-              {refreshing ? 'Generating…' : 'Regenerate'}
-            </button>
-          </div>
-          {fellBack && (
-            <p className="mx-5 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              Gemini did not answer when this set was generated, so the built-in rules were used. Regenerate to try Gemini again.
+    <section aria-labelledby="recs-heading" className="bg-white rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 pb-3">
+        <div className="min-w-0">
+          <h2 id="recs-heading" className="text-base font-semibold text-gray-900">{tr("Recommendations")}</h2>
+          {recs && (
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              <SourceBadge source={recs.source} model={recs.model_version} />
+              {scopeLabel(recs.scope ?? scope)} · {tr("Generated")} {formatWhen(recs.generated_at)}
             </p>
           )}
-          {loading ? (
-            <p className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-500">Analysing {scopeLabel(scope)} data…</p>
-          ) : items.length === 0 ? (
-            <div className="border-t border-gray-100 px-5 py-10 text-center">
-              <p className="text-sm font-medium text-gray-800">No recommendations right now</p>
-              <p className="mt-1 text-sm text-gray-500">
-                {noHarvestData || noSulurData ? 'Nothing else in the recorded data needs attention.' : 'Regenerate to analyse the latest records.'}
-              </p>
-            </div>
-          ) : (
-            <ul className="border-t border-gray-100 divide-y divide-gray-100">
-              {items.map((rec) => <RecommendationCard key={rec.id} rec={rec} source={recs!.source} />)}
-            </ul>
-          )}
-          <p className="border-t border-gray-100 px-5 py-2.5 text-[11px] text-gray-500">
-            Recommendations are suggestions. Nothing is changed until you act on them in the relevant module.
-          </p>
-        </section>
-
-        {snapshot ? (
-          <div className="space-y-4">
-            {farm && <FarmConditions s={farm} />}
-            {sulur && <SulurConditions s={sulur} />}
-          </div>
-        ) : !loading && (
-          <section className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 text-sm text-gray-500">
-            Regenerate to see the data behind these recommendations.
-          </section>
-        )}
+        </div>
+        <button onClick={onRegenerate} disabled={refreshing || loading}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-60">
+          <RefreshCw {...ICON} size={15} className={refreshing ? 'animate-spin' : ''} />
+          {refreshing ? tr("Generating…") : tr("Regenerate")}
+        </button>
       </div>
-    </div>
+
+      {/* Compact notices: one line each, with the place to fix it */}
+      {(fellBack || noHarvestData || noSulurData) && (
+        <div className="space-y-1.5 px-5 pb-3">
+          {fellBack && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+              {tr("Gemini did not answer when this set was generated, so the built-in rules were used. Regenerate to try Gemini again.")}
+            </p>
+          )}
+          {noHarvestData && (
+            <p className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs text-blue-900">
+              <Info {...ICON} size={14} className="shrink-0 text-blue-700" />
+              <span>{tr("No harvests in the last {0} days, so harvest advice is limited.", farm!.period_days)}{' '}
+                <Link to="/harvest?new=1" className="font-medium underline underline-offset-2 hover:no-underline">{tr("Record a harvest")}</Link></span>
+            </p>
+          )}
+          {noSulurData && (
+            <p className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs text-blue-900">
+              <Info {...ICON} size={14} className="shrink-0 text-blue-700" />
+              <span>{tr("No Sulur batches recorded yet, so there is no Sulur advice.")}{' '}
+                <Link to="/admin/sulur/stock" className="font-medium underline underline-offset-2 hover:no-underline">{tr("Add Sulur batches")}</Link></span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <p className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-500">{tr("Analysing")} {scopeLabel(scope)} {tr("data…")}</p>
+      ) : items.length === 0 ? (
+        <div className="border-t border-gray-100 px-5 py-8 text-center">
+          <p className="text-sm font-medium text-gray-800">{tr("No recommendations right now")}</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {noHarvestData || noSulurData ? tr("Nothing else in the recorded data needs attention.") : tr("Regenerate to analyse the latest records.")}
+          </p>
+        </div>
+      ) : (
+        <ul className="border-t border-gray-100 divide-y divide-gray-100">
+          {items.map((rec) => <RecommendationCard key={rec.id} rec={rec} source={recs!.source} />)}
+        </ul>
+      )}
+
+      {/* The data behind the set, folded away; it stays checkable without crowding the page */}
+      {snapshot && (
+        <details className="group border-t border-gray-100">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 px-5 py-2.5 text-xs font-medium text-gray-600 hover:text-gray-900 select-none">
+            <ChevronDown {...ICON} size={13} className="transition-transform group-open:rotate-180" />
+            {tr("Farm data the agent used")}
+          </summary>
+          <div className="pb-3 space-y-2">
+            {farm && <DataList title={tr("Post-Harvest Management")} rows={farmRows(farm)}
+              caption={tr("Last {0} days, up to {1}. Weights in kg.", farm.period_days, farm.date)} />}
+            {sulur && <DataList title={tr("Sulur Inventory")} rows={sulurRows(sulur)}
+              caption={tr("Current stock, up to {0}. Quantities in {1}.", sulur.date, sulur.unit)} />}
+          </div>
+        </details>
+      )}
+
+      <p className="border-t border-gray-100 px-5 py-2.5 text-[11px] text-gray-500">
+        {tr("Recommendations are suggestions. Nothing is changed until you act on them in the relevant module.")}
+      </p>
+    </section>
   )
 }

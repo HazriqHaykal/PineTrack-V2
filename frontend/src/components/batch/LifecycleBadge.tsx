@@ -1,5 +1,6 @@
 import { LifecycleStatus } from '../../types'
 
+import { tr } from '../../i18n'
 /**
  * The backend reports eight detailed lifecycle codes. For scanning, they are
  * grouped into six user-facing stages; the detailed meaning stays in the tooltip.
@@ -18,12 +19,12 @@ export const STAGE_OF: Record<LifecycleStatus, LifecycleStage> = {
 }
 
 export const STAGES: { stage: LifecycleStage; label: string; badge: string; dot: string; meaning: string }[] = [
-  { stage: 'recorded',   label: 'Recorded',   badge: 'bg-gray-100 text-gray-700 ring-gray-200',          dot: 'bg-gray-400',    meaning: 'Harvest logged, waiting for quality grading.' },
-  { stage: 'ready',      label: 'Ready',      badge: 'bg-teal-50 text-teal-800 ring-teal-200',           dot: 'bg-teal-500',    meaning: 'Graded, with stock free to allocate.' },
-  { stage: 'allocated',  label: 'Allocated',  badge: 'bg-amber-50 text-amber-800 ring-amber-200',        dot: 'bg-amber-500',   meaning: 'Stock reserved for a transport.' },
-  { stage: 'in_transit', label: 'In Transit', badge: 'bg-blue-50 text-blue-800 ring-blue-200',           dot: 'bg-blue-500',    meaning: 'A linked transport is on the road.' },
-  { stage: 'delivered',  label: 'Delivered',  badge: 'bg-green-50 text-green-800 ring-green-200',        dot: 'bg-green-600',   meaning: 'Stock has reached its destination.' },
-  { stage: 'rejected',   label: 'Rejected',   badge: 'bg-red-50 text-red-800 ring-red-200',              dot: 'bg-red-500',     meaning: 'Rejected at grading, or nothing marketable left.' },
+  { stage: 'recorded',   label: tr("Recorded"),   badge: 'bg-gray-100 text-gray-700 ring-gray-200',          dot: 'bg-gray-400',    meaning: tr("Harvest logged, waiting for quality grading.") },
+  { stage: 'ready',      label: tr("Ready"),      badge: 'bg-teal-50 text-teal-800 ring-teal-200',           dot: 'bg-teal-500',    meaning: tr("Graded, with stock free to allocate.") },
+  { stage: 'allocated',  label: tr("Allocated"),  badge: 'bg-amber-50 text-amber-800 ring-amber-200',        dot: 'bg-amber-500',   meaning: tr("Stock reserved for a transport.") },
+  { stage: 'in_transit', label: tr("In Transit"), badge: 'bg-blue-50 text-blue-800 ring-blue-200',           dot: 'bg-blue-500',    meaning: tr("A linked transport is on the road.") },
+  { stage: 'delivered',  label: tr("Delivered"),  badge: 'bg-green-50 text-green-800 ring-green-200',        dot: 'bg-green-600',   meaning: tr("Stock has reached its destination.") },
+  { stage: 'rejected',   label: tr("Rejected"),   badge: 'bg-red-50 text-red-800 ring-red-200',              dot: 'bg-red-500',     meaning: tr("Rejected at grading, or nothing marketable left.") },
 ]
 
 export const stageInfo = (code: LifecycleStatus) =>
@@ -31,14 +32,14 @@ export const stageInfo = (code: LifecycleStatus) =>
 
 /** Plain-language meaning of each detailed status, shown as a tooltip */
 export const LIFECYCLE_DESCRIPTIONS: Record<LifecycleStatus, string> = {
-  awaiting_inspection: 'Harvested but not yet graded.',
-  ready_for_dispatch:  'Graded, with marketable stock free to allocate to a transport.',
-  partially_allocated: 'Some marketable stock is reserved for transport; some is still free.',
-  fully_allocated:     'All marketable stock is reserved for transport.',
-  in_transit:          'At least one linked transport is on the road.',
-  partially_delivered: 'Some stock has been delivered; the rest is reserved or still free.',
-  delivered:           'All marketable stock has been delivered.',
-  closed:              'Rejected at grading, or nothing marketable is left.',
+  awaiting_inspection: tr("Harvested but not yet graded."),
+  ready_for_dispatch:  tr("Graded, with marketable stock free to allocate to a transport."),
+  partially_allocated: tr("Some marketable stock is reserved for transport; some is still free."),
+  fully_allocated:     tr("All marketable stock is reserved for transport."),
+  in_transit:          tr("At least one linked transport is on the road."),
+  partially_delivered: tr("Some stock has been delivered; the rest is reserved or still free."),
+  delivered:           tr("All marketable stock has been delivered."),
+  closed:              tr("Rejected at grading, or nothing marketable is left."),
 }
 
 /** One short, colour-coded stage badge. `label` is the backend's detailed label, used in the tooltip. */
@@ -53,7 +54,7 @@ export default function LifecycleBadge({ code, label, title }: {
       className={`inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-0.5 rounded-md text-xs font-medium ring-1 ring-inset ${s.badge}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} aria-hidden />
-      {code === 'partially_delivered' ? 'Part Delivered' : s.label}
+      {code === 'partially_delivered' ? tr("Part Delivered") : s.label}
     </span>
   )
 }

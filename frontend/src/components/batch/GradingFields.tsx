@@ -5,6 +5,7 @@ import { GradeInputs, NON_MARKETABLE_REASONS, fmtKg, previewGrading } from './gr
 import { useMarketabilityPolicy } from '../../hooks/useMarketabilityPolicy'
 import AppSelect from '../../components/ui/AppSelect'
 
+import { tr } from '../../i18n'
 interface Props {
   /** Total harvested quantity as typed */
   total: string
@@ -44,7 +45,7 @@ export default function GradingFields({
 
   return (
     <fieldset className="space-y-3">
-      <legend className="sr-only">Grading breakdown</legend>
+      <legend className="sr-only">{tr("Grading breakdown")}</legend>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {GRADES.map((g) => {
           const id = `${idPrefix}-${g}`
@@ -53,7 +54,7 @@ export default function GradingFields({
             <div key={g} className={`rounded-lg border border-gray-200 border-l-4 ${GRADE_META[g].accent} bg-white p-2.5`}>
               <label htmlFor={id} className="block mb-1.5">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-                  Grade {g} <span className="text-xs font-normal text-gray-500">(kg)</span>
+                  {tr("Grade")} {g} <span className="text-xs font-normal text-gray-500">{tr("(kg)")}</span>
                 </span>
                 <span className="block text-[11px] leading-tight text-gray-500">{GRADE_META[g].meaning}</span>
               </label>
@@ -69,7 +70,7 @@ export default function GradingFields({
                 aria-describedby={`${idPrefix}-status`}
                 className={inputCls}
               />
-              {policy && !isMarketable && <p className="mt-1 text-[11px] text-red-700">Excluded by farm policy</p>}
+              {policy && !isMarketable && <p className="mt-1 text-[11px] text-red-700">{tr("Excluded by farm policy")}</p>}
             </div>
           )
         })}
@@ -81,7 +82,7 @@ export default function GradingFields({
             <div>
               <label htmlFor={`${idPrefix}-nm`} className="flex items-center gap-1.5 text-sm font-semibold text-gray-900 mb-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-gray-500" aria-hidden />
-                Non-marketable <span className="text-xs font-normal text-gray-500">(kg)</span>
+                {tr("Non-marketable")} <span className="text-xs font-normal text-gray-500">{tr("(kg)")}</span>
               </label>
               <input
                 id={`${idPrefix}-nm`}
@@ -97,7 +98,7 @@ export default function GradingFields({
               />
             </div>
             <div>
-              <label htmlFor={`${idPrefix}-nm-reason`} className="block text-sm font-semibold text-gray-900 mb-1.5">Reason</label>
+              <label htmlFor={`${idPrefix}-nm-reason`} className="block text-sm font-semibold text-gray-900 mb-1.5">{tr("Reason")}</label>
               <AppSelect
                 id={`${idPrefix}-nm-reason`}
                 value={reason}
@@ -109,7 +110,7 @@ export default function GradingFields({
           </div>
           <p id={`${idPrefix}-nm-hint`} className="mt-1.5 flex items-start gap-1.5 text-[11px] text-gray-600">
             <Recycle size={12} className="shrink-0 mt-px" />
-            Fruit that cannot be sold. It counts in the total harvested and is logged in Waste Management for this batch.
+            {tr("Fruit that cannot be sold. It counts in the total harvested and is logged in Waste Management for this batch.")}
           </p>
         </div>
       )}
@@ -119,7 +120,7 @@ export default function GradingFields({
         {p.empty ? (
           <p className="flex items-start gap-1.5 text-xs text-gray-500">
             <Info size={13} className="shrink-0 mt-px" />
-            {emptyHint ?? 'Enter the weight of each grade. The grades must add up to the total harvested.'}
+            {emptyHint ?? tr("Enter the weight of each grade. The grades must add up to the total harvested.")}
           </p>
         ) : (
           <div className="space-y-1.5">
@@ -134,8 +135,8 @@ export default function GradingFields({
               <p className="flex items-center gap-1.5 text-xs font-medium text-green-800">
                 <CheckCircle2 size={14} className="shrink-0" />
                 {autoTotal
-                  ? `Total harvested: ${fmtKg(p.harvested)}, the sum of the ${p.sortedOut > 0 ? 'grades and non-marketable' : 'grades'}`
-                  : `${p.sortedOut > 0 ? 'Grades and non-marketable match' : 'Grades match'} the harvested total of ${fmtKg(p.harvested)}`}
+                  ? tr("Total harvested: {0}, the sum of the {1}", fmtKg(p.harvested), p.sortedOut > 0 ? 'grades and non-marketable' : 'grades')
+                  : tr("{0} the harvested total of {1}", p.sortedOut > 0 ? 'Grades and non-marketable match' : 'Grades match', fmtKg(p.harvested))}
               </p>
             ) : (
               <p className="flex items-start gap-1.5 text-xs font-medium text-amber-800">
@@ -150,18 +151,18 @@ export default function GradingFields({
       {/* Marketable Yield Preview */}
       {!p.empty && (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Marketable Yield Preview</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">{tr("Marketable Yield Preview")}</p>
           {failed ? (
             <p className="text-xs text-gray-600">
-              The marketability policy could not be loaded. The yield will be calculated when you save.
+              {tr("The marketability policy could not be loaded. The yield will be calculated when you save.")}
             </p>
           ) : (
             <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
               {[
-                ['Total graded', fmtKg(p.graded)],
-                ['Marketable', policy ? fmtKg(p.marketable) : '…'],
+                [tr("Total graded"), fmtKg(p.graded)],
+                [tr("Marketable"), policy ? fmtKg(p.marketable) : '…'],
                 ['Non-marketable', policy ? fmtKg(p.sortedOut + p.nonMarketable) : '…'],
-                ['Marketable yield', p.yieldPercent != null && policy ? `${p.yieldPercent}%` : '—'],
+                [tr("Marketable yield"), p.yieldPercent != null && policy ? `${p.yieldPercent}%` : '—'],
               ].map(([name, value]) => (
                 <div key={name}>
                   <dt className="text-[11px] text-gray-500">{name}</dt>
@@ -172,8 +173,7 @@ export default function GradingFields({
           )}
           {policy && (
             <p className="mt-2 text-[11px] text-gray-500">
-              Grades {policy.marketable_grades.join(', ')} count as marketable (farm policy v{policy.version}).
-              Spoilage or rejection recorded later is deducted from this. The final figures are calculated when you save.
+              {tr("Grades")} {policy.marketable_grades.join(', ')} {tr("count as marketable (farm policy v")}{policy.version}{tr("). Spoilage or rejection recorded later is deducted from this. The final figures are calculated when you save.")}
             </p>
           )}
         </div>

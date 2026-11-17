@@ -15,6 +15,7 @@ import { Harvest, RecoveryRate, RecoveryRoute, Waste, WasteAnalysis } from '../.
 import AppSelect from '../../components/ui/AppSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 
+import { tr, locale } from '../../i18n'
 const BATCH_SIZE = 25 // backend limit per analysis request
 
 const CLASS_BADGE: Record<string, string> = {
@@ -26,7 +27,7 @@ const kgFmt = (n: number) => `${n.toLocaleString(undefined, { maximumFractionDig
 const dateFmt = (iso?: string) => {
   if (!iso) return '—'
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 }
 
 function ClassBadge({ c }: { c: string }) {
@@ -48,9 +49,9 @@ type FormErrors = Partial<Record<keyof FormState, string>>
 function validate(f: FormState): FormErrors {
   const e: FormErrors = {}
   const q = Number(f.quantity_kg)
-  if (!f.quantity_kg.trim()) e.quantity_kg = 'Enter the weight of the waste.'
-  else if (!Number.isFinite(q) || q <= 0) e.quantity_kg = 'Quantity must be a number greater than 0.'
-  if (f.disposal_method.length > 100) e.disposal_method = 'Keep the disposal method under 100 characters.'
+  if (!f.quantity_kg.trim()) e.quantity_kg = tr("Enter the weight of the waste.")
+  else if (!Number.isFinite(q) || q <= 0) e.quantity_kg = tr("Quantity must be a number greater than 0.")
+  if (f.disposal_method.length > 100) e.disposal_method = tr("Keep the disposal method under 100 characters.")
   return e
 }
 
@@ -142,7 +143,7 @@ export default function WastePage() {
       setAgentAvailable(res.agent_available)
       setAnalysisError(null)
     } catch (err) {
-      setAnalysisError(apiErrorMessage(err, 'Could not load PineTrack Agent analyses'))
+      setAnalysisError(apiErrorMessage(err, tr("Could not load PineTrack Agent analyses")))
     }
   }, [])
 
@@ -154,7 +155,7 @@ export default function WastePage() {
       setLoadError(null)
       await loadAnalyses()
     } catch (err) {
-      setLoadError(apiErrorMessage(err, 'Failed to load waste records'))
+      setLoadError(apiErrorMessage(err, tr("Failed to load waste records")))
     } finally {
       setLoading(false)
     }
@@ -178,13 +179,13 @@ export default function WastePage() {
         setAnalyses((prev) => ({ ...prev, ...Object.fromEntries(items.map((a) => [a.waste_id, a])) }))
       } catch (err) {
         failed += chunk.length
-        if (!quiet) showToast(apiErrorMessage(err, 'PineTrack Agent could not analyse the records'), 'error')
+        if (!quiet) showToast(apiErrorMessage(err, tr("PineTrack Agent could not analyse the records")), 'error')
       }
       setAnalysing((s) => { const n = new Set(s); chunk.forEach((id) => n.delete(id)); return n })
       if (ids.length > 1) setBulk({ done: Math.min(i + BATCH_SIZE, ids.length), total: ids.length })
     }
     setBulk(null)
-    if (!quiet && !failed && ids.length > 1) showToast(`${ids.length} records analysed`, 'success')
+    if (!quiet && !failed && ids.length > 1) showToast(tr("{0} records analysed", ids.length), 'success')
   }
 
   // ── Derived ──
@@ -269,14 +270,14 @@ export default function WastePage() {
     }
     try {
       const saved = editing ? await apiClient.updateWaste(editing.id, payload) : await apiClient.createWaste(payload)
-      showToast(editing ? 'Waste record updated' : 'Waste logged', 'success')
+      showToast(editing ? tr("Waste record updated") : tr("Waste logged"), 'success')
       setModal(false)
       setSelectedId(saved.id)
       await load()
       // New or changed facts: get fresh advice straight away
       analyse([saved.id], true)
     } catch (e2) {
-      setSubmitError(apiErrorMessage(e2, 'Failed to save the waste record'))
+      setSubmitError(apiErrorMessage(e2, tr("Failed to save the waste record")))
     } finally {
       setSubmitting(false)
     }
@@ -285,10 +286,10 @@ export default function WastePage() {
   const applyAction = async (w: Waste, a: WasteAnalysis) => {
     try {
       await apiClient.updateWaste(w.id, { disposal_method: a.action.slice(0, 100) })
-      showToast('Disposal method updated', 'success')
+      showToast(tr("Disposal method updated"), 'success')
       load()
     } catch (e) {
-      showToast(apiErrorMessage(e, 'Could not update the disposal method'), 'error')
+      showToast(apiErrorMessage(e, tr("Could not update the disposal method")), 'error')
     }
   }
 
@@ -297,12 +298,12 @@ export default function WastePage() {
     setBusy(true)
     try {
       await apiClient.deleteWaste(deleting.id)
-      showToast('Waste record deleted', 'success')
+      showToast(tr("Waste record deleted"), 'success')
       if (selectedId === deleting.id) setSelectedId(null)
       setDeleting(null); setViewing(null)
       load()
     } catch (e) {
-      showToast(apiErrorMessage(e, 'Delete failed'), 'error')
+      showToast(apiErrorMessage(e, tr("Delete failed")), 'error')
     } finally {
       setBusy(false)
     }
@@ -312,17 +313,17 @@ export default function WastePage() {
 
   const batchCell = (w: Waste) => w.harvest_id
     ? <Link to={`/harvest/${w.harvest_id}`} onClick={(e) => e.stopPropagation()} className="font-semibold text-gray-900 hover:text-green-800 tabular-nums">{w.batch_number ?? `#${w.harvest_id}`}</Link>
-    : <span className="inline-flex px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-gray-600">Unlinked</span>
+    : <span className="inline-flex px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-gray-600">{tr("Unlinked")}</span>
 
   const actionCell = (w: Waste) => {
     const a = analyses[w.id]
-    if (analysing.has(w.id)) return <span className="inline-flex items-center gap-1.5 text-xs text-gray-500"><RefreshCw size={12} className="animate-spin" />Analysing…</span>
-    if (!a) return <span className="text-xs text-gray-500">Not analysed</span>
+    if (analysing.has(w.id)) return <span className="inline-flex items-center gap-1.5 text-xs text-gray-500"><RefreshCw size={12} className="animate-spin" />{tr("Analysing…")}</span>
+    if (!a) return <span className="text-xs text-gray-500">{tr("Not analysed")}</span>
     return (
       <span className="inline-flex items-center gap-1.5 text-sm text-gray-800 max-w-[220px]" title={a.action}>
         <span className={`h-2 w-2 shrink-0 rounded-full ${ROUTE_DOT[a.route]}`} aria-hidden />
         <span className={`truncate ${a.stale ? 'text-gray-500' : ''}`}>{a.action}</span>
-        {a.stale && <span className="shrink-0 rounded px-1 py-px text-[10px] font-medium text-amber-900 bg-amber-50 ring-1 ring-inset ring-amber-200">Outdated</span>}
+        {a.stale && <span className="shrink-0 rounded px-1 py-px text-[10px] font-medium text-amber-900 bg-amber-50 ring-1 ring-inset ring-amber-200">{tr("Outdated")}</span>}
       </span>
     )
   }
@@ -334,11 +335,11 @@ export default function WastePage() {
     if (!a) {
       return (
         <div className="rounded-lg border border-dashed border-gray-300 px-4 py-5 text-center">
-          <p className="text-sm font-medium text-gray-900">Not analysed yet</p>
-          <p className="mt-1 text-xs text-gray-600">PineTrack Agent looks at the type, classification, notes and linked batch to recommend what to do with this waste.</p>
+          <p className="text-sm font-medium text-gray-900">{tr("Not analysed yet")}</p>
+          <p className="mt-1 text-xs text-gray-600">{tr("PineTrack Agent looks at the type, classification, notes and linked batch to recommend what to do with this waste.")}</p>
           <button onClick={() => analyse([w.id])} disabled={running} className={`${btnPrimary} mt-3 inline-flex items-center gap-1.5`}>
             {running ? <RefreshCw size={14} className="animate-spin" /> : <Lightbulb size={14} strokeWidth={1.75} />}
-            {running ? 'Analysing…' : 'Analyse with PineTrack Agent'}
+            {running ? tr("Analysing…") : tr("Analyse with PineTrack Agent")}
           </button>
         </div>
       )
@@ -348,7 +349,7 @@ export default function WastePage() {
         <RecommendationCard a={a} quantityKg={w.quantity_kg} rate={rateFor(a.route)} onReanalyse={() => analyse([w.id])} busy={running} />
         {!a.stale && a.route !== 'review' && (w.disposal_method ?? '').trim().toLowerCase() !== a.action.toLowerCase() && (
           <button onClick={() => applyAction(w, a)} className="mt-2 block text-sm font-medium text-green-800 hover:underline">
-            Set “{a.action}” as the disposal method
+            {tr("Set “")}{a.action}{tr("” as the disposal method")}
           </button>
         )}
       </>
@@ -361,35 +362,35 @@ export default function WastePage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Waste Management</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Record post-harvest waste and let PineTrack Agent recommend how to recover value from it</p>
+            <h1 className="text-2xl font-bold text-gray-900">{tr("Waste Management")}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{tr("Record post-harvest waste and let PineTrack Agent recommend how to recover value from it")}</p>
           </div>
           <button onClick={openCreate}
             className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors self-start sm:self-auto">
-            <Plus size={16} strokeWidth={2} /> Log Waste
+            <Plus size={16} strokeWidth={2} /> {tr("Log Waste")}
           </button>
         </div>
 
         {/* KPIs: recorded quantities, then the estimate kept visibly separate */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           {[
-            { label: 'Total waste', value: kgFmt(totalKg), sub: `${records.length} record${records.length === 1 ? '' : 's'}` },
-            { label: 'Compostable', value: kgFmt(compostKg), sub: `${pct(compostKg)}% of total` },
-            { label: 'Recyclable', value: kgFmt(recycleKg), sub: `${pct(recycleKg)}% of total` },
+            { label: tr("Total waste"), value: kgFmt(totalKg), sub: tr("{0} record{1}", records.length, records.length === 1 ? '' : 's') },
+            { label: tr("Compostable"), value: kgFmt(compostKg), sub: tr("{0}% of total", pct(compostKg)) },
+            { label: tr("Recyclable"), value: kgFmt(recycleKg), sub: tr("{0}% of total", pct(recycleKg)) },
           ].map((c) => (
             <div key={c.label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
               <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">{c.label}</p>
               <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{loading ? '—' : c.value}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Recorded · {c.sub}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{tr("Recorded ·")} {c.sub}</p>
             </div>
           ))}
           <div className="rounded-xl border border-dashed border-green-300 bg-green-50/50 px-4 py-3">
-            <p className="text-xs font-medium text-green-900 uppercase tracking-wide">Est. recovery value</p>
+            <p className="text-xs font-medium text-green-900 uppercase tracking-wide">{tr("Est. recovery value")}</p>
             <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">
               {loading ? '—' : valued.length === 0 ? '—' : valueHigh === 0 ? `${CURRENCY} 0` : formatRange(valueLow, valueHigh)}
             </p>
             <p className="text-xs text-gray-600 mt-0.5">
-              Estimate, not income{pending.length > 0 ? ` · ${pending.length} record${pending.length === 1 ? '' : 's'} not analysed` : ''}
+              {tr("Estimate, not income")}{pending.length > 0 ? tr(" · {0} record{1} not analysed", pending.length, pending.length === 1 ? '' : 's') : ''}
             </p>
           </div>
         </div>
@@ -399,28 +400,28 @@ export default function WastePage() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 mb-6">
             <div className="flex flex-col md:flex-row md:items-center gap-3 md:justify-between mb-2">
               <div>
-                <p className="text-sm font-semibold text-gray-900">Recommended handling</p>
+                <p className="text-sm font-semibold text-gray-900">{tr("Recommended handling")}</p>
                 <p className="text-xs text-gray-500">
                   {agentAvailable === false
-                    ? 'PineTrack Agent is not configured (no Gemini key); analyses use the built-in rules.'
-                    : 'Analysed by PineTrack Agent from each record’s type, classification, notes and linked batch.'}
+                    ? tr("PineTrack Agent is not configured (no Gemini key); analyses use the built-in rules.")
+                    : tr("Analysed by PineTrack Agent from each record’s type, classification, notes and linked batch.")}
                 </p>
               </div>
               {pending.length > 0 && (
                 <button onClick={() => analyse(pending.map((w) => w.id))} disabled={!!bulk}
                   className={`${btnPrimary} inline-flex items-center gap-1.5 self-start md:self-auto whitespace-nowrap`}>
                   {bulk ? <RefreshCw size={14} className="animate-spin" /> : <Lightbulb size={14} strokeWidth={1.75} />}
-                  {bulk ? `Analysing ${bulk.done}/${bulk.total}…` : `Analyse ${pending.length} record${pending.length === 1 ? '' : 's'}`}
+                  {bulk ? tr("Analysing {0}/{1}…", bulk.done, bulk.total) : tr("Analyse {0} record{1}", pending.length, pending.length === 1 ? '' : 's')}
                 </button>
               )}
             </div>
             {analysisError && <p className="mb-2 text-xs text-red-700">{analysisError}</p>}
             <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-gray-100 gap-px" role="img"
-              aria-label={[...routeTotals.map((r) => `${r.label} ${kgFmt(r.kg)}`), pendingKg ? `Not analysed ${kgFmt(pendingKg)}` : ''].filter(Boolean).join(', ')}>
+              aria-label={[...routeTotals.map((r) => `${r.label} ${kgFmt(r.kg)}`), pendingKg ? tr("Not analysed {0}", kgFmt(pendingKg)) : ''].filter(Boolean).join(', ')}>
               {routeTotals.map((r) => (
                 <div key={r.route} className={ROUTE_DOT[r.route]} style={{ width: `${(r.kg / totalKg) * 100}%` }} title={`${r.label}: ${kgFmt(r.kg)}`} />
               ))}
-              {pendingKg > 0 && <div className="bg-[repeating-linear-gradient(45deg,#e5e7eb_0_4px,#f3f4f6_4px_8px)]" style={{ width: `${(pendingKg / totalKg) * 100}%` }} title={`Not analysed: ${kgFmt(pendingKg)}`} />}
+              {pendingKg > 0 && <div className="bg-[repeating-linear-gradient(45deg,#e5e7eb_0_4px,#f3f4f6_4px_8px)]" style={{ width: `${(pendingKg / totalKg) * 100}%` }} title={tr("Not analysed: {0}", kgFmt(pendingKg))} />}
             </div>
             <ul className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5">
               {routeTotals.map((r) => (
@@ -430,7 +431,7 @@ export default function WastePage() {
                     <span className={`h-2 w-2 rounded-full ${ROUTE_DOT[r.route]}`} />
                     <span className="text-gray-800">{r.label}</span>
                     <span className="font-semibold text-gray-900 tabular-nums">{kgFmt(r.kg)}</span>
-                    <span className="text-gray-500 tabular-nums">· {r.low == null ? 'not estimated' : formatRange(r.valueLow, r.valueHigh)}</span>
+                    <span className="text-gray-500 tabular-nums">· {r.low == null ? tr("not estimated") : formatRange(r.valueLow, r.valueHigh)}</span>
                   </button>
                 </li>
               ))}
@@ -439,7 +440,7 @@ export default function WastePage() {
                   <button onClick={() => setRouteF(routeF === 'unanalysed' ? 'all' : 'unanalysed')}
                     className={`inline-flex items-center gap-1.5 text-xs rounded px-1 -mx-1 ${routeF === 'unanalysed' ? 'bg-green-50 ring-1 ring-green-600' : 'hover:bg-gray-50'}`}>
                     <span className="h-2 w-2 rounded-full bg-gray-300" />
-                    <span className="text-gray-800">Not analysed / outdated</span>
+                    <span className="text-gray-800">{tr("Not analysed / outdated")}</span>
                     <span className="font-semibold text-gray-900 tabular-nums">{kgFmt(pendingKg)}</span>
                   </button>
                 </li>
@@ -452,33 +453,33 @@ export default function WastePage() {
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-5">
           <div className="relative flex-1 lg:max-w-xs">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Search type, batch, action or notes…" value={search}
-              onChange={(e) => setSearch(e.target.value)} aria-label="Search waste records"
+            <input type="text" placeholder={tr("Search type, batch, action or notes…")} value={search}
+              onChange={(e) => setSearch(e.target.value)} aria-label={tr("Search waste records")}
               className="w-full h-9 pl-9 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600" />
             {search && (
-              <button onClick={() => setSearch('')} aria-label="Clear search"
+              <button onClick={() => setSearch('')} aria-label={tr("Clear search")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-700"><X size={14} /></button>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select label="Waste type" value={typeF} onChange={setTypeF}
-              options={[['all', 'All types'], ...WASTE_TYPES.map((t) => [t, typeLabel(t)] as [string, string])]} />
-            <Select label="Classification" value={classF} onChange={setClassF}
-              options={[['all', 'All classifications'], ...CLASSIFICATIONS.map((c) => [c, classLabel(c)] as [string, string])]} />
-            <Select label="Recommended handling" value={routeF} onChange={(v) => setRouteF(v as RouteFilter)}
-              options={[['all', 'All handling'], ...rates.map((r) => [r.route, r.label] as [string, string]), ['unanalysed', 'Not analysed / outdated']]} />
+            <Select label={tr("Waste type")} value={typeF} onChange={setTypeF}
+              options={[['all', tr("All types")], ...WASTE_TYPES.map((t) => [t, typeLabel(t)] as [string, string])]} />
+            <Select label={tr("Classification")} value={classF} onChange={setClassF}
+              options={[['all', tr("All classifications")], ...CLASSIFICATIONS.map((c) => [c, classLabel(c)] as [string, string])]} />
+            <Select label={tr("Recommended handling")} value={routeF} onChange={(v) => setRouteF(v as RouteFilter)}
+              options={[['all', tr("All handling")], ...rates.map((r) => [r.route, r.label] as [string, string]), ['unanalysed', tr("Not analysed / outdated")]]} />
             {filtersActive && (
-              <button onClick={clearFilters} className="text-xs font-medium text-gray-600 hover:text-gray-900 px-1">Clear filters</button>
+              <button onClick={clearFilters} className="text-xs font-medium text-gray-600 hover:text-gray-900 px-1">{tr("Clear filters")}</button>
             )}
           </div>
           {rates.length > 0 && (
             <div className="lg:ml-auto">
-              <GuidePopover title="How values are estimated" sections={[
-                { heading: 'Who decides what', items: [
-                  { key: 'ai', dot: 'bg-green-600', label: 'Agent', meaning: 'PineTrack Agent (Gemini) chooses the handling and explains why. Built-in rules answer if it is unavailable.' },
-                  { key: 'calc', dot: 'bg-gray-400', label: 'Value', meaning: 'PineTrack calculates value as recorded kg × the assumed rate below for the chosen handling. The AI never sets a price.' },
+              <GuidePopover title={tr("How values are estimated")} sections={[
+                { heading: tr("Who decides what"), items: [
+                  { key: 'ai', dot: 'bg-green-600', label: tr("Agent"), meaning: tr("PineTrack Agent (Gemini) chooses the handling and explains why. Built-in rules answer if it is unavailable.") },
+                  { key: 'calc', dot: 'bg-gray-400', label: tr("Value"), meaning: tr("PineTrack calculates value as recorded kg × the assumed rate below for the chosen handling. The AI never sets a price.") },
                 ] },
-                { heading: 'Assumed rates (planning estimates)', items: rates.map((r) => ({
+                { heading: tr("Assumed rates (planning estimates)"), items: rates.map((r) => ({
                   key: r.route, dot: ROUTE_DOT[r.route], label: r.label, meaning: `${formatRate(r)}. ${r.basis}`,
                 })) },
               ]} />
@@ -488,7 +489,7 @@ export default function WastePage() {
 
         {total > records.length && (
           <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Showing the {records.length} most recent of {total} records. Totals cover the records shown.
+            {tr("Showing the")} {records.length} {tr("most recent of")} {total} {tr("records. Totals cover the records shown.")}
           </p>
         )}
 
@@ -498,31 +499,31 @@ export default function WastePage() {
             {loading ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-500 text-sm">
                 <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin mb-3" />
-                Loading waste records…
+                {tr("Loading waste records…")}
               </div>
             ) : loadError ? (
               <div className="flex flex-col items-center justify-center h-48 text-center px-4">
                 <AlertTriangle size={30} className="text-gray-300 mb-2" />
-                <p className="font-medium text-gray-800">Could not load waste records</p>
+                <p className="font-medium text-gray-800">{tr("Could not load waste records")}</p>
                 <p className="text-sm text-gray-500 mt-1">{loadError}</p>
                 <button onClick={() => { setLoading(true); load() }} className={`${btnSecondary} mt-4 inline-flex items-center gap-1.5`}>
-                  <RefreshCw size={14} strokeWidth={1.75} /> Try again
+                  <RefreshCw size={14} strokeWidth={1.75} /> {tr("Try again")}
                 </button>
               </div>
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-center px-4">
-                <p className="font-medium text-gray-800">{records.length === 0 ? 'No waste logged yet' : 'No records match these filters'}</p>
+                <p className="font-medium text-gray-800">{records.length === 0 ? tr("No waste logged yet") : tr("No records match these filters")}</p>
                 {records.length === 0
-                  ? <p className="text-sm text-gray-500 mt-1">Log waste and PineTrack Agent will recommend what to do with it.</p>
-                  : <button onClick={clearFilters} className="mt-2 text-sm font-medium text-green-800 hover:underline">Clear filters</button>}
+                  ? <p className="text-sm text-gray-500 mt-1">{tr("Log waste and PineTrack Agent will recommend what to do with it.")}</p>
+                  : <button onClick={clearFilters} className="mt-2 text-sm font-medium text-green-800 hover:underline">{tr("Clear filters")}</button>}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[920px] text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      {[['Waste type', ''], ['Batch', ''], ['Quantity', 'text-right'], ['Classification', ''],
-                        ['Recommended action', ''], ['Est. value', 'text-right'], ['Date', ''], ['Actions', 'text-right']].map(([h, cls]) => (
+                      {[[tr("Waste type"), ''], [tr("Batch"), ''], [tr("Quantity"), 'text-right'], [tr("Classification"), ''],
+                        [tr("Recommended action"), ''], [tr("Est. value"), 'text-right'], [tr("Date"), ''], [tr("Actions"), 'text-right']].map(([h, cls]) => (
                         <th key={h} className={`text-left px-4 py-3 text-xs text-gray-600 font-semibold uppercase tracking-wide whitespace-nowrap ${cls}`}>{h}</th>
                       ))}
                     </tr>
@@ -545,10 +546,10 @@ export default function WastePage() {
                           <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">{dateFmt(w.waste_date || w.created_at)}</td>
                           <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1">
-                              <IconButton icon={Eye} label={`View waste record #${w.id}`} onClick={() => setViewing(w)} />
-                              <IconButton icon={Pencil} label={`Edit waste record #${w.id}`} onClick={() => openEdit(w)} />
+                              <IconButton icon={Eye} label={tr("View waste record #{0}", w.id)} onClick={() => setViewing(w)} />
+                              <IconButton icon={Pencil} label={tr("Edit waste record #{0}", w.id)} onClick={() => openEdit(w)} />
                               <span className="mx-0.5 h-4 w-px bg-gray-200" aria-hidden />
-                              <IconButton icon={Trash2} label={`Delete waste record #${w.id}`} danger onClick={() => setDeleting(w)} />
+                              <IconButton icon={Trash2} label={tr("Delete waste record #{0}", w.id)} danger onClick={() => setDeleting(w)} />
                             </div>
                           </td>
                         </tr>
@@ -568,42 +569,42 @@ export default function WastePage() {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900">{typeLabel(selected.waste_type)} · {kgFmt(selected.quantity_kg)}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {selected.batch_number ?? 'Unlinked'} · {classLabel(selected.classification)} · {dateFmt(selected.waste_date)}
+                      {selected.batch_number ?? tr("Unlinked")} · {classLabel(selected.classification)} · {dateFmt(selected.waste_date)}
                     </p>
                   </div>
-                  <button onClick={() => setSelectedId(null)} aria-label="Close recommendation"
+                  <button onClick={() => setSelectedId(null)} aria-label={tr("Close recommendation")}
                     className="p-1 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X size={15} /></button>
                 </div>
                 {insight(selected)}
                 <button onClick={() => setViewing(selected)} className="mt-4 w-full text-sm font-medium text-gray-600 hover:text-gray-900">
-                  View full record
+                  {tr("View full record")}
                 </button>
               </>
             ) : (
               <div className="py-6 text-center">
-                <p className="text-sm font-semibold text-gray-900">PineTrack Agent recommendations</p>
-                <p className="mt-1 text-sm text-gray-600">Select a waste record to see what the agent recommends, alternative uses and the estimated recovery value.</p>
+                <p className="text-sm font-semibold text-gray-900">{tr("PineTrack Agent recommendations")}</p>
+                <p className="mt-1 text-sm text-gray-600">{tr("Select a waste record to see what the agent recommends, alternative uses and the estimated recovery value.")}</p>
               </div>
             )}
           </aside>
         </div>
         {!loading && !loadError && filtersActive && filtered.length > 0 && (
-          <p className="mt-3 text-xs text-gray-500">Showing {filtered.length} of {records.length} records</p>
+          <p className="mt-3 text-xs text-gray-500">{tr("Showing")} {filtered.length} {tr("of")} {records.length} {tr("records")}</p>
         )}
       </div>
 
       {/* Details */}
       {viewing && (
-        <Dialog open size="lg" title={`Waste record #${viewing.id}`} onClose={() => setViewing(null)}
+        <Dialog open size="lg" title={tr("Waste record #{0}", viewing.id)} onClose={() => setViewing(null)}
           footer={
             <>
               <button type="button" onClick={() => setDeleting(viewing)}
                 className="mr-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-red-700 hover:bg-red-50">
-                <Trash2 size={15} strokeWidth={1.75} /> Delete
+                <Trash2 size={15} strokeWidth={1.75} /> {tr("Delete")}
               </button>
-              <button type="button" onClick={() => setViewing(null)} className={btnSecondary}>Close</button>
+              <button type="button" onClick={() => setViewing(null)} className={btnSecondary}>{tr("Close")}</button>
               <button type="button" onClick={() => openEdit(viewing)} className={`${btnPrimary} inline-flex items-center gap-1.5`}>
-                <Pencil size={15} strokeWidth={1.75} /> Edit
+                <Pencil size={15} strokeWidth={1.75} /> {tr("Edit")}
               </button>
             </>
           }>
@@ -611,15 +612,15 @@ export default function WastePage() {
             <div className="space-y-4">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                 {([
-                  ['Waste type', typeLabel(viewing.waste_type)],
-                  ['Linked batch', viewing.harvest_id
-                    ? <Link to={`/harvest/${viewing.harvest_id}`} className="text-green-800 hover:underline">{viewing.batch_number ?? `Batch #${viewing.harvest_id}`}</Link>
-                    : <span className="text-gray-500">Unlinked</span>],
-                  ['Quantity (recorded)', kgFmt(viewing.quantity_kg)],
-                  ['Classification', <ClassBadge c={viewing.classification} />],
-                  ['Disposal method', viewing.disposal_method || <span className="text-gray-500">Not recorded</span>],
-                  ['Waste date', dateFmt(viewing.waste_date)],
-                  ['Logged', new Date(viewing.created_at).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })],
+                  [tr("Waste type"), typeLabel(viewing.waste_type)],
+                  [tr("Linked batch"), viewing.harvest_id
+                    ? <Link to={`/harvest/${viewing.harvest_id}`} className="text-green-800 hover:underline">{viewing.batch_number ?? tr("Batch #{0}", viewing.harvest_id)}</Link>
+                    : <span className="text-gray-500">{tr("Unlinked")}</span>],
+                  [tr("Quantity (recorded)"), kgFmt(viewing.quantity_kg)],
+                  [tr("Classification"), <ClassBadge c={viewing.classification} />],
+                  [tr("Disposal method"), viewing.disposal_method || <span className="text-gray-500">{tr("Not recorded")}</span>],
+                  [tr("Waste date"), dateFmt(viewing.waste_date)],
+                  [tr("Logged"), new Date(viewing.created_at).toLocaleString(locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })],
                 ] as [string, React.ReactNode][]).map(([k, v]) => (
                   <div key={k} className="min-w-0">
                     <dt className="text-xs text-gray-500">{k}</dt>
@@ -628,10 +629,10 @@ export default function WastePage() {
                 ))}
               </dl>
               <div>
-                <p className="text-xs text-gray-500">Notes</p>
+                <p className="text-xs text-gray-500">{tr("Notes")}</p>
                 {viewing.notes
                   ? <p className="mt-1 text-sm text-gray-800 whitespace-pre-wrap break-words">{viewing.notes}</p>
-                  : <p className="mt-1 text-sm text-gray-500">No notes.</p>}
+                  : <p className="mt-1 text-sm text-gray-500">{tr("No notes.")}</p>}
               </div>
             </div>
             <div className="md:border-l md:border-gray-100 md:pl-6">{insight(viewing)}</div>
@@ -643,14 +644,14 @@ export default function WastePage() {
       <Dialog
         open={modalOpen}
         size="lg"
-        title={editing ? `Edit Waste Record #${editing.id}` : 'Log Waste'}
+        title={editing ? tr("Edit Waste Record #{0}", editing.id) : tr("Log Waste")}
         onClose={() => setModal(false)}
         onSubmit={handleSubmit}
         footer={
           <>
-            <button type="button" onClick={() => setModal(false)} className={btnSecondary}>Cancel</button>
+            <button type="button" onClick={() => setModal(false)} className={btnSecondary}>{tr("Cancel")}</button>
             <button type="submit" disabled={submitting} className={btnPrimary}>
-              {submitting ? 'Saving…' : editing ? 'Save Changes' : 'Log Waste'}
+              {submitting ? tr("Saving…") : editing ? tr("Save Changes") : tr("Log Waste")}
             </button>
           </>
         }
@@ -662,50 +663,50 @@ export default function WastePage() {
             </p>
           )}
 
-          <FormSection step="A" title="Waste Identification">
-            <Field id="harvest_id" label="Harvest batch" className="sm:col-span-2"
-              hint="Linking a batch adds this record to the batch's history and gives PineTrack Agent its grading data.">
+          <FormSection step="A" title={tr("Waste Identification")}>
+            <Field id="harvest_id" label={tr("Harvest batch")} className="sm:col-span-2"
+              hint={tr("Linking a batch adds this record to the batch's history and gives PineTrack Agent its grading data.")}>
               <SearchableSelect id="harvest_id" value={form.harvest_id} onChange={(v) => set({ harvest_id: v })}
-                emptyOptionLabel="No batch linked" placeholder="No batch linked"
-                searchPlaceholder="Search batch number or field" noResultsText="No batches match"
+                emptyOptionLabel={tr("No batch linked")} placeholder={tr("No batch linked")}
+                searchPlaceholder={tr("Search batch number or field")} noResultsText={tr("No batches match")}
                 options={harvests.map((h) => ({
                   value: String(h.id), label: h.batch_number, keywords: h.field_name,
-                  description: `${h.field_name} · ${h.quantity_kg.toLocaleString()} kg · ${h.harvest_date}`,
+                  description: tr("{0} · {1} kg · {2}", h.field_name, h.quantity_kg.toLocaleString(), h.harvest_date),
                 }))} />
             </Field>
-            <Field id="waste_type" label="Waste type" required>
+            <Field id="waste_type" label={tr("Waste type")} required>
               <AppSelect id="waste_type" value={form.waste_type} onChange={(v) => set({ waste_type: v })}
                 options={WASTE_TYPES.map((t) => ({ value: t, label: typeLabel(t) }))} />
             </Field>
-            <Field id="quantity_kg" label="Quantity (kg)" required error={err('quantity_kg')}>
+            <Field id="quantity_kg" label={tr("Quantity (kg)")} required error={err('quantity_kg')}>
               <input id="quantity_kg" type="number" inputMode="decimal" min="0.1" step="0.1" value={form.quantity_kg}
                 onChange={(e) => set({ quantity_kg: e.target.value })} className={inputCls(err('quantity_kg'))}
                 aria-invalid={!!err('quantity_kg')} />
             </Field>
           </FormSection>
 
-          <FormSection step="B" title="Handling Details">
-            <Field id="classification" label="Classification" required>
+          <FormSection step="B" title={tr("Handling Details")}>
+            <Field id="classification" label={tr("Classification")} required>
               <AppSelect id="classification" value={form.classification} onChange={(v) => set({ classification: v })}
                 options={CLASSIFICATIONS.map((c) => ({ value: c, label: classLabel(c) }))} />
             </Field>
-            <Field id="disposal_method" label="Disposal method" error={err('disposal_method')} hint="Optional. You can apply the agent's recommendation later.">
+            <Field id="disposal_method" label={tr("Disposal method")} error={err('disposal_method')} hint={tr("Optional. You can apply the agent's recommendation later.")}>
               <input id="disposal_method" type="text" value={form.disposal_method} list="disposal-suggestions"
-                onChange={(e) => set({ disposal_method: e.target.value })} placeholder="e.g. Compost" className={inputCls(err('disposal_method'))} />
+                onChange={(e) => set({ disposal_method: e.target.value })} placeholder={tr("e.g. Compost")} className={inputCls(err('disposal_method'))} />
               <datalist id="disposal-suggestions">
                 {rates.filter((r) => r.route !== 'review').map((r) => <option key={r.route} value={r.label} />)}
               </datalist>
             </Field>
             <p className="sm:col-span-2 flex gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-600">
               <Lightbulb size={14} strokeWidth={1.75} className="shrink-0 mt-px text-green-700" />
-              After you save, PineTrack Agent analyses this record and recommends what to do with it. Detailed notes give it more to work with.
+              {tr("After you save, PineTrack Agent analyses this record and recommends what to do with it. Detailed notes give it more to work with.")}
             </p>
           </FormSection>
 
-          <FormSection step="C" title="Additional Information">
-            <Field id="notes" label="Notes" className="sm:col-span-2" hint="For example: smell, mould, bruising, how long it has been stored.">
+          <FormSection step="C" title={tr("Additional Information")}>
+            <Field id="notes" label={tr("Notes")} className="sm:col-span-2" hint={tr("For example: smell, mould, bruising, how long it has been stored.")}>
               <textarea id="notes" rows={3} value={form.notes} onChange={(e) => set({ notes: e.target.value })}
-                placeholder="Optional notes…" className={`${inputCls()} resize-none`} />
+                placeholder={tr("Optional notes…")} className={`${inputCls()} resize-none`} />
             </Field>
           </FormSection>
         </div>
@@ -713,17 +714,17 @@ export default function WastePage() {
 
       <ConfirmDialog
         open={deleting !== null}
-        title="Delete this waste record?"
+        title={tr("Delete this waste record?")}
         body={deleting && (
           <>
             <p className="mb-3 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-gray-800">
               <span className="font-medium">{typeLabel(deleting.waste_type)} · {kgFmt(deleting.quantity_kg)}</span>
-              <span className="text-gray-600"> · {deleting.batch_number ?? 'Unlinked'} · {dateFmt(deleting.waste_date)}</span>
+              <span className="text-gray-600"> · {deleting.batch_number ?? tr("Unlinked")} · {dateFmt(deleting.waste_date)}</span>
             </p>
-            The record is removed permanently. If it is linked to a batch, the removal is noted in that batch’s history.
+            {tr("The record is removed permanently. If it is linked to a batch, the removal is noted in that batch’s history.")}
           </>
         )}
-        confirmLabel="Delete"
+        confirmLabel={tr("Delete")}
         danger
         busy={busy}
         onConfirm={confirmDelete}

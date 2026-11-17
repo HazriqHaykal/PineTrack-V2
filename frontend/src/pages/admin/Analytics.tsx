@@ -13,6 +13,7 @@ import { ModuleScopeSelect, useModuleScope } from '../../components/ui/ModuleSco
 import SulurAnalyticsPanel from '../../components/sulur/SulurAnalyticsPanel'
 
 
+import { tr, trEnum } from '../../i18n'
 interface KpiRow { metric: string; value: string; change: string; positive: boolean }
 
 const CHART_COLORS = {
@@ -97,12 +98,12 @@ export default function AnalyticsPage() {
     if (showPost && !overview) {
       apiClient.getAnalyticsOverview(6)
         .then(setOverview)
-        .catch((err) => setError(apiErrorMessage(err, 'Failed to load analytics.')))
+        .catch((err) => setError(apiErrorMessage(err, tr("Failed to load analytics."))))
     }
     if (showSulur && !sulur) {
       apiClient.getSulurAnalytics(6)
         .then(setSulur)
-        .catch((err) => setSulurError(apiErrorMessage(err, 'Failed to load Sulur analytics.')))
+        .catch((err) => setSulurError(apiErrorMessage(err, tr("Failed to load Sulur analytics."))))
     }
   }, [showPost, showSulur, overview, sulur])
 
@@ -112,7 +113,7 @@ export default function AnalyticsPage() {
       saveBlob(blob, `pinetrack-${type}-report.pdf`)
       setError('')
     } catch (err) {
-      setError(apiErrorMessage(err, 'Failed to generate the report.'))
+      setError(apiErrorMessage(err, tr("Failed to generate the report.")))
     }
   }
 
@@ -127,24 +128,24 @@ export default function AnalyticsPage() {
     const current  = overview?.kpis.current[key] ?? null
     const previous = overview?.kpis.previous[key] ?? null
     // Marketable yield is null for a period with no grade-based batches
-    if (current === null) return { metric, value: '—', change: 'No graded batches', positive: true }
-    if (previous === null) return { metric, value: format(current), change: 'No earlier data', positive: true }
+    if (current === null) return { metric, value: '—', change: tr("No graded batches"), positive: true }
+    if (previous === null) return { metric, value: format(current), change: tr("No earlier data"), positive: true }
     const diff = Math.round((current - previous) * 10) / 10
     return {
       metric,
       value: format(current),
-      change: diff === 0 ? 'No change' : `${diff > 0 ? '+' : ''}${diff}${unit}`,
+      change: diff === 0 ? tr("No change") : `${diff > 0 ? '+' : ''}${diff}${unit}`,
       positive: diff === 0 || (diff > 0) === higherIsBetter,
     }
   }
 
   const KPI_ROWS: KpiRow[] = [
-    kpiRow('Total Harvest Volume',   'harvest_volume_kg',       v => `${v.toLocaleString()} kg`, true,  ' kg'),
-    kpiRow('Average Batch Size',     'avg_batch_kg',            v => `${v} kg`,                  true,  ' kg'),
-    kpiRow('Marketable Yield (graded)', 'marketable_yield_percent', v => `${v}%`,                 true,  ' pts'),
-    kpiRow('Waste Rate',             'waste_rate_percent',      v => `${v}%`,                    false, ' pts'),
-    kpiRow('Transport On-Time Rate', 'on_time_rate_percent',    v => `${v}%`,                    true,  ' pts'),
-    kpiRow('Avg Delivery Delay',     'avg_delivery_delay_days', v => `${v} days`,                false, ' days'),
+    kpiRow(tr("Total Harvest Volume"),   'harvest_volume_kg',       v => `${v.toLocaleString()} kg`, true,  ' kg'),
+    kpiRow(tr("Average Batch Size"),     'avg_batch_kg',            v => `${v} kg`,                  true,  ' kg'),
+    kpiRow(tr("Marketable Yield (graded)"), 'marketable_yield_percent', v => `${v}%`,                 true,  ' pts'),
+    kpiRow(tr("Waste Rate"),             'waste_rate_percent',      v => `${v}%`,                    false, ' pts'),
+    kpiRow(tr("Transport On-Time Rate"), 'on_time_rate_percent',    v => `${v}%`,                    true,  ' pts'),
+    kpiRow(tr("Avg Delivery Delay"),     'avg_delivery_delay_days', v => `${v} days`,                false, ' days'),
   ]
 
   const HARVEST_TREND   = overview?.harvest_trend ?? []
@@ -153,7 +154,7 @@ export default function AnalyticsPage() {
   const grading = overview?.grading
   const QUALITY_DATA = grading
     ? GRADES.filter(g => grading.grade_kg[g] > 0).map(g => ({
-        name: `Grade ${g}`,
+        name: tr("Grade {0}", g),
         value: grading.grade_kg[g],
         fill: GRADE_HEX[g],
       }))
@@ -161,7 +162,7 @@ export default function AnalyticsPage() {
   const excludedBatches = (grading?.legacy_batches ?? 0) + (grading?.ungraded_batches ?? 0)
   const YIELD_TREND = overview?.yield_trend ?? []
   const WASTE_BY_TYPE = (overview?.waste_by_type ?? []).map(w => ({
-    type: w.type.replace('_', ' ').replace(/^\w/, c => c.toUpperCase()),
+    type: trEnum(w.type).replace(/^\w/, c => c.toUpperCase()),
     kg: w.kg,
   }))
 
@@ -171,11 +172,11 @@ export default function AnalyticsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Analytics &amp; Reports</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{tr("Analytics & Reports")}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {scope === 'all' ? 'Performance insights across both operational modules'
-                : scope === 'sulur' ? 'Sulur Inventory stock, grading and movements'
-                : 'Harvest, grading, yield, transport, scheduling and waste performance'}
+              {scope === 'all' ? tr("Performance insights across both operational modules")
+                : scope === 'sulur' ? tr("Sulur Inventory stock, grading and movements")
+                : tr("Harvest, grading, yield, transport, scheduling and waste performance")}
             </p>
           </div>
           {showPost && <div className="flex gap-2">
@@ -200,28 +201,28 @@ export default function AnalyticsPage() {
 
         {scope === 'all' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-            <SummaryCard icon={Warehouse} title="Post-Harvest Management" unit={`Last ${overview?.kpis.period_days ?? 30} days · weights in kg`} rows={[
-              { label: 'Harvest volume', value: overview ? `${overview.kpis.current.harvest_volume_kg.toLocaleString()} kg` : '—' },
-              { label: 'Marketable yield', value: overview?.kpis.current.marketable_yield_percent != null ? `${overview.kpis.current.marketable_yield_percent}%` : '—' },
-              { label: 'Waste rate', value: overview ? `${overview.kpis.current.waste_rate_percent}%` : '—' },
-              { label: 'On-time deliveries', value: overview ? `${overview.kpis.current.on_time_rate_percent}%` : '—' },
+            <SummaryCard icon={Warehouse} title={tr("Post-Harvest Management")} unit={`Last ${overview?.kpis.period_days ?? 30} days · weights in kg`} rows={[
+              { label: tr("Harvest volume"), value: overview ? tr("{0} kg", overview.kpis.current.harvest_volume_kg.toLocaleString()) : '—' },
+              { label: tr("Marketable yield"), value: overview?.kpis.current.marketable_yield_percent != null ? `${overview.kpis.current.marketable_yield_percent}%` : '—' },
+              { label: tr("Waste rate"), value: overview ? `${overview.kpis.current.waste_rate_percent}%` : '—' },
+              { label: tr("On-time deliveries"), value: overview ? `${overview.kpis.current.on_time_rate_percent}%` : '—' },
             ]} />
-            <SummaryCard icon={Layers} title="Sulur Inventory" unit={`Current stock and last ${sulur?.kpis.period_days ?? 30} days · counts in sulur pieces`} rows={
+            <SummaryCard icon={Layers} title={tr("Sulur Inventory")} unit={`Current stock and last ${sulur?.kpis.period_days ?? 30} days · counts in sulur pieces`} rows={
               sulur && sulur.has_data ? [
-                { label: 'Available sulur', value: sulur.totals.available.toLocaleString() },
-                { label: 'Planted, period', value: sulur.kpis.current.planted.toLocaleString() },
-                { label: 'Certified batches', value: `${sulur.certified_batches} / ${sulur.batches}` },
-                { label: 'Varieties below minimum', value: `${sulur.alerts.below_threshold}` },
+                { label: tr("Available sulur"), value: sulur.totals.available.toLocaleString() },
+                { label: tr("Planted, period"), value: sulur.kpis.current.planted.toLocaleString() },
+                { label: tr("Certified batches"), value: `${sulur.certified_batches} / ${sulur.batches}` },
+                { label: tr("Varieties below minimum"), value: `${sulur.alerts.below_threshold}` },
               ] : [
-                { label: 'Batches recorded', value: sulur ? '0' : '—' },
-                { label: 'Available sulur', value: sulur ? '0' : '—' },
+                { label: tr("Batches recorded"), value: sulur ? '0' : '—' },
+                { label: tr("Available sulur"), value: sulur ? '0' : '—' },
               ]
             } />
           </div>
         )}
 
-        {showPost && (<section aria-label="Post-Harvest Management analytics" className="mb-10">
-        {scope === 'all' && <ModuleHeading icon={Warehouse} title="Post-Harvest Management" unit="weights in kg" />}
+        {showPost && (<section aria-label={tr("Post-Harvest Management analytics")} className="mb-10">
+        {scope === 'all' && <ModuleHeading icon={Warehouse} title={tr("Post-Harvest Management")} unit="weights in kg" />}
 
         {/* Summary KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
@@ -237,7 +238,7 @@ export default function AnalyticsPage() {
         {/* Row 1: Harvest trend + Quality distribution */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <SectionHeader title="Harvest Volume Over Time" sub="Monthly volume in kg and batch count" />
+            <SectionHeader title={tr("Harvest Volume Over Time")} sub={tr("Monthly volume in kg and batch count")} />
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={HARVEST_TREND} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <defs>
@@ -259,10 +260,10 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <SectionHeader title="Grade Distribution" sub="Share of graded weight (kg), last 6 months" />
+            <SectionHeader title={tr("Grade Distribution")} sub={tr("Share of graded weight (kg), last 6 months")} />
             {QUALITY_DATA.length === 0 ? (
               <p className="flex items-center justify-center h-[220px] text-sm text-gray-400 text-center">
-                No batches with recorded grade quantities in this period.
+                {tr("No batches with recorded grade quantities in this period.")}
               </p>
             ) : (
             <ResponsiveContainer width="100%" height={220}>
@@ -280,14 +281,14 @@ export default function AnalyticsPage() {
                     <Cell key={i} fill={entry.fill} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => [`${v.toLocaleString()} kg`, 'Graded weight']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                <Tooltip formatter={(v: number) => [tr("{0} kg", v.toLocaleString()), tr("Graded weight")]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
             )}
             {excludedBatches > 0 && (
               <p className="mt-2 text-xs text-gray-500">
-                Excludes {grading!.legacy_batches} legacy and {grading!.ungraded_batches} ungraded batch(es) with no grade quantities.
+                {tr("Excludes")} {grading!.legacy_batches} {tr("legacy and")} {grading!.ungraded_batches} {tr("ungraded batch(es) with no grade quantities.")}
               </p>
             )}
           </div>
@@ -297,10 +298,10 @@ export default function AnalyticsPage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start gap-6">
             <div className="lg:w-64 shrink-0 space-y-4">
-              <SectionHeader title="Marketable Yield" sub="Grade-based batches, last 6 months" />
+              <SectionHeader title={tr("Marketable Yield")} sub={tr("Grade-based batches, last 6 months")} />
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-wide">
-                  <span className="cursor-help" title="Sum of marketable kg divided by sum of harvested kg. Batches are weighted by their quantity, not averaged.">Farm yield (weighted)</span>
+                  <span className="cursor-help" title={tr("Sum of marketable kg divided by sum of harvested kg. Batches are weighted by their quantity, not averaged.")}>{tr("Farm yield (weighted)")}</span>
                 </p>
                 <p className="text-3xl font-bold text-gray-900 tabular-nums">
                   {grading?.marketable_yield_percent != null ? `${grading.marketable_yield_percent}%` : '—'}
@@ -308,26 +309,26 @@ export default function AnalyticsPage() {
               </div>
               <dl className="grid grid-cols-2 lg:grid-cols-1 gap-3 text-sm">
                 <div>
-                  <dt className="text-xs text-gray-500">Marketable quantity</dt>
-                  <dd className="font-semibold text-gray-900 tabular-nums">{(grading?.marketable_kg ?? 0).toLocaleString()} kg</dd>
+                  <dt className="text-xs text-gray-500">{tr("Marketable quantity")}</dt>
+                  <dd className="font-semibold text-gray-900 tabular-nums">{(grading?.marketable_kg ?? 0).toLocaleString()} {tr("kg")}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Spoiled, rejected or excluded</dt>
+                  <dt className="text-xs text-gray-500">{tr("Spoiled, rejected or excluded")}</dt>
                   <dd className="font-semibold text-gray-900 tabular-nums">
-                    {Math.round(((grading?.non_marketable_kg ?? 0) + (grading?.spoilage_kg ?? 0) + (grading?.rejected_kg ?? 0)) * 100) / 100} kg
+                    {Math.round(((grading?.non_marketable_kg ?? 0) + (grading?.spoilage_kg ?? 0) + (grading?.rejected_kg ?? 0)) * 100) / 100} {tr("kg")}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Graded batches</dt>
+                  <dt className="text-xs text-gray-500">{tr("Graded batches")}</dt>
                   <dd className="font-semibold text-gray-900 tabular-nums">
-                    {grading?.graded_batches ?? 0} of {(grading?.harvested_kg ?? 0).toLocaleString()} kg
+                    {grading?.graded_batches ?? 0} {tr("of")} {(grading?.harvested_kg ?? 0).toLocaleString()} {tr("kg")}
                   </dd>
                 </div>
               </dl>
               {excludedBatches > 0 && (
                 <p className="text-xs text-gray-500">
-                  Not included: {grading!.legacy_batches} legacy ({grading!.legacy_kg.toLocaleString()} kg) and{' '}
-                  {grading!.ungraded_batches} ungraded ({grading!.ungraded_kg.toLocaleString()} kg) batch(es).
+                  {tr("Not included:")} {grading!.legacy_batches} {tr("legacy (")}{grading!.legacy_kg.toLocaleString()} {tr("kg) and")}{' '}
+                  {grading!.ungraded_batches} {tr("ungraded (")}{grading!.ungraded_kg.toLocaleString()} {tr("kg) batch(es).")}
                 </p>
               )}
             </div>
@@ -340,7 +341,7 @@ export default function AnalyticsPage() {
                   <YAxis yAxisId="pct" orientation="right" domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }}
                     formatter={(v, name) => [
-                      v == null ? 'No graded batches' : name === 'Yield' ? `${v}%` : `${Number(v).toLocaleString()} kg`, name,
+                      v == null ? tr("No graded batches") : name === 'Yield' ? `${v}%` : tr("{0} kg", Number(v).toLocaleString()), name,
                     ]} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar yAxisId="kg" dataKey="marketable_kg" name="Marketable" fill="#166534" radius={[4, 4, 0, 0]} maxBarSize={40} />
@@ -355,13 +356,13 @@ export default function AnalyticsPage() {
         {/* Row 2: Waste by type + Transport trend */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <SectionHeader title="Waste by Type" sub="Total kg per waste category, last 6 months" />
+            <SectionHeader title={tr("Waste by Type")} sub={tr("Total kg per waste category, last 6 months")} />
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={WASTE_BY_TYPE} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="type" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v: number) => [`${v} kg`, 'Waste']} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v: number) => [tr("{0} kg", v), tr("Waste")]} />
                 <Bar dataKey="kg" name="Waste (kg)" radius={[4, 4, 0, 0]}>
                   {WASTE_BY_TYPE.map((_, i) => (
                     <Cell key={i} fill={[CHART_COLORS.danger, CHART_COLORS.tertiary, '#f97316', CHART_COLORS.secondary, '#8b5cf6'][i % 5]} />
@@ -372,7 +373,7 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <SectionHeader title="Transport Performance" sub="Monthly on-time vs late or overdue deliveries" />
+            <SectionHeader title={tr("Transport Performance")} sub={tr("Monthly on-time vs late or overdue deliveries")} />
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={TRANSPORT_TREND} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -390,14 +391,14 @@ export default function AnalyticsPage() {
         {/* KPI Table */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <SectionHeader title="Key Performance Indicators" sub="Last 30 days, with change against the 30 days before" />
+            <SectionHeader title={tr("Key Performance Indicators")} sub={tr("Last 30 days, with change against the 30 days before")} />
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-5 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">Metric</th>
-                <th className="text-right px-5 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">Value</th>
-                <th className="text-right px-5 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">Change</th>
+                <th className="text-left px-5 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">{tr("Metric")}</th>
+                <th className="text-right px-5 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">{tr("Value")}</th>
+                <th className="text-right px-5 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">{tr("Change")}</th>
               </tr>
             </thead>
             <tbody>
@@ -418,8 +419,8 @@ export default function AnalyticsPage() {
         </section>)}
 
         {showSulur && (
-          <section aria-label="Sulur Inventory analytics" className="mb-10">
-            {scope === 'all' && <ModuleHeading icon={Layers} title="Sulur Inventory" unit="counts in sulur pieces" />}
+          <section aria-label={tr("Sulur Inventory analytics")} className="mb-10">
+            {scope === 'all' && <ModuleHeading icon={Layers} title={tr("Sulur Inventory")} unit="counts in sulur pieces" />}
             <SulurAnalyticsPanel data={sulur} error={sulurError} />
           </section>
         )}
@@ -427,21 +428,21 @@ export default function AnalyticsPage() {
         {/* AI Metrics */}
         {aiMetrics && (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
-            <SectionHeader title="PineTrack Agent Activity" sub="How often the agent has been used, across all modules" />
+            <SectionHeader title={tr("PineTrack Agent Activity")} sub={tr("How often the agent has been used, across all modules")} />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-purple-50 rounded-xl p-4">
-                <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide">Total Predictions</p>
+                <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide">{tr("Total Predictions")}</p>
                 <p className="text-2xl font-bold text-purple-900 mt-1">{aiMetrics.total_predictions}</p>
               </div>
               <div className="bg-purple-50 rounded-xl p-4">
-                <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide">Avg Confidence</p>
+                <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide">{tr("Avg Confidence")}</p>
                 <p className="text-2xl font-bold text-purple-900 mt-1">
                   {Math.round(aiMetrics.average_confidence * 100)}%
                 </p>
               </div>
               {aiMetrics.by_prediction_type && Object.entries(aiMetrics.by_prediction_type).slice(0, 2).map(([type, count]) => (
                 <div key={type} className="bg-purple-50 rounded-xl p-4">
-                  <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide capitalize">{type.replace('_', ' ')}</p>
+                  <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide capitalize">{trEnum(type)}</p>
                   <p className="text-2xl font-bold text-purple-900 mt-1">{count as number}</p>
                 </div>
               ))}

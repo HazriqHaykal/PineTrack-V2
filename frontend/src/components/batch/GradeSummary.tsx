@@ -3,6 +3,7 @@ import { GradeLetter, Harvest } from '../../types'
 import GradeBadge, { GRADES, GRADE_META, MIXED_META } from './GradeBadge'
 import { fmtKg } from './grading'
 
+import { tr } from '../../i18n'
 type GradedFields = Pick<Harvest, 'quality_grade' | 'grading_basis' | 'grade_quantities' | 'marketable_grades'>
 
 /**
@@ -20,7 +21,7 @@ export default function GradeSummary({ harvest }: { harvest: GradedFields }) {
       <span className="inline-flex items-center gap-1.5">
         <GradeBadge grade={harvest.quality_grade} />
         {harvest.grading_basis === 'legacy' && (
-          <span className="text-[11px] text-gray-500" title="Recorded with one overall grade, before grading breakdowns">Legacy</span>
+          <span className="text-[11px] text-gray-500" title={tr("Recorded with one overall grade, before grading breakdowns")}>{tr("Legacy")}</span>
         )}
       </span>
     )
@@ -32,7 +33,7 @@ export default function GradeSummary({ harvest }: { harvest: GradedFields }) {
     setPos({ x: Math.min(r.left, window.innerWidth - 248), y: r.bottom + 6 })
   }
   const total = present.reduce((s, g) => s + q[g], 0)
-  const label = GRADES.map((g) => `Grade ${g} ${fmtKg(q[g])}`).join(', ')
+  const label = GRADES.map((g) => tr("Grade {0} {1}", g, fmtKg(q[g]))).join(', ')
 
   return (
     <span
@@ -41,11 +42,11 @@ export default function GradeSummary({ harvest }: { harvest: GradedFields }) {
       onMouseLeave={() => setPos(null)}
       onFocus={(e) => show(e.currentTarget)}
       onBlur={() => setPos(null)}
-      aria-label={`Mixed grades: ${label}`}
+      aria-label={tr("Mixed grades: {0}", label)}
       className="inline-flex flex-col gap-1 rounded-md cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
     >
       <span className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-md text-xs font-medium ring-1 ring-inset ${MIXED_META.badge}`}>
-        Mixed Grades
+        {tr("Mixed Grades")}
       </span>
       <span className="flex h-1 w-full min-w-[72px] overflow-hidden rounded-full bg-gray-100" aria-hidden>
         {present.map((g) => (
@@ -61,9 +62,9 @@ export default function GradeSummary({ harvest }: { harvest: GradedFields }) {
           {GRADES.map((g: GradeLetter) => (
             <span key={g} className="flex items-center gap-2 py-0.5">
               <span className={`h-2 w-2 rounded-full ${GRADE_META[g].dot}`} />
-              <span className="text-gray-700">Grade {g}</span>
+              <span className="text-gray-700">{tr("Grade")} {g}</span>
               {harvest.marketable_grades && !harvest.marketable_grades.includes(g) && (
-                <span className="text-[11px] text-red-700">non-marketable</span>
+                <span className="text-[11px] text-red-700">{tr("non-marketable")}</span>
               )}
               <span className="ml-auto font-semibold text-gray-900 tabular-nums">{fmtKg(q[g])}</span>
             </span>

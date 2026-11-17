@@ -11,6 +11,7 @@ import { apiClient, apiErrorMessage } from '../../services/api'
 import { authService } from '../../services/auth'
 import { AnalyticsOverview, HarvestStats, TransportEfficiency, WasteStats } from '../../types'
 
+import { tr, locale } from '../../i18n'
 // PineTrack brand, matching the sidebar
 const BRAND_DARK  = '#162f25'
 const BRAND_GREEN = '#2d6a4f'
@@ -29,7 +30,7 @@ const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 8, border: '1px solid #e5e7e
 const kg = (n: number) => `${Math.round(n).toLocaleString()} kg`
 const dayFmt = (iso: string) => {
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 }
 
 // ── Shared building blocks ───────────────────────────────────────────────────
@@ -76,7 +77,7 @@ function Skeleton({ className }: { className: string }) {
 function farmGreeting(now: Date) {
   const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: FARM_TIMEZONE }).format(now))
   const part = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'
-  const date = now.toLocaleDateString('en-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: FARM_TIMEZONE })
+  const date = now.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: FARM_TIMEZONE })
   return { part, date }
 }
 
@@ -116,11 +117,11 @@ function WelcomeBanner({ name, farmName }: { name: string; farmName: string | nu
       <BannerDecoration />
       <div className="relative">
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: BRAND_SAGE }}>{date}</p>
-        <h1 className="text-2xl font-bold mt-1">Good {part}, {name}</h1>
+        <h1 className="text-2xl font-bold mt-1">{tr(part === 'morning' ? 'Good morning, {0}' : part === 'afternoon' ? 'Good afternoon, {0}' : 'Good evening, {0}', name)}</h1>
         <p className="text-sm mt-1" style={{ color: '#d6eadf' }}>
-          Welcome to{' '}
+          {tr("Welcome to")}{' '}
           <span className="font-semibold" style={{ color: '#f7bf70' }}>{farmName ?? '…'}</span>.
-          {' '}Here is what is happening at your farm today.
+          {' '}{tr("Here is what is happening at your farm today.")}
         </p>
       </div>
     </section>
@@ -160,7 +161,7 @@ type Alert = AnalyticsOverview['alerts'][number]
 function describeAlert(a: Alert): { icon: React.ElementType; rank: number; link: string | null; linkLabel: string } {
   const msg = a.msg.toLowerCase()
   const module = (link: string | null) =>
-    ({ '/transport': 'Transport', '/schedule': 'Scheduling', '/harvest': 'Harvest', '/waste': 'Waste' } as Record<string, string>)[link ?? ''] ?? 'Open'
+    ({ '/transport': tr("Transport"), '/schedule': tr("Scheduling"), '/harvest': tr("Harvest"), '/waste': tr("Waste") } as Record<string, string>)[link ?? ''] ?? tr("Open")
   const base = { link: a.link, linkLabel: module(a.link) }
   if (a.level === 'warning') {
     if (msg.includes('past their scheduled')) return { ...base, icon: Truck, rank: 0 }
@@ -171,16 +172,16 @@ function describeAlert(a: Alert): { icon: React.ElementType; rank: number; link:
   }
   if (a.level === 'info') {
     if (msg.includes('graded'))     return { ...base, icon: ClipboardCheck, rank: 10 }
-    if (msg.includes('in transit')) return { icon: Navigation, rank: 11, link: '/transport?status=in_transit', linkLabel: 'View in transit' }
+    if (msg.includes('in transit')) return { icon: Navigation, rank: 11, link: '/transport?status=in_transit', linkLabel: tr("View in transit") }
     return { ...base, icon: Info, rank: 12 }
   }
   return { ...base, icon: CheckCircle2, rank: 20 }
 }
 
 const ALERT_TONE: Record<Alert['level'], { icon: string; tag: string; label: string; bar: string }> = {
-  warning: { icon: 'text-amber-600', tag: 'text-amber-800', label: 'Action needed', bar: 'bg-amber-500' },
-  info:    { icon: 'text-blue-600',  tag: 'text-blue-800',  label: 'Information',   bar: 'bg-blue-400' },
-  success: { icon: 'text-green-700', tag: 'text-green-800', label: 'All clear',     bar: 'bg-green-600' },
+  warning: { icon: 'text-amber-600', tag: 'text-amber-800', label: tr("Action needed"), bar: 'bg-amber-500' },
+  info:    { icon: 'text-blue-600',  tag: 'text-blue-800',  label: tr("Information"),   bar: 'bg-blue-400' },
+  success: { icon: 'text-green-700', tag: 'text-green-800', label: tr("All clear"),     bar: 'bg-green-600' },
 }
 
 function NeedsAttention({ alerts }: { alerts: Alert[] }) {
@@ -191,17 +192,17 @@ function NeedsAttention({ alerts }: { alerts: Alert[] }) {
   return (
     <Panel
       className="h-full"
-      title="Needs Your Attention"
-      subtitle="Live checks on deliveries, tasks and harvest quality"
+      title={tr("Needs Your Attention")}
+      subtitle={tr("Live checks on deliveries, tasks and harvest quality")}
       action={warnings > 0 && (
         <span className="text-xs font-medium text-amber-900 bg-amber-50 ring-1 ring-inset ring-amber-200 rounded-md px-2 py-0.5 whitespace-nowrap">
-          {warnings} to act on
+          {warnings} {tr("to act on")}
         </span>
       )}
       flush
     >
       {sorted.length === 0 ? (
-        <p className="text-sm text-gray-500 px-5 pb-5">No alerts right now.</p>
+        <p className="text-sm text-gray-500 px-5 pb-5">{tr("No alerts right now.")}</p>
       ) : (
         <ul className="border-t border-gray-100 divide-y divide-gray-100">
           {sorted.map(({ icon: Icon, link, linkLabel, ...a }) => {
@@ -244,10 +245,10 @@ function NeedsAttention({ alerts }: { alerts: Alert[] }) {
 
 /** Each opens the module's existing form through its ?new=1 hook; no forms are duplicated here */
 const QUICK_ACTIONS = [
-  { label: 'New Harvest',   path: '/harvest?new=1',   icon: Sprout },
-  { label: 'New Transport', path: '/transport?new=1', icon: Truck },
-  { label: 'Assign Task',   path: '/schedule?new=1',  icon: CalendarPlus },
-  { label: 'Log Waste',     path: '/waste?new=1',     icon: Recycle },
+  { label: tr("New Harvest"),   path: '/harvest?new=1',   icon: Sprout },
+  { label: tr("New Transport"), path: '/transport?new=1', icon: Truck },
+  { label: tr("Assign Task"),   path: '/schedule?new=1',  icon: CalendarPlus },
+  { label: tr("Log Waste"),     path: '/waste?new=1',     icon: Recycle },
 ]
 
 function QuickActions() {
@@ -255,7 +256,7 @@ function QuickActions() {
   // The dashboard is admin-only, and every action opens an admin form
   if (!authService.isAdmin()) return null
   return (
-    <Panel title="Quick Actions" subtitle="Opens the module's form" className="h-full">
+    <Panel title={tr("Quick Actions")} subtitle={tr("Opens the module's form")} className="h-full">
       <div className="grid grid-cols-2 xl:grid-cols-1 gap-2">
         {QUICK_ACTIONS.map(({ label, path, icon: Icon }) => (
           <button key={label} onClick={() => navigate(path)}
@@ -281,12 +282,12 @@ function HarvestVolume({ trend }: { trend: AnalyticsOverview['harvest_trend'] })
   return (
     <Panel
       className="xl:col-span-2"
-      title="Harvest Volume"
-      subtitle={`Kilograms harvested per month, last ${trend.length} months · ${kg(total)} in total`}
-      action={<PanelLink to="/analytics">Analytics</PanelLink>}
+      title={tr("Harvest Volume")}
+      subtitle={tr("Kilograms harvested per month, last {0} months · {1} in total", trend.length, kg(total))}
+      action={<PanelLink to="/analytics">{tr("Analytics")}</PanelLink>}
     >
       {!hasData ? (
-        <EmptyState text={`No harvests recorded in the last ${trend.length} months.`} />
+        <EmptyState text={tr("No harvests recorded in the last {0} months.", trend.length)} />
       ) : (
         <>
           <ResponsiveContainer width="100%" height={230}>
@@ -299,10 +300,10 @@ function HarvestVolume({ trend }: { trend: AnalyticsOverview['harvest_trend'] })
               <Tooltip
                 cursor={{ fill: '#f9fafb' }}
                 contentStyle={TOOLTIP_STYLE}
-                labelFormatter={(m: string) => (data.find((d) => d.month === m)?.current ? `${m} (month in progress)` : m)}
+                labelFormatter={(m: string) => (data.find((d) => d.month === m)?.current ? tr("{0} (month in progress)", m) : m)}
                 formatter={(v: number, _n, item) => [
-                  `${v.toLocaleString()} kg from ${item.payload.batches} batch${item.payload.batches === 1 ? '' : 'es'}`,
-                  'Harvested',
+                  tr("{0} kg from {1} batch{2}", v.toLocaleString(), item.payload.batches, item.payload.batches === 1 ? '' : 'es'),
+                  tr("Harvested"),
                 ]}
               />
               <Bar dataKey="kg" radius={[4, 4, 0, 0]} maxBarSize={44}>
@@ -311,8 +312,8 @@ function HarvestVolume({ trend }: { trend: AnalyticsOverview['harvest_trend'] })
             </BarChart>
           </ResponsiveContainer>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-gray-600">
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: BRAND_GREEN }} />Full month</span>
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: BRAND_SAGE }} />* Current month, still in progress</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: BRAND_GREEN }} />{tr("Full month")}</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: BRAND_SAGE }} />{tr("* Current month, still in progress")}</span>
           </div>
         </>
       )}
@@ -332,16 +333,16 @@ function GradeSplit({ grades }: { grades: AnalyticsOverview['grade_distribution'
     .filter((k) => counts[k])
     .map((k) => ({
       key: k,
-      name: k === 'ungraded' ? 'Ungraded' : k === 'mixed' ? 'Mixed grades' : `Grade ${k}`,
+      name: k === 'ungraded' ? tr("Ungraded") : k === 'mixed' ? tr("Mixed grades") : tr("Grade {0}", k),
       value: counts[k],
       percent: Math.round((counts[k] / total) * 1000) / 10,
       fill: k === 'mixed' ? '#64748b' : GRADE_HEX[k],
     }))
 
   return (
-    <Panel title="Quality Grade Split" subtitle="Batches harvested in the last 6 months, by overall grade. Grade weights are on Analytics.">
+    <Panel title={tr("Quality Grade Split")} subtitle={tr("Batches harvested in the last 6 months, by overall grade. Grade weights are on Analytics.")}>
       {total === 0 ? (
-        <EmptyState text="No batches harvested in this period." />
+        <EmptyState text={tr("No batches harvested in this period.")} />
       ) : (
         <div className="flex flex-col sm:flex-row xl:flex-col items-center gap-4">
           <div className="relative h-[150px] w-[150px] shrink-0">
@@ -356,7 +357,7 @@ function GradeSplit({ grades }: { grades: AnalyticsOverview['grade_distribution'
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-xl font-bold text-gray-900 tabular-nums">{total}</span>
-              <span className="text-[11px] text-gray-500">batches</span>
+              <span className="text-[11px] text-gray-500">{tr("batches")}</span>
             </div>
           </div>
           <ul className="w-full space-y-1.5">
@@ -380,26 +381,26 @@ function RecentHarvests({ rows }: { rows: AnalyticsOverview['recent_harvests'] }
   return (
     <Panel
       className="xl:col-span-2"
-      title="Recent Harvest Activity"
-      subtitle="Latest 5 batches. Select a row to open the batch."
-      action={<PanelLink to="/harvest">All batches</PanelLink>}
+      title={tr("Recent Harvest Activity")}
+      subtitle={tr("Latest 5 batches. Select a row to open the batch.")}
+      action={<PanelLink to="/harvest">{tr("All batches")}</PanelLink>}
       flush
     >
       {rows.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-10">No harvests recorded yet.</p>
+        <p className="text-sm text-gray-500 text-center py-10">{tr("No harvests recorded yet.")}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-y border-gray-100 bg-gray-50">
-                {[['Batch', ''], ['Field', ''], ['Harvest date', ''], ['Quantity', 'text-right'], ['Grade', ''], ['Recorded by', '']].map(([h, cls]) => (
+                {[[tr("Batch"), ''], [tr("Field"), ''], [tr("Harvest date"), ''], [tr("Quantity"), 'text-right'], [tr("Grade"), ''], [tr("Recorded by"), '']].map(([h, cls]) => (
                   <th key={h} className={`text-left px-4 py-2.5 text-xs text-gray-600 font-semibold uppercase tracking-wide whitespace-nowrap ${cls}`}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} tabIndex={0} role="link" aria-label={`Open batch ${r.batch_number}`}
+                <tr key={r.id} tabIndex={0} role="link" aria-label={tr("Open batch {0}", r.batch_number)}
                   onClick={() => navigate(`/harvest/${r.id}`)}
                   onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/harvest/${r.id}`) }}
                   className="border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50/70 focus:outline-none focus-visible:bg-green-50/60 transition-colors">
@@ -423,12 +424,12 @@ function WorkerPerformance({ workers, since }: { workers: AnalyticsOverview['wor
   const max = Math.max(1, ...workers.map((w) => w.tasks))
   return (
     <Panel
-      title="Worker Performance"
-      subtitle={`Tasks scheduled since ${since}, excluding cancelled · top ${workers.length || 8}`}
-      action={<PanelLink to="/schedule">Scheduling</PanelLink>}
+      title={tr("Worker Performance")}
+      subtitle={tr("Tasks scheduled since {0}, excluding cancelled · top {1}", since, workers.length || 8)}
+      action={<PanelLink to="/schedule">{tr("Scheduling")}</PanelLink>}
     >
       {workers.length === 0 ? (
-        <EmptyState text="No tasks assigned in this period." />
+        <EmptyState text={tr("No tasks assigned in this period.")} />
       ) : (
         <>
           <ul className="space-y-3">
@@ -439,11 +440,11 @@ function WorkerPerformance({ workers, since }: { workers: AnalyticsOverview['wor
                   <div className="flex items-baseline justify-between gap-2 text-sm">
                     <span className="font-medium text-gray-900 truncate">{w.name}</span>
                     <span className="text-xs text-gray-600 whitespace-nowrap tabular-nums">
-                      <span className="font-semibold text-gray-900">{w.completed}</span> of {w.tasks} done · {pct}%
+                      <span className="font-semibold text-gray-900">{w.completed}</span> {tr("of")} {w.tasks} {tr("done ·")} {pct}%
                     </span>
                   </div>
                   {/* Track length = tasks assigned (relative to the busiest worker); fill = completed */}
-                  <div className="mt-1.5 h-2 rounded-full bg-gray-100" title={`${w.completed} completed of ${w.tasks} assigned`}>
+                  <div className="mt-1.5 h-2 rounded-full bg-gray-100" title={tr("{0} completed of {1} assigned", w.completed, w.tasks)}>
                     <div className="relative h-full rounded-full bg-gray-300" style={{ width: `${(w.tasks / max) * 100}%` }}>
                       <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: BRAND_GREEN }} />
                     </div>
@@ -453,8 +454,8 @@ function WorkerPerformance({ workers, since }: { workers: AnalyticsOverview['wor
             })}
           </ul>
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 text-xs text-gray-600">
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-gray-300" />Assigned</span>
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: BRAND_GREEN }} />Completed</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-gray-300" />{tr("Assigned")}</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: BRAND_GREEN }} />{tr("Completed")}</span>
           </div>
         </>
       )}
@@ -486,7 +487,7 @@ export default function AdminDashboard() {
       apiClient.getAnalyticsOverview(6),
     ])
       .then(([h, t, w, o]) => { setHStats(h); setTStats(t); setWStats(w); setOverview(o) })
-      .catch((err) => setError(apiErrorMessage(err, 'Failed to load dashboard data.')))
+      .catch((err) => setError(apiErrorMessage(err, tr("Failed to load dashboard data."))))
       .finally(() => setLoading(false))
   }, [])
 
@@ -517,7 +518,7 @@ export default function AdminDashboard() {
             <AlertTriangle {...ICON} className="shrink-0" />
             <span className="flex-1 min-w-0">{error}</span>
             <button onClick={load} className="flex items-center gap-1.5 font-medium hover:underline">
-              <RefreshCw {...ICON} size={14} /> Try again
+              <RefreshCw {...ICON} size={14} /> {tr("Try again")}
             </button>
           </div>
         )}
@@ -537,17 +538,17 @@ export default function AdminDashboard() {
         {ready && (
           <div className={`space-y-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
             <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard icon={Sprout} period="All time" label="Total Harvested" value={kg(hStats.total_quantity_kg)}
-                sub={`${hStats.total_harvests} batches · ${kg(last30?.harvest_volume_kg ?? 0)} in last 30 days`}
+              <KPICard icon={Sprout} period={tr("All time")} label={tr("Total Harvested")} value={kg(hStats.total_quantity_kg)}
+                sub={tr("{0} batches · {1} in last 30 days", hStats.total_harvests, kg(last30?.harvest_volume_kg ?? 0))}
                 onClick={() => navigate('/harvest')} />
-              <KPICard icon={Truck} period="All time" label="Deliveries Completed" value={`${tStats.delivered} / ${tStats.total_transports}`}
-                sub={`${tStats.in_transit} in transit · ${tStats.pending} scheduled`}
+              <KPICard icon={Truck} period={tr("All time")} label={tr("Deliveries Completed")} value={`${tStats.delivered} / ${tStats.total_transports}`}
+                sub={tr("{0} in transit · {1} scheduled", tStats.in_transit, tStats.pending)}
                 onClick={() => navigate('/transport')} />
-              <KPICard icon={Recycle} period="All time" label="Waste Logged" value={kg(wStats.total_waste_kg)}
-                sub={`${wStats.total_records} records · ${kg(last30?.waste_kg ?? 0)} in last 30 days`}
+              <KPICard icon={Recycle} period={tr("All time")} label={tr("Waste Logged")} value={kg(wStats.total_waste_kg)}
+                sub={tr("{0} records · {1} in last 30 days", wStats.total_records, kg(last30?.waste_kg ?? 0))}
                 onClick={() => navigate('/waste')} />
-              <KPICard icon={Users} period="Today" label="Active Workers" value={String(overview.workers.active)}
-                sub={`${overview.workers.on_field_today} with tasks today`}
+              <KPICard icon={Users} period={tr("Today")} label={tr("Active Workers")} value={String(overview.workers.active)}
+                sub={tr("{0} with tasks today", overview.workers.on_field_today)}
                 onClick={() => navigate('/admin/users')} />
             </div>
 

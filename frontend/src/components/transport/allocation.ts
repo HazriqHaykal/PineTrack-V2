@@ -1,6 +1,7 @@
 import { BatchSummary, Harvest, Transport } from '../../types'
 import { isLockedDelivery } from './TransportStatus'
 
+import { tr } from '../../i18n'
 /**
  * Transport form model and the client-side mirror of the backend's batch
  * allocation rules (BatchService.check_allocation / TransportService._check_batch_rules).
@@ -52,15 +53,15 @@ export function allocationFor(
 
 export function validate(form: FormState, editing: Transport | null, alloc: Allocation | null): FormErrors {
   const e: FormErrors = {}
-  if (!form.destination.trim()) e.destination = 'Enter where the cargo is going.'
-  if (!form.scheduled_date) e.scheduled_date = 'Choose the planned delivery date.'
-  if (!form.driver_name.trim()) e.driver_name = 'Enter the driver’s name.'
-  if (!form.vehicle_number.trim()) e.vehicle_number = 'Enter the vehicle plate number.'
+  if (!form.destination.trim()) e.destination = tr("Enter where the cargo is going.")
+  if (!form.scheduled_date) e.scheduled_date = tr("Choose the planned delivery date.")
+  if (!form.driver_name.trim()) e.driver_name = tr("Enter the driver’s name.")
+  if (!form.vehicle_number.trim()) e.vehicle_number = tr("Enter the vehicle plate number.")
 
   const raw = form.cargo_weight_kg.trim()
   const weight = raw ? Number(raw) : null
   if (raw && (!Number.isFinite(weight) || (weight as number) <= 0)) {
-    e.cargo_weight_kg = 'Cargo weight must be a number greater than 0.'
+    e.cargo_weight_kg = tr("Cargo weight must be a number greater than 0.")
     return e
   }
   if (!alloc || (editing && isLockedDelivery(editing))) return e
@@ -71,13 +72,13 @@ export function validate(form: FormState, editing: Transport | null, alloc: Allo
       && editing.status !== 'cancelled' && weight === null && editing.cargo_weight_kg == null) return e
 
   if (alloc.rejected) {
-    e.harvest_id = 'This batch was rejected at grading and cannot be allocated to a transport.'
+    e.harvest_id = tr("This batch was rejected at grading and cannot be allocated to a transport.")
   } else if (weight === null) {
-    e.cargo_weight_kg = 'Cargo weight is required when a harvest batch is linked.'
+    e.cargo_weight_kg = tr("Cargo weight is required when a harvest batch is linked.")
   } else if (alloc.maxKg !== undefined && weight > alloc.maxKg + 0.005) {
     e.cargo_weight_kg = alloc.maxKg > 0
-      ? `Only ${fmtKg(alloc.maxKg)} is available from this batch.`
-      : 'This batch has no stock left to allocate.'
+      ? tr("Only {0} is available from this batch.", fmtKg(alloc.maxKg))
+      : tr("This batch has no stock left to allocate.")
   }
   return e
 }

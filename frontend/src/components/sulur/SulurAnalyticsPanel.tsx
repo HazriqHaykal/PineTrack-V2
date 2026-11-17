@@ -5,6 +5,7 @@ import {
 import { Layers } from 'lucide-react'
 import { SulurAnalytics, SulurPeriodKpis } from '../../types'
 
+import { tr, trEnum } from '../../i18n'
 /**
  * Sulur Inventory analytics from GET /analytics/sulur. Shows recorded data only:
  * an empty module renders an empty state, never sample figures. Every quantity
@@ -14,7 +15,7 @@ import { SulurAnalytics, SulurPeriodKpis } from '../../types'
 const COLORS = { available: '#166534', reserved: '#d97706', planted: '#2563eb', sold: '#7c3aed', damage: '#dc2626' }
 const tooltipStyle = { fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }
 const pieces = (v: number) => `${v.toLocaleString()} pcs`
-const pretty = (s: string) => s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+const pretty = (s: string) => trEnum(s).replace(/^\w/, (c) => c.toUpperCase())
 
 function Header({ title, sub }: { title: string; sub?: string }) {
   return (
@@ -27,8 +28,8 @@ function Header({ title, sub }: { title: string; sub?: string }) {
 
 function change(cur: number, prev: number, higherIsBetter: boolean) {
   const diff = cur - prev
-  if (diff === 0) return { text: 'No change', good: true }
-  return { text: `${diff > 0 ? '+' : ''}${diff.toLocaleString()} pcs`, good: (diff > 0) === higherIsBetter }
+  if (diff === 0) return { text: tr("No change"), good: true }
+  return { text: tr("{0}{1} pcs", diff > 0 ? '+' : '', diff.toLocaleString()), good: (diff > 0) === higherIsBetter }
 }
 
 export default function SulurAnalyticsPanel({ data, error }: { data: SulurAnalytics | null; error?: string }) {
@@ -36,16 +37,16 @@ export default function SulurAnalyticsPanel({ data, error }: { data: SulurAnalyt
     return <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
   }
   if (!data) {
-    return <p className="rounded-xl border border-gray-100 bg-white px-5 py-10 text-center text-sm text-gray-500">Loading Sulur analytics…</p>
+    return <p className="rounded-xl border border-gray-100 bg-white px-5 py-10 text-center text-sm text-gray-500">{tr("Loading Sulur analytics…")}</p>
   }
   if (!data.has_data) {
     return (
       <div className="rounded-xl border border-gray-100 bg-white px-5 py-10 text-center shadow-sm">
         <Layers size={22} strokeWidth={1.75} className="mx-auto text-gray-400" />
-        <p className="mt-2 text-sm font-medium text-gray-800">No Sulur batches recorded yet</p>
-        <p className="mt-1 text-sm text-gray-500">Analytics appear once batches and movements are recorded in Sulur Inventory.</p>
+        <p className="mt-2 text-sm font-medium text-gray-800">{tr("No Sulur batches recorded yet")}</p>
+        <p className="mt-1 text-sm text-gray-500">{tr("Analytics appear once batches and movements are recorded in Sulur Inventory.")}</p>
         <Link to="/admin/sulur/stock" className="mt-3 inline-flex h-9 items-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-800 hover:border-green-700 hover:bg-green-50/50">
-          Open Stock &amp; Batches
+          {tr("Open Stock & Batches")}
         </Link>
       </div>
     )
@@ -54,12 +55,12 @@ export default function SulurAnalyticsPanel({ data, error }: { data: SulurAnalyt
   const { totals, kpis } = data
   const k = (key: keyof SulurPeriodKpis, higherIsBetter: boolean) => change(kpis.current[key], kpis.previous[key], higherIsBetter)
   const tiles = [
-    { label: 'Available sulur', value: pieces(totals.available), sub: `${totals.reserved.toLocaleString()} reserved` },
-    { label: 'Certified batches', value: `${data.certified_batches} / ${data.batches}`, sub: `${data.alerts.uncertified_batches} with stock awaiting` },
-    { label: `Received, last ${kpis.period_days} days`, value: pieces(kpis.current.stock_in), ...(() => { const c = k('stock_in', true); return { sub: c.text, good: c.good } })() },
-    { label: `Planted, last ${kpis.period_days} days`, value: pieces(kpis.current.planted), ...(() => { const c = k('planted', true); return { sub: c.text, good: c.good } })() },
-    { label: `Sold, last ${kpis.period_days} days`, value: pieces(kpis.current.sold), ...(() => { const c = k('sold', true); return { sub: c.text, good: c.good } })() },
-    { label: `Damaged, last ${kpis.period_days} days`, value: pieces(kpis.current.damaged), ...(() => { const c = k('damaged', false); return { sub: c.text, good: c.good } })() },
+    { label: tr("Available sulur"), value: pieces(totals.available), sub: tr("{0} reserved", totals.reserved.toLocaleString()) },
+    { label: tr("Certified batches"), value: `${data.certified_batches} / ${data.batches}`, sub: tr("{0} with stock awaiting", data.alerts.uncertified_batches) },
+    { label: tr("Received, last {0} days", kpis.period_days), value: pieces(kpis.current.stock_in), ...(() => { const c = k('stock_in', true); return { sub: c.text, good: c.good } })() },
+    { label: tr("Planted, last {0} days", kpis.period_days), value: pieces(kpis.current.planted), ...(() => { const c = k('planted', true); return { sub: c.text, good: c.good } })() },
+    { label: tr("Sold, last {0} days", kpis.period_days), value: pieces(kpis.current.sold), ...(() => { const c = k('sold', true); return { sub: c.text, good: c.good } })() },
+    { label: tr("Damaged, last {0} days", kpis.period_days), value: pieces(kpis.current.damaged), ...(() => { const c = k('damaged', false); return { sub: c.text, good: c.good } })() },
   ] as { label: string; value: string; sub: string; good?: boolean }[]
 
   return (
@@ -74,12 +75,12 @@ export default function SulurAnalyticsPanel({ data, error }: { data: SulurAnalyt
         ))}
       </div>
       <p className="-mt-3 text-xs text-gray-500">
-        Period figures compare the last {kpis.period_days} days with the {kpis.period_days} days before. All quantities are {data.unit}.
+        {tr("Period figures compare the last")} {kpis.period_days} {tr("days with the")} {kpis.period_days} {tr("days before. All quantities are")} {data.unit}.
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <Header title="Stock by Variety" sub="Current available, reserved and planted sulur (pieces)" />
+          <Header title={tr("Stock by Variety")} sub={tr("Current available, reserved and planted sulur (pieces)")} />
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={data.by_variety} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -94,21 +95,21 @@ export default function SulurAnalyticsPanel({ data, error }: { data: SulurAnalyt
           </ResponsiveContainer>
           {data.by_variety.some((v) => v.below_threshold) && (
             <p className="mt-2 text-xs text-red-700">
-              Below minimum stock: {data.by_variety.filter((v) => v.below_threshold)
+              {tr("Below minimum stock:")} {data.by_variety.filter((v) => v.below_threshold)
                 .map((v) => `${v.variety} (${v.available.toLocaleString()} of ${v.min_stock_threshold.toLocaleString()})`).join(', ')}
             </p>
           )}
         </div>
 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <Header title="Available Stock by Size Grade" sub="Recorded batch grades (pieces)" />
+          <Header title={tr("Available Stock by Size Grade")} sub={tr("Recorded batch grades (pieces)")} />
           <ul className="space-y-3">
             {data.by_grade.map((g) => {
               const pct = totals.available ? Math.round((g.available / totals.available) * 100) : 0
               return (
                 <li key={g.name}>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-700">{g.name} <span className="text-xs text-gray-400">({g.batches} batch{g.batches === 1 ? '' : 'es'})</span></span>
+                    <span className="text-gray-700">{g.name} <span className="text-xs text-gray-400">({g.batches} {tr("batch")}{g.batches === 1 ? '' : 'es'})</span></span>
                     <span className="font-semibold tabular-nums text-gray-900">{g.available.toLocaleString()}</span>
                   </div>
                   <div className="mt-1 h-1.5 rounded-full bg-gray-100" aria-hidden>
@@ -118,7 +119,7 @@ export default function SulurAnalyticsPanel({ data, error }: { data: SulurAnalyt
               )
             })}
           </ul>
-          <h4 className="mt-6 mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Treatment status</h4>
+          <h4 className="mt-6 mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{tr("Treatment status")}</h4>
           <dl className="space-y-1.5 text-sm">
             {data.by_treatment.map((t) => (
               <div key={t.name} className="flex justify-between">
@@ -128,13 +129,13 @@ export default function SulurAnalyticsPanel({ data, error }: { data: SulurAnalyt
             ))}
           </dl>
           {data.alerts.aging_batches > 0 && (
-            <p className="mt-3 text-xs text-amber-800">{data.alerts.aging_batches} batch(es) raw or curing for over 14 days.</p>
+            <p className="mt-3 text-xs text-amber-800">{data.alerts.aging_batches} {tr("batch(es) raw or curing for over 14 days.")}</p>
           )}
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-        <Header title="Stock Movements Over Time" sub="Monthly sulur received, planted, sold and damaged (pieces)" />
+        <Header title={tr("Stock Movements Over Time")} sub={tr("Monthly sulur received, planted, sold and damaged (pieces)")} />
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={data.movement_trend} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />

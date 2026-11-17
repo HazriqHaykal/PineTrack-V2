@@ -8,13 +8,14 @@ import { formatDay } from '../../components/schedule/taskMeta'
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { Transport } from '../../types'
 
+import { tr } from '../../i18n'
 type Status = Transport['status']
 type Filter = 'all' | 'pending' | 'in_transit' | 'delivered'
 
 /** Worker wording for the single forward step (the admin pages use the same workflow) */
 const ACTION_LABEL: Partial<Record<Status, string>> = {
-  pending: 'Dispatch Now',
-  in_transit: 'Mark Delivered',
+  pending: tr("Dispatch Now"),
+  in_transit: tr("Mark Delivered"),
 }
 
 const kg = (n?: number | null) => (n != null ? `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg` : '—')
@@ -34,7 +35,7 @@ export default function TransportUpdate() {
       setError('')
       return data.items
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not load your deliveries.'))
+      setError(apiErrorMessage(err, tr("Could not load your deliveries.")))
       return []
     } finally {
       setLoading(false)
@@ -57,7 +58,7 @@ export default function TransportUpdate() {
       await apiClient.updateTransportStatus(t.id, next.to)
       await load()
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not update the delivery.'))
+      setError(apiErrorMessage(err, tr("Could not update the delivery.")))
     } finally {
       setUpdating(null)
     }
@@ -74,7 +75,7 @@ export default function TransportUpdate() {
 
   return (
     <WorkerLayout>
-      <WorkerPage title="Deliveries" subtitle="Transport assigned to you">
+      <WorkerPage title={tr("Deliveries")} subtitle={tr("Transport assigned to you")}>
 
         <div className="grid grid-cols-3 gap-3">
           {(['pending', 'in_transit', 'delivered'] as const).map(s => (
@@ -84,21 +85,21 @@ export default function TransportUpdate() {
         </div>
         {filter !== 'all' && (
           <p className="-mt-2 text-sm text-gray-600">
-            Showing {TRANSPORT_STATUS_META[filter].label.toLowerCase()} only ·{' '}
-            <button onClick={() => setFilter('all')} className="font-medium text-green-800 hover:underline">Show all</button>
+            {tr("Showing")} {TRANSPORT_STATUS_META[filter].label.toLowerCase()} {tr("only ·")}{' '}
+            <button onClick={() => setFilter('all')} className="font-medium text-green-800 hover:underline">{tr("Show all")}</button>
           </p>
         )}
 
         {error && <ErrorNote>{error}</ErrorNote>}
 
         {loading ? (
-          <p className="py-8 text-center text-sm text-gray-500">Loading deliveries…</p>
+          <p className="py-8 text-center text-sm text-gray-500">{tr("Loading deliveries…")}</p>
         ) : transports.length === 0 ? (
-          <EmptyState icon={Truck} title="No deliveries assigned to you"
-            body="Deliveries your supervisor assigns to you will appear here." />
+          <EmptyState icon={Truck} title={tr("No deliveries assigned to you")}
+            body={tr("Deliveries your supervisor assigns to you will appear here.")} />
         ) : listed.length === 0 ? (
-          <EmptyState icon={Truck} title={`No ${TRANSPORT_STATUS_META[filter as Status].label.toLowerCase()} deliveries`}
-            action={<button onClick={() => setFilter('all')} className="text-sm font-medium text-green-800 hover:underline">Show all deliveries</button>} />
+          <EmptyState icon={Truck} title={tr("No {0} deliveries", TRANSPORT_STATUS_META[filter as Status].label.toLowerCase())}
+            action={<button onClick={() => setFilter('all')} className="text-sm font-medium text-green-800 hover:underline">{tr("Show all deliveries")}</button>} />
         ) : (
           <ul className="space-y-3">
             {listed.map(t => {
@@ -121,7 +122,7 @@ export default function TransportUpdate() {
                         <TransportStatusBadge status={t.status} />
                       </div>
                       <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
-                        <span className="font-medium text-gray-700 tabular-nums">{t.batch_number || `Delivery #${t.id}`}</span>
+                        <span className="font-medium text-gray-700 tabular-nums">{t.batch_number || tr("Delivery #{0}", t.id)}</span>
                         <span aria-hidden>·</span>
                         <span className="tabular-nums">{formatDay(t.scheduled_date, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
                         {t.cargo_weight_kg != null && <><span aria-hidden>·</span><span className="tabular-nums">{kg(t.cargo_weight_kg)}</span></>}
@@ -134,12 +135,12 @@ export default function TransportUpdate() {
                     <div className="space-y-3 border-t border-gray-100 px-4 pb-4 pt-3">
                       <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
                         {[
-                          ['Vehicle', t.vehicle_number || '—', Truck],
-                          ['Cargo', kg(t.cargo_weight_kg), Package],
-                          ['Scheduled', formatDay(t.scheduled_date, { day: 'numeric', month: 'short', year: 'numeric' }), CalendarDays],
+                          [tr("Vehicle"), t.vehicle_number || '—', Truck],
+                          [tr("Cargo"), kg(t.cargo_weight_kg), Package],
+                          [tr("Scheduled"), formatDay(t.scheduled_date, { day: 'numeric', month: 'short', year: 'numeric' }), CalendarDays],
                           t.actual_delivery
-                            ? ['Delivered', formatDay(t.actual_delivery, { day: 'numeric', month: 'short', year: 'numeric' }), CalendarDays]
-                            : ['Driver', t.driver_name || '—', Truck],
+                            ? [tr("Delivered"), formatDay(t.actual_delivery, { day: 'numeric', month: 'short', year: 'numeric' }), CalendarDays]
+                            : [tr("Driver"), t.driver_name || '—', Truck],
                         ].map(([name, value, Icon]) => {
                           const I = Icon as typeof Truck
                           return (
@@ -156,12 +157,12 @@ export default function TransportUpdate() {
                       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
                         <Link to={`/transport/${t.id}`}
                           className="inline-flex items-center justify-center gap-0.5 py-2 text-sm font-medium text-green-800 hover:underline sm:mr-auto">
-                          View full details <ChevronRight size={15} />
+                          {tr("View full details")} <ChevronRight size={15} />
                         </Link>
                         {next && NextIcon && (
                           <button onClick={() => updateStatus(t)} disabled={updating === t.id} className={`${primaryBtn} sm:min-w-[12rem]`}>
                             {updating === t.id
-                              ? <><Loader2 size={16} className="animate-spin" /> Updating…</>
+                              ? <><Loader2 size={16} className="animate-spin" /> {tr("Updating…")}</>
                               : <><NextIcon size={16} strokeWidth={2} /> {ACTION_LABEL[t.status]}</>}
                           </button>
                         )}

@@ -1,3 +1,4 @@
+import { tr, trEnum } from '../../i18n'
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -402,8 +403,8 @@ export const SulurManagementContent: React.FC = () => {
         <div className="flex flex-wrap gap-2">
           {[
             { id: 'stock',     icon: Package,        label: '1. Stock & Batches' },
-            { id: 'movements', icon: ArrowRightLeft, label: '2. Movement History' },
-            { id: 'planner',   icon: Calculator,     label: '3. Planting & Profit Calculator' },
+            { id: 'movements', icon: ArrowRightLeft, label: tr("2. Movement History") },
+            { id: 'planner',   icon: Calculator,     label: tr("3. Planting & Profit Calculator") },
           ].map(t => {
             const Icon = t.icon;
             const active = activeTab === t.id;
@@ -429,7 +430,7 @@ export const SulurManagementContent: React.FC = () => {
           className="flex items-center justify-center gap-2 px-5 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-sm shadow-sm transition"
         >
           <PlusCircle size={18} />
-          <span>+ Add New Sulur Batch</span>
+          <span>{tr("+ Add New Sulur Batch")}</span>
         </button>
       </div>
 
@@ -442,9 +443,9 @@ export const SulurManagementContent: React.FC = () => {
                 <Sprout size={28} />
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Available in Nursery</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">{tr("Available in Nursery")}</p>
                 <p className="text-3xl font-extrabold text-gray-900 mt-0.5">{totalAvailable.toLocaleString()}</p>
-                <p className="text-xs text-emerald-700 font-medium mt-1">Sulur ready for planting across {batches.length} batches</p>
+                <p className="text-xs text-emerald-700 font-medium mt-1">{tr("Sulur ready for planting across")} {batches.length} {tr("batches")}</p>
               </div>
             </div>
 
@@ -453,9 +454,9 @@ export const SulurManagementContent: React.FC = () => {
                 <TrendingUp size={28} />
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Planted & Reserved</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">{tr("Planted & Reserved")}</p>
                 <p className="text-3xl font-extrabold text-gray-900 mt-0.5">{totalPlantedAndReserved.toLocaleString()}</p>
-                <p className="text-xs text-blue-700 font-medium mt-1">Sulur deployed or locked for farm plots</p>
+                <p className="text-xs text-blue-700 font-medium mt-1">{tr("Sulur deployed or locked for farm plots")}</p>
               </div>
             </div>
 
@@ -464,9 +465,9 @@ export const SulurManagementContent: React.FC = () => {
                 <ShieldCheck size={28} />
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">LPNM Quality Certified</p>
-                <p className="text-3xl font-extrabold text-gray-900 mt-0.5">{certifiedCount} of {batches.length} Batches</p>
-                <p className="text-xs text-purple-700 font-medium mt-1">Verified uniform grading for management</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">{tr("LPNM Quality Certified")}</p>
+                <p className="text-3xl font-extrabold text-gray-900 mt-0.5">{certifiedCount} {tr("of")} {batches.length} {tr("Batches")}</p>
+                <p className="text-xs text-purple-700 font-medium mt-1">{tr("Verified uniform grading for management")}</p>
               </div>
             </div>
           </div>
@@ -483,7 +484,7 @@ export const SulurManagementContent: React.FC = () => {
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
-                  {v === 'ALL' ? 'All Varieties' : v}
+                  {v === 'ALL' ? tr("All Varieties") : v}
                 </button>
               ))}
             </div>
@@ -492,7 +493,7 @@ export const SulurManagementContent: React.FC = () => {
               <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search batch or plot..."
+                placeholder={tr("Search batch or plot...")}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm"
@@ -517,11 +518,11 @@ export const SulurManagementContent: React.FC = () => {
                         <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 font-bold text-xs">
                           {b.size_grade}
                         </span>
-                        <span className="text-xs text-gray-400 capitalize">({b.sulur_type})</span>
+                        <span className="text-xs text-gray-400 capitalize">({trEnum(b.sulur_type)})</span>
                       </div>
                       <h3 className="text-lg font-extrabold text-gray-900 mt-2">{b.batch_code}</h3>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Origin: <strong>{b.source_plot}</strong> | Stored at: <strong>{b.storage_location}</strong>
+                        {tr("Origin:")} <strong>{b.source_plot}</strong> {tr("| Stored at:")} <strong>{b.storage_location}</strong>
                       </p>
                     </div>
 
@@ -532,21 +533,21 @@ export const SulurManagementContent: React.FC = () => {
                           : 'bg-amber-100 text-amber-800'
                       }`}
                     >
-                      {isReady ? 'Ready to Plant' : 'Curing / Drying'}
+                      {isReady ? tr("Ready to Plant") : tr("Curing / Drying")}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
                     <div>
-                      <span className="text-[11px] font-bold uppercase text-gray-400 block">Available</span>
+                      <span className="text-[11px] font-bold uppercase text-gray-400 block">{tr("Available")}</span>
                       <span className="text-xl font-extrabold text-emerald-700">{b.available_quantity.toLocaleString()}</span>
                     </div>
                     <div className="border-x border-gray-200">
-                      <span className="text-[11px] font-bold uppercase text-gray-400 block">Reserved</span>
+                      <span className="text-[11px] font-bold uppercase text-gray-400 block">{tr("Reserved")}</span>
                       <span className="text-xl font-extrabold text-amber-600">{b.reserved_quantity.toLocaleString()}</span>
                     </div>
                     <div>
-                      <span className="text-[11px] font-bold uppercase text-gray-400 block">Planted</span>
+                      <span className="text-[11px] font-bold uppercase text-gray-400 block">{tr("Planted")}</span>
                       <span className="text-xl font-extrabold text-blue-600">{b.planted_quantity.toLocaleString()}</span>
                     </div>
                   </div>
@@ -565,7 +566,7 @@ export const SulurManagementContent: React.FC = () => {
                       className="py-3 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
                     >
                       <ArrowRightLeft size={15} />
-                      <span>Plant / Move Stock</span>
+                      <span>{tr("Plant / Move Stock")}</span>
                     </button>
 
                     <button
@@ -577,7 +578,7 @@ export const SulurManagementContent: React.FC = () => {
                       }`}
                     >
                       <Download size={15} />
-                      <span>{b.is_certified ? 'Certificate PDF' : 'Certify & PDF'}</span>
+                      <span>{b.is_certified ? tr("Certificate PDF") : tr("Certify & PDF")}</span>
                     </button>
                   </div>
                 </div>
@@ -592,8 +593,8 @@ export const SulurManagementContent: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex justify-between items-center">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Sulur Stock Movement & Traceability History</h3>
-              <p className="text-sm text-gray-500">Complete log of every batch harvested, reserved, planted, or sold</p>
+              <h3 className="text-lg font-bold text-gray-900">{tr("Sulur Stock Movement & Traceability History")}</h3>
+              <p className="text-sm text-gray-500">{tr("Complete log of every batch harvested, reserved, planted, or sold")}</p>
             </div>
             <button
               onClick={() => {
@@ -607,7 +608,7 @@ export const SulurManagementContent: React.FC = () => {
               }}
               className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs transition"
             >
-              + Record Stock Movement
+              {tr("+ Record Stock Movement")}
             </button>
           </div>
 
@@ -615,12 +616,12 @@ export const SulurManagementContent: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 text-gray-500 uppercase text-xs font-bold tracking-wider border-b border-gray-100">
-                  <th className="py-4 px-6">Date</th>
-                  <th className="py-4 px-6">Batch Code</th>
-                  <th className="py-4 px-6">Action</th>
-                  <th className="py-4 px-6">Quantity</th>
-                  <th className="py-4 px-6">Target Plot / Destination</th>
-                  <th className="py-4 px-6">Notes</th>
+                  <th className="py-4 px-6">{tr("Date")}</th>
+                  <th className="py-4 px-6">{tr("Batch Code")}</th>
+                  <th className="py-4 px-6">{tr("Action")}</th>
+                  <th className="py-4 px-6">{tr("Quantity")}</th>
+                  <th className="py-4 px-6">{tr("Target Plot / Destination")}</th>
+                  <th className="py-4 px-6">{tr("Notes")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
@@ -630,10 +631,10 @@ export const SulurManagementContent: React.FC = () => {
                     <td className="py-4 px-6 font-bold text-gray-900">{m.batch_code}</td>
                     <td className="py-4 px-6">
                       <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 font-bold text-xs uppercase">
-                        {m.movement_type.replace(/_/g, ' ')}
+                        {trEnum(m.movement_type)}
                       </span>
                     </td>
-                    <td className="py-4 px-6 font-extrabold text-gray-900">{m.quantity.toLocaleString()} sulur</td>
+                    <td className="py-4 px-6 font-extrabold text-gray-900">{m.quantity.toLocaleString()} {tr("sulur")}</td>
                     <td className="py-4 px-6 text-gray-700 font-medium">{m.destination_or_plot || '-'}</td>
                     <td className="py-4 px-6 text-gray-500">{m.remarks || '-'}</td>
                   </tr>
@@ -651,13 +652,13 @@ export const SulurManagementContent: React.FC = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
               <div>
                 <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs uppercase">
-                  Auto-Filled with LPNM / MPIB Standards
+                  {tr("Auto-Filled with LPNM / MPIB Standards")}
                 </span>
                 <h3 className="text-xl font-bold text-gray-900 mt-2">
-                  Smart Planting, Fertilizer & Profit Calculator
+                  {tr("Smart Planting, Fertilizer & Profit Calculator")}
                 </h3>
                 <p className="text-sm text-gray-500">
-                  Just choose your <strong>Pineapple Variety</strong> and <strong>Land Area (Hectares)</strong>-everything else is calculated automatically!
+                  {tr("Just choose your")} <strong>{tr("Pineapple Variety")}</strong> {tr("and")} <strong>{tr("Land Area (Hectares)")}</strong>{tr("-everything else is calculated automatically!")}
                 </p>
               </div>
               <button
@@ -666,14 +667,14 @@ export const SulurManagementContent: React.FC = () => {
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold transition"
               >
                 <SlidersHorizontal size={15} />
-                <span>{showAdvancedRates ? 'Hide Cost Adjustments' : 'Adjust Custom Costs (RM)'}</span>
+                <span>{showAdvancedRates ? tr("Hide Cost Adjustments") : tr("Adjust Custom Costs (RM)")}</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
-                  Step 1: Select Pineapple Variety
+                  {tr("Step 1: Select Pineapple Variety")}
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
                   {(['MD2', 'Moris', 'Josapine', 'N36'] as const).map(v => (
@@ -689,7 +690,7 @@ export const SulurManagementContent: React.FC = () => {
                     >
                       <span>{v}</span>
                       <span className={`text-xs ${calcVariety === v ? 'text-emerald-100' : 'text-gray-400'}`}>
-                        {(LPNM_STANDARDS[v].density / 1000).toFixed(1)}k/ha
+                        {(LPNM_STANDARDS[v].density / 1000).toFixed(1)}{tr("k/ha")}
                       </span>
                     </button>
                   ))}
@@ -698,7 +699,7 @@ export const SulurManagementContent: React.FC = () => {
 
               <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
                 <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
-                  Step 2: Enter Land Area (Hectares)
+                  {tr("Step 2: Enter Land Area (Hectares)")}
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -709,7 +710,7 @@ export const SulurManagementContent: React.FC = () => {
                     onChange={e => handleAreaOrVarietyChange(calcVariety, Math.max(Number(e.target.value), 0.1))}
                     className="w-36 p-3.5 bg-white border border-gray-300 rounded-xl text-xl font-extrabold text-gray-900"
                   />
-                  <span className="text-sm font-bold text-gray-600">Hectares (ha)</span>
+                  <span className="text-sm font-bold text-gray-600">{tr("Hectares (ha)")}</span>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-3">
                   {[0.5, 1.0, 2.0, 5.0].map(preset => (
@@ -723,7 +724,7 @@ export const SulurManagementContent: React.FC = () => {
                           : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
                       }`}
                     >
-                      {preset} ha {preset === 0.5 ? '(Appendix 11.0 Example)' : ''}
+                      {preset} {tr("ha")} {preset === 0.5 ? '(Appendix 11.0 Example)' : ''}
                     </button>
                   ))}
                 </div>
@@ -733,7 +734,7 @@ export const SulurManagementContent: React.FC = () => {
             {showAdvancedRates && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5 bg-amber-50/60 border border-amber-200 rounded-2xl">
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Sulur Seed Cost (RM)</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Sulur Seed Cost (RM)")}</label>
                   <input
                     type="number"
                     value={customSulurCost}
@@ -742,7 +743,7 @@ export const SulurManagementContent: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Nutrient Cost (RM)</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Nutrient Cost (RM)")}</label>
                   <input
                     type="number"
                     value={customNutrientCost}
@@ -751,7 +752,7 @@ export const SulurManagementContent: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Operational Cost (RM)</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Operational Cost (RM)")}</label>
                   <input
                     type="number"
                     value={customOpCost}
@@ -760,7 +761,7 @@ export const SulurManagementContent: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Expected Revenue (RM)</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Expected Revenue (RM)")}</label>
                   <input
                     type="number"
                     value={customRevenue}
@@ -774,52 +775,52 @@ export const SulurManagementContent: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <span className="text-xs font-bold uppercase text-gray-400">1. Sulur Seed Needed</span>
+              <span className="text-xs font-bold uppercase text-gray-400">{tr("1. Sulur Seed Needed")}</span>
               <p className="text-3xl font-extrabold text-gray-900 mt-1">
-                {requiredSulur.toLocaleString()} <span className="text-sm font-semibold text-gray-500">sulur</span>
+                {requiredSulur.toLocaleString()} <span className="text-sm font-semibold text-gray-500">{tr("sulur")}</span>
               </p>
               <p className="text-xs text-gray-500 mt-2">
-                Formula: {calcAreaHa} ha x {std.density.toLocaleString()} trees/ha
+                {tr("Formula:")} {calcAreaHa} {tr("ha x")} {std.density.toLocaleString()} {tr("trees/ha")}
               </p>
               <div className={`mt-4 p-3 rounded-xl text-xs font-bold ${
                 shortfall > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'
               }`}>
                 {shortfall > 0
-                  ? `Shortfall: Need ${shortfall.toLocaleString()} more ${calcVariety} sulur (Available: ${availForVariety.toLocaleString()})`
-                  : `Stock Sufficient! (${availForVariety.toLocaleString()} ${calcVariety} sulur in nursery)`}
+                  ? tr("Shortfall: Need {0} more {1} sulur (Available: {2})", shortfall.toLocaleString(), calcVariety, availForVariety.toLocaleString())
+                  : tr("Stock Sufficient! ({0} {1} sulur in nursery)", availForVariety.toLocaleString(), calcVariety)}
               </div>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <span className="text-xs font-bold uppercase text-gray-400">2. MPIB Fertilizer Needed</span>
+              <span className="text-xs font-bold uppercase text-gray-400">{tr("2. MPIB Fertilizer Needed")}</span>
               <p className="text-3xl font-extrabold text-blue-700 mt-1">
-                {npkNeededKg.toLocaleString()} <span className="text-sm font-semibold text-gray-500">kg NPK</span>
+                {npkNeededKg.toLocaleString()} <span className="text-sm font-semibold text-gray-500">{tr("kg NPK")}</span>
               </p>
               <p className="text-xs text-gray-500 mt-2">
-                + <strong>{foliarNeededL} Liters</strong> Foliar Fertilizer
+                + <strong>{foliarNeededL} {tr("Liters")}</strong> {tr("Foliar Fertilizer")}
               </p>
               <div className="mt-4 p-3 rounded-xl bg-blue-50 text-blue-800 text-xs font-bold">
-                Estimated Nutrient Budget: RM {customNutrientCost.toLocaleString()}
+                {tr("Estimated Nutrient Budget: RM")} {customNutrientCost.toLocaleString()}
               </div>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <span className="text-xs font-bold uppercase text-gray-400">3. Projected Net Profit</span>
+              <span className="text-xs font-bold uppercase text-gray-400">{tr("3. Projected Net Profit")}</span>
               <p className={`text-3xl font-extrabold mt-1 ${projectedProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                RM {projectedProfit.toLocaleString()}
+                {tr("RM")} {projectedProfit.toLocaleString()}
               </p>
               <p className="text-xs text-gray-500 mt-2">
-                Revenue: RM {customRevenue.toLocaleString()} | Total Cost: RM {totalCost.toLocaleString()}
+                {tr("Revenue: RM")} {customRevenue.toLocaleString()} {tr("| Total Cost: RM")} {totalCost.toLocaleString()}
               </p>
               <div className="mt-4 p-3 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold">
-                Projected Return (ROI): {roiPct}%
+                {tr("Projected Return (ROI):")} {roiPct}%
               </div>
             </div>
           </div>
 
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-3">
             <h4 className="text-sm font-bold uppercase tracking-wider text-gray-500">
-              Smart Decision Support Recommendations (IF-THEN Rules):
+              {tr("Smart Decision Support Recommendations (IF-THEN Rules):")}
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className={`p-4 rounded-xl border text-sm ${
@@ -827,12 +828,12 @@ export const SulurManagementContent: React.FC = () => {
               }`}>
                 <div className="font-bold flex items-center gap-2">
                   {shortfall > 0 ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
-                  <span>{shortfall > 0 ? 'INSUFFICIENT SULUR STOCK ALERT' : 'STOCK AVAILABILITY VERIFIED'}</span>
+                  <span>{shortfall > 0 ? tr("INSUFFICIENT SULUR STOCK ALERT") : tr("STOCK AVAILABILITY VERIFIED")}</span>
                 </div>
                 <p className="mt-1 text-xs leading-relaxed">
                   {shortfall > 0
-                    ? `Your nursery currently has ${availForVariety.toLocaleString()} ${calcVariety} sulur, which is ${shortfall.toLocaleString()} less than the ${requiredSulur.toLocaleString()} required for ${calcAreaHa} ha.`
-                    : `Your nursery has enough ${calcVariety} sulur (${availForVariety.toLocaleString()} available) to cover this ${calcAreaHa} ha planting plan.`}
+                    ? tr("Your nursery currently has {0} {1} sulur, which is {2} less than the {3} required for {4} ha.", availForVariety.toLocaleString(), calcVariety, shortfall.toLocaleString(), requiredSulur.toLocaleString(), calcAreaHa)
+                    : tr("Your nursery has enough {0} sulur ({1} available) to cover this {2} ha planting plan.", calcVariety, availForVariety.toLocaleString(), calcAreaHa)}
                 </p>
               </div>
 
@@ -841,12 +842,12 @@ export const SulurManagementContent: React.FC = () => {
               }`}>
                 <div className="font-bold flex items-center gap-2">
                   {projectedProfit < 0 ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
-                  <span>{projectedProfit < 0 ? 'PROJECTED LOSS WARNING' : 'PROFITABLE CULTIVATION PLAN'}</span>
+                  <span>{projectedProfit < 0 ? tr("PROJECTED LOSS WARNING") : tr("PROFITABLE CULTIVATION PLAN")}</span>
                 </div>
                 <p className="mt-1 text-xs leading-relaxed">
                   {projectedProfit < 0
-                    ? `Total cost (RM ${totalCost.toLocaleString()}) exceeds expected revenue (RM ${customRevenue.toLocaleString()}). Review seed or fertilizer costs.`
-                    : `Expected net profit is RM ${projectedProfit.toLocaleString()} (${roiPct}% ROI). Recommended for Farm Manager approval.`}
+                    ? tr("Total cost (RM {0}) exceeds expected revenue (RM {1}). Review seed or fertilizer costs.", totalCost.toLocaleString(), customRevenue.toLocaleString())
+                    : tr("Expected net profit is RM {0} ({1}% ROI). Recommended for Farm Manager approval.", projectedProfit.toLocaleString(), roiPct)}
                 </p>
               </div>
             </div>
@@ -859,7 +860,7 @@ export const SulurManagementContent: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-5 animate-fade-in">
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-              <h3 className="text-lg font-bold text-gray-900">Add New Sulur Batch</h3>
+              <h3 className="text-lg font-bold text-gray-900">{tr("Add New Sulur Batch")}</h3>
               <button onClick={() => setShowAddModal(false)} className="p-1 text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
@@ -868,35 +869,35 @@ export const SulurManagementContent: React.FC = () => {
             <form onSubmit={handleCreateBatch} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Pineapple Variety</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Pineapple Variety")}</label>
                   <select
                     value={newBatch.variety}
                     onChange={e => setNewBatch({ ...newBatch, variety: e.target.value })}
                     className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
                   >
-                    <option value="MD2">MD2</option>
-                    <option value="Moris">Moris</option>
-                    <option value="Josapine">Josapine</option>
-                    <option value="N36">N36</option>
+                    <option value="MD2">{tr("MD2")}</option>
+                    <option value="Moris">{tr("Moris")}</option>
+                    <option value="Josapine">{tr("Josapine")}</option>
+                    <option value="N36">{tr("N36")}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Size Grade (LPNM)</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Size Grade (LPNM)")}</label>
                   <select
                     value={newBatch.size_grade}
                     onChange={e => setNewBatch({ ...newBatch, size_grade: e.target.value })}
                     className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
                   >
-                    <option value="Grade A">Grade A (35-45cm)</option>
-                    <option value="Grade B">Grade B (25-34cm)</option>
-                    <option value="Grade C">Grade C (&lt;25cm)</option>
+                    <option value="Grade A">{tr("Grade A (35-45cm)")}</option>
+                    <option value="Grade B">{tr("Grade B (25-34cm)")}</option>
+                    <option value="Grade C">{tr("Grade C (<25cm)")}</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Quantity (Pieces)</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Quantity (Pieces)")}</label>
                   <input
                     type="number"
                     value={newBatch.initial_quantity}
@@ -906,22 +907,22 @@ export const SulurManagementContent: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Status</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Status")}</label>
                   <select
                     value={newBatch.treatment_status}
                     onChange={e => setNewBatch({ ...newBatch, treatment_status: e.target.value })}
                     className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
                   >
-                    <option value="ready_to_plant">Ready to Plant</option>
-                    <option value="fungicide_treated">Fungicide Treated</option>
-                    <option value="curing">Curing / Drying</option>
+                    <option value="ready_to_plant">{tr("Ready to Plant")}</option>
+                    <option value="fungicide_treated">{tr("Fungicide Treated")}</option>
+                    <option value="curing">{tr("Curing / Drying")}</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Source Plot</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Source Plot")}</label>
                   <input
                     type="text"
                     value={newBatch.source_plot}
@@ -931,7 +932,7 @@ export const SulurManagementContent: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Nursery Shed</label>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Nursery Shed")}</label>
                   <input
                     type="text"
                     value={newBatch.storage_location}
@@ -948,7 +949,7 @@ export const SulurManagementContent: React.FC = () => {
                   checked={newBatch.is_certified}
                   onChange={e => setNewBatch({ ...newBatch, is_certified: e.target.checked })}
                 />
-                <span>Issue LPNM Management Quality Certificate</span>
+                <span>{tr("Issue LPNM Management Quality Certificate")}</span>
               </label>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -957,13 +958,13 @@ export const SulurManagementContent: React.FC = () => {
                   onClick={() => setShowAddModal(false)}
                   className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600"
                 >
-                  Cancel
+                  {tr("Cancel")}
                 </button>
                 <button
                   type="submit"
                   className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold"
                 >
-                  Save Batch
+                  {tr("Save Batch")}
                 </button>
               </div>
             </form>
@@ -977,9 +978,9 @@ export const SulurManagementContent: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4 animate-fade-in">
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
               <div>
-                <h3 className="text-base font-bold text-gray-900">Plant / Move Sulur Stock</h3>
+                <h3 className="text-base font-bold text-gray-900">{tr("Plant / Move Sulur Stock")}</h3>
                 <p className="text-xs text-gray-500">
-                  {moveModalBatch.batch_code} ({moveModalBatch.variety} - Available: {moveModalBatch.available_quantity.toLocaleString()})
+                  {moveModalBatch.batch_code} ({moveModalBatch.variety} {tr("- Available:")} {moveModalBatch.available_quantity.toLocaleString()})
                 </p>
               </div>
               <button onClick={() => setMoveModalBatch(null)} className="p-1 text-gray-400 hover:text-gray-600">
@@ -989,22 +990,22 @@ export const SulurManagementContent: React.FC = () => {
 
             <form onSubmit={handleQuickMove} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Action</label>
+                <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Action")}</label>
                 <select
                   value={moveForm.movement_type}
                   onChange={e => setMoveForm({ ...moveForm, movement_type: e.target.value })}
                   className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
                 >
-                  <option value="plant">Plant to Field (Stock-Out)</option>
-                  <option value="reserve">Reserve for Upcoming Plot</option>
-                  <option value="sell">Sell to Cooperative / Buyer</option>
-                  <option value="damage">Record Spoiled / Damaged</option>
-                  <option value="stock_in">Add More Stock-In</option>
+                  <option value="plant">{tr("Plant to Field (Stock-Out)")}</option>
+                  <option value="reserve">{tr("Reserve for Upcoming Plot")}</option>
+                  <option value="sell">{tr("Sell to Cooperative / Buyer")}</option>
+                  <option value="damage">{tr("Record Spoiled / Damaged")}</option>
+                  <option value="stock_in">{tr("Add More Stock-In")}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Quantity (Sulur Pieces)</label>
+                <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Quantity (Sulur Pieces)")}</label>
                 <input
                   type="number"
                   value={moveForm.quantity}
@@ -1015,7 +1016,7 @@ export const SulurManagementContent: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Target Plot / Destination</label>
+                <label className="block text-xs font-bold text-gray-600 mb-1">{tr("Target Plot / Destination")}</label>
                 <input
                   type="text"
                   value={moveForm.destination_or_plot}
@@ -1031,13 +1032,13 @@ export const SulurManagementContent: React.FC = () => {
                   onClick={() => setMoveModalBatch(null)}
                   className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600"
                 >
-                  Cancel
+                  {tr("Cancel")}
                 </button>
                 <button
                   type="submit"
                   className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold"
                 >
-                  Confirm & Update Stock
+                  {tr("Confirm & Update Stock")}
                 </button>
               </div>
             </form>
@@ -1061,8 +1062,8 @@ export const SulurManagement: React.FC = () => {
   }
   return (
     <AdminLayout
-      title="Sulur Inventory & Tracking"
-      subtitle="Simple 3-Step Management for Pineapple Seed Batches, LPNM Certificates & Profit Planning"
+      title={tr("Sulur Inventory & Tracking")}
+      subtitle={tr("Simple 3-Step Management for Pineapple Seed Batches, LPNM Certificates & Profit Planning")}
     >
       <SulurManagementContent />
     </AdminLayout>

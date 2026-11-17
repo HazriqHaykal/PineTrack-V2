@@ -1,6 +1,7 @@
 import { GradeLetter, GradeQuantities } from '../../types'
 import { GRADES } from './GradeBadge'
 
+import { tr } from '../../i18n'
 /** The four grade inputs as typed, so a blank stays blank */
 export type GradeInputs = Record<GradeLetter, string>
 
@@ -66,21 +67,21 @@ export function previewGrading(
   }
   const bad = typed.find((g) => !Number.isFinite(values[g]))
   const negative = typed.find((g) => values[g] < 0)
-  const parts = sortedOut ? 'grades and non-marketable kg' : 'grades'
-  if (bad) error = `Grade ${bad} must be a number.`
-  else if (negative) error = `Grade ${negative} cannot be negative.`
-  else if (!Number.isFinite(sortedOut)) error = 'Non-marketable must be a number.'
-  else if (sortedOut < 0) error = 'Non-marketable cannot be negative.'
-  else if (!Number.isFinite(harvested) || harvested <= 0) error = 'Enter the total harvested quantity first.'
+  const parts = sortedOut ? tr("grades and non-marketable kg") : 'grades'
+  if (bad) error = tr("Grade {0} must be a number.", bad)
+  else if (negative) error = tr("Grade {0} cannot be negative.", negative)
+  else if (!Number.isFinite(sortedOut)) error = tr("Non-marketable must be a number.")
+  else if (sortedOut < 0) error = tr("Non-marketable cannot be negative.")
+  else if (!Number.isFinite(harvested) || harvested <= 0) error = tr("Enter the total harvested quantity first.")
   else {
     const over = typed.find((g) => values[g] > harvested)
-    if (over) error = `Grade ${over} cannot be more than the ${fmtKg(base.harvested)} harvested.`
-    else if (sortedOut > harvested) error = `Non-marketable cannot be more than the ${fmtKg(base.harvested)} harvested.`
-    else if (accounted === 0) error = 'Enter the quantity of at least one grade.'
+    if (over) error = tr("Grade {0} cannot be more than the {1} harvested.", over, fmtKg(base.harvested))
+    else if (sortedOut > harvested) error = tr("Non-marketable cannot be more than the {0} harvested.", fmtKg(base.harvested))
+    else if (accounted === 0) error = tr("Enter the quantity of at least one grade.")
     else if (accounted !== harvested) {
       error = accounted < harvested
-        ? `${fmtKg(base.remaining)} still to grade. The ${parts} must add up to ${fmtKg(base.harvested)}.`
-        : `The ${parts} total ${fmtKg(fromHundredths(accounted))}, which is ${fmtKg(-base.remaining)} more than harvested.`
+        ? tr("{0} still to grade. The {1} must add up to {2}.", fmtKg(base.remaining), parts, fmtKg(base.harvested))
+        : tr("The {0} total {1}, which is {2} more than harvested.", parts, fmtKg(fromHundredths(accounted)), fmtKg(-base.remaining))
     }
   }
 
@@ -104,10 +105,10 @@ export function sumGrades(inputs: GradeInputs, nonMarketable = ''): string {
 
 /** Waste types a farmer can give for non-marketable fruit (backend SORTED_OUT_WASTE_TYPES) */
 export const NON_MARKETABLE_REASONS = [
-  { value: 'damaged', label: 'Damaged' },
-  { value: 'rotten', label: 'Rotten' },
-  { value: 'overripe', label: 'Overripe' },
-  { value: 'other', label: 'Other' },
+  { value: 'damaged', label: tr("Damaged") },
+  { value: 'rotten', label: tr("Rotten") },
+  { value: 'overripe', label: tr("Overripe") },
+  { value: 'other', label: tr("Other") },
 ] as const
 
 /** Request payload: blanks become 0 once any grade is entered; undefined when nothing was entered */

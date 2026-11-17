@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import * as Select from '@radix-ui/react-select'
 import { Check, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 
+import { tr } from '../../i18n'
 /**
  * PineTrack's select. Built on Radix Select, which provides the listbox
  * semantics, keyboard support (arrows, Home/End, type-ahead, Enter/Space,
@@ -93,7 +94,7 @@ export const optionCls =
 
 export default function AppSelect({
   value, onChange, options, groups, id, name, label, helperText, error, placeholder = 'Select…',
-  disabled, required, loading, emptyText = 'No options available', size = 'md', highlighted,
+  disabled, required, loading, emptyText = tr("No options available"), size = 'md', highlighted,
   className = '', triggerClassName = '', ...aria
 }: AppSelectProps) {
   const [padBottom, setPadBottom] = useState(8)
@@ -132,7 +133,7 @@ export default function AppSelect({
       <Select.Trigger id={id} aria-label={aria['aria-label']} aria-describedby={describedBy}
         aria-invalid={invalid || undefined} className={`${selectTriggerCls(size, invalid, highlighted)} ${triggerClassName}`}>
         <span className="min-w-0 flex-1 truncate">
-          {loading ? <span className="inline-flex items-center gap-2 text-gray-500"><Loader2 size={14} className="animate-spin" /> Loading…</span>
+          {loading ? <span className="inline-flex items-center gap-2 text-gray-500"><Loader2 size={14} className="animate-spin" /> {tr("Loading…")}</span>
             : <Select.Value placeholder={placeholder} />}
         </span>
         <Select.Icon className="shrink-0 text-gray-500 transition-transform group-data-[state=open]:rotate-180">

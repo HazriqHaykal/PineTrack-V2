@@ -5,6 +5,7 @@ import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
 import { SulurReportsSection } from '../../components/sulur/SulurModuleBridge'
 
 
+import { tr, locale } from '../../i18n'
 type ReportType = 'harvest' | 'transport' | 'waste' | 'analytics' | 'full'
 
 interface GeneratedReport {
@@ -19,19 +20,19 @@ interface GeneratedReport {
 }
 
 const REPORT_TYPES: { value: ReportType; label: string; icon: React.ReactNode; desc: string; color: string }[] = [
-  { value: 'harvest',   label: 'Harvest Report',    icon: <Sprout   size={18} />, desc: 'Batch list, grades, yields and losses', color: 'text-green-600 bg-green-50 border-green-200'  },
-  { value: 'transport', label: 'Transport Report',  icon: <Truck    size={18} />, desc: 'Delivery log and delivery rate',        color: 'text-blue-600 bg-blue-50 border-blue-200'    },
-  { value: 'waste',     label: 'Waste Report',      icon: <Recycle  size={18} />, desc: 'Waste log by type and disposal',        color: 'text-orange-600 bg-orange-50 border-orange-200'},
-  { value: 'analytics', label: 'Analytics Report',  icon: <BarChart3 size={18} />, desc: 'Summary figures for all modules',      color: 'text-purple-600 bg-purple-50 border-purple-200'},
-  { value: 'full',      label: 'Full Operations',   icon: <FileText  size={18} />, desc: 'Summaries plus every record',          color: 'text-slate-600 bg-slate-50 border-slate-200'  },
+  { value: 'harvest',   label: tr("Harvest Report"),    icon: <Sprout   size={18} />, desc: tr("Batch list, grades, yields and losses"), color: 'text-green-600 bg-green-50 border-green-200'  },
+  { value: 'transport', label: tr("Transport Report"),  icon: <Truck    size={18} />, desc: tr("Delivery log and delivery rate"),        color: 'text-blue-600 bg-blue-50 border-blue-200'    },
+  { value: 'waste',     label: tr("Waste Report"),      icon: <Recycle  size={18} />, desc: tr("Waste log by type and disposal"),        color: 'text-orange-600 bg-orange-50 border-orange-200'},
+  { value: 'analytics', label: tr("Analytics Report"),  icon: <BarChart3 size={18} />, desc: tr("Summary figures for all modules"),      color: 'text-purple-600 bg-purple-50 border-purple-200'},
+  { value: 'full',      label: tr("Full Operations"),   icon: <FileText  size={18} />, desc: tr("Summaries plus every record"),          color: 'text-slate-600 bg-slate-50 border-slate-200'  },
 ]
 
 const PERIOD_OPTIONS = [
-  { label: 'Last 7 days',    days: 7   },
-  { label: 'Last 30 days',   days: 30  },
-  { label: 'Last 90 days',   days: 90  },
-  { label: 'Last 6 months',  days: 180 },
-  { label: 'Last 12 months', days: 365 },
+  { label: tr("Last 7 days"),    days: 7   },
+  { label: tr("Last 30 days"),   days: 30  },
+  { label: tr("Last 90 days"),   days: 90  },
+  { label: tr("Last 6 months"),  days: 180 },
+  { label: tr("Last 12 months"), days: 365 },
 ]
 
 const TYPE_ICON: Record<ReportType, React.ReactNode> = {
@@ -63,32 +64,32 @@ export default function Reports() {
         name: typeMeta.label,
         type: selectedType,
         period: selectedPeriod.label,
-        generated: now.toLocaleString('en-MY', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        generated: now.toLocaleString(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
         sizeKb: Math.max(1, Math.round(blob.size / 1024)),
         filename,
         blob,
       }, ...prev])
     } catch (err) {
-      setError(apiErrorMessage(err, 'Failed to generate the report.'))
+      setError(apiErrorMessage(err, tr("Failed to generate the report.")))
     } finally {
       setGenerating(false)
     }
   }
 
   return (
-    <AdminLayout title="Reports" subtitle="Generate and download operational reports">
+    <AdminLayout title={tr("Reports")} subtitle={tr("Generate and download operational reports")}>
 
       {/* Generate panel */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
         <div className="flex items-center gap-2 mb-4">
           <FileText size={16} className="text-slate-600" />
-          <h3 className="text-sm font-bold text-gray-900">Generate New Report</h3>
+          <h3 className="text-sm font-bold text-gray-900">{tr("Generate New Report")}</h3>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
           {/* Report type */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Report Type</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{tr("Report Type")}</label>
             <div className="grid grid-cols-1 gap-2">
               {REPORT_TYPES.map(rt => (
                 <button
@@ -117,7 +118,7 @@ export default function Reports() {
 
           {/* Period */}
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Time Period</label>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{tr("Time Period")}</label>
             <div className="space-y-2">
               {PERIOD_OPTIONS.map(p => (
                 <button
@@ -151,9 +152,9 @@ export default function Reports() {
           className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-semibold text-sm hover:bg-green-700 active:scale-[0.98] transition-all disabled:opacity-60 shadow-md shadow-green-100"
         >
           {generating ? (
-            <><Clock size={15} className="animate-spin" /> Generating PDF...</>
+            <><Clock size={15} className="animate-spin" /> {tr("Generating PDF...")}</>
           ) : (
-            <><FileText size={15} /> Generate PDF Report</>
+            <><FileText size={15} /> {tr("Generate PDF Report")}</>
           )}
         </button>
       </div>
@@ -161,23 +162,23 @@ export default function Reports() {
       {/* Reports generated in this session */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-bold text-gray-900">Generated This Session</h3>
-          <span className="text-xs text-gray-500">{reports.length} report{reports.length === 1 ? '' : 's'}</span>
+          <h3 className="text-sm font-bold text-gray-900">{tr("Generated This Session")}</h3>
+          <span className="text-xs text-gray-500">{reports.length} {tr("report")}{reports.length === 1 ? '' : 's'}</span>
         </div>
         {reports.length === 0 ? (
           <p className="p-8 text-center text-sm text-gray-400">
-            Reports are built from live data and downloaded straight to your computer. Generate one above.
+            {tr("Reports are built from live data and downloaded straight to your computer. Generate one above.")}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="text-[11px] text-gray-500 uppercase tracking-wide border-b border-gray-50">
-                  <th className="text-left px-5 py-3 font-semibold">Report</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden sm:table-cell">Period</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden md:table-cell">Generated</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">Size</th>
-                  <th className="text-right px-5 py-3 font-semibold">Actions</th>
+                  <th className="text-left px-5 py-3 font-semibold">{tr("Report")}</th>
+                  <th className="text-left px-5 py-3 font-semibold hidden sm:table-cell">{tr("Period")}</th>
+                  <th className="text-left px-5 py-3 font-semibold hidden md:table-cell">{tr("Generated")}</th>
+                  <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">{tr("Size")}</th>
+                  <th className="text-right px-5 py-3 font-semibold">{tr("Actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -198,14 +199,14 @@ export default function Reports() {
                       <span className="text-xs text-gray-600">{report.generated}</span>
                     </td>
                     <td className="px-5 py-3.5 hidden lg:table-cell">
-                      <span className="text-xs text-gray-600">{report.sizeKb} KB</span>
+                      <span className="text-xs text-gray-600">{report.sizeKb} {tr("KB")}</span>
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <button
                         onClick={() => saveBlob(report.blob, report.filename)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700 transition-colors"
                       >
-                        <Download size={12} /> PDF
+                        <Download size={12} /> {tr("PDF")}
                       </button>
                     </td>
                   </tr>

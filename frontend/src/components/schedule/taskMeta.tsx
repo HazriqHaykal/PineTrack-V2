@@ -1,5 +1,6 @@
 import { Schedule } from '../../types'
 
+import { tr, trEnum, locale } from '../../i18n'
 // ── Categories ───────────────────────────────────────────────────────────────
 
 export type TaskType = Schedule['task_type']
@@ -12,29 +13,29 @@ export interface TaskCategory {
 
 /** Offered first when creating a task, in the order the work happens after harvest */
 export const POST_HARVEST_CATEGORIES: TaskCategory[] = [
-  { value: 'inspection',            label: 'Quality Inspection',    hint: 'Check fruit condition. Grades are recorded manually.' },
-  { value: 'sorting_grading',       label: 'Sorting and Grading',   hint: 'Separate fruit by size and grade.' },
-  { value: 'packaging',             label: 'Packaging',             hint: 'Pack graded fruit for dispatch.' },
-  { value: 'transport_preparation', label: 'Transport Preparation', hint: 'Stage and load cargo for a delivery.' },
-  { value: 'transport',             label: 'Delivery',              hint: 'Drive or accompany a delivery.' },
-  { value: 'waste_handling',        label: 'Waste Handling',        hint: 'Collect, classify and dispose of waste.' },
+  { value: 'inspection',            label: tr("Quality Inspection"),    hint: tr("Check fruit condition. Grades are recorded manually.") },
+  { value: 'sorting_grading',       label: tr("Sorting and Grading"),   hint: tr("Separate fruit by size and grade.") },
+  { value: 'packaging',             label: tr("Packaging"),             hint: tr("Pack graded fruit for dispatch.") },
+  { value: 'transport_preparation', label: tr("Transport Preparation"), hint: tr("Stage and load cargo for a delivery.") },
+  { value: 'transport',             label: tr("Delivery"),              hint: tr("Drive or accompany a delivery.") },
+  { value: 'waste_handling',        label: tr("Waste Handling"),        hint: tr("Collect, classify and dispose of waste.") },
 ]
 
 /** Still valid for coordination and for historical tasks */
 export const SUPPORTING_CATEGORIES: TaskCategory[] = [
-  { value: 'harvest', label: 'Harvest Coordination', hint: 'Coordinate picking and handover to post-harvest.' },
-  { value: 'other',   label: 'Other',                hint: 'Anything not covered above.' },
+  { value: 'harvest', label: tr("Harvest Coordination"), hint: tr("Coordinate picking and handover to post-harvest.") },
+  { value: 'other',   label: tr("Other"),                hint: tr("Anything not covered above.") },
 ]
 
 /** Kept only so old records display and can still be edited; never offered for new tasks */
 export const LEGACY_CATEGORIES: TaskCategory[] = [
-  { value: 'maintenance', label: 'Maintenance (legacy)', hint: 'General farm maintenance, from before post-harvest categories.' },
+  { value: 'maintenance', label: tr("Maintenance (legacy)"), hint: tr("General farm maintenance, from before post-harvest categories.") },
 ]
 
 const ALL = [...POST_HARVEST_CATEGORIES, ...SUPPORTING_CATEGORIES, ...LEGACY_CATEGORIES]
 
 export const taskLabel = (type: string) =>
-  ALL.find((c) => c.value === type)?.label ?? type.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase())
+  ALL.find((c) => c.value === type)?.label ?? trEnum(type).replace(/\b\w/g, (m) => m.toUpperCase())
 
 // ── Status & priority ────────────────────────────────────────────────────────
 
@@ -42,18 +43,18 @@ export type TaskStatus = Schedule['status']
 export const TASK_STATUSES: TaskStatus[] = ['pending', 'in_progress', 'completed', 'cancelled']
 
 export const TASK_STATUS_META: Record<TaskStatus, { label: string; badge: string; dot: string }> = {
-  pending:     { label: 'Pending',     badge: 'bg-amber-50 text-amber-800 ring-amber-200', dot: 'bg-amber-500' },
-  in_progress: { label: 'In Progress', badge: 'bg-blue-50 text-blue-800 ring-blue-200',    dot: 'bg-blue-500' },
-  completed:   { label: 'Completed',   badge: 'bg-green-50 text-green-800 ring-green-200', dot: 'bg-green-600' },
-  cancelled:   { label: 'Cancelled',   badge: 'bg-gray-100 text-gray-600 ring-gray-200',   dot: 'bg-gray-400' },
+  pending:     { label: tr("Pending"),     badge: 'bg-amber-50 text-amber-800 ring-amber-200', dot: 'bg-amber-500' },
+  in_progress: { label: tr("In Progress"), badge: 'bg-blue-50 text-blue-800 ring-blue-200',    dot: 'bg-blue-500' },
+  completed:   { label: tr("Completed"),   badge: 'bg-green-50 text-green-800 ring-green-200', dot: 'bg-green-600' },
+  cancelled:   { label: tr("Cancelled"),   badge: 'bg-gray-100 text-gray-600 ring-gray-200',   dot: 'bg-gray-400' },
 }
 const statusMeta = (s: string) => TASK_STATUS_META[s as TaskStatus] ?? TASK_STATUS_META.pending
 
 export const PRIORITIES = ['high', 'medium', 'low'] as const
 const PRIORITY_META: Record<string, { label: string; cls: string }> = {
-  high:   { label: 'High',   cls: 'text-red-700 bg-red-50 ring-red-200' },
-  medium: { label: 'Medium', cls: 'text-gray-700 bg-white ring-gray-300' },
-  low:    { label: 'Low',    cls: 'text-gray-500 bg-white ring-gray-200' },
+  high:   { label: tr("High"),   cls: 'text-red-700 bg-red-50 ring-red-200' },
+  medium: { label: tr("Medium"), cls: 'text-gray-700 bg-white ring-gray-300' },
+  low:    { label: tr("Low"),    cls: 'text-gray-500 bg-white ring-gray-200' },
 }
 
 export function TaskStatusBadge({ status }: { status: string }) {
@@ -77,7 +78,7 @@ export function PriorityBadge({ priority }: { priority?: string | null }) {
 export function OverdueBadge() {
   return (
     <span className="inline-flex whitespace-nowrap px-1.5 py-px rounded text-[11px] font-medium text-red-700 bg-red-50 ring-1 ring-inset ring-red-200">
-      Overdue
+      {tr("Overdue")}
     </span>
   )
 }
@@ -108,7 +109,7 @@ export const isOverdue = (t: Pick<Schedule, 'status' | 'assigned_date'>, today: 
 
 export function formatDay(iso: string, opts: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) {
   const [y, m, d] = iso.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-MY', { ...opts, timeZone: 'UTC' })
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(locale, { ...opts, timeZone: 'UTC' })
 }
 
 export const formatTime = (t?: string | null) => (t ? t.slice(0, 5) : '')

@@ -5,12 +5,13 @@ import { apiClient, apiErrorMessage } from '../../services/api'
 import { authService } from '../../services/auth'
 import { SystemUser } from '../../types'
 
+import { tr, trEnum, locale } from '../../i18n'
 type UserRole = 'admin' | 'worker'
 
 const EMPTY_FORM = { full_name: '', username: '', email: '', password: '', role: 'worker' as UserRole }
 
 const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })
+  new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
 
 export default function UserManagement() {
   const currentUser = authService.getUser()
@@ -37,7 +38,7 @@ export default function UserManagement() {
       const data = await apiClient.listUsers()
       setUsers(data.items)
     } catch (err) {
-      showToast(apiErrorMessage(err, 'Failed to load users'), 'error')
+      showToast(apiErrorMessage(err, tr("Failed to load users")), 'error')
     } finally {
       setLoading(false)
     }
@@ -61,7 +62,7 @@ export default function UserManagement() {
       showToast(done, 'success')
       load()
     } catch (err) {
-      showToast(apiErrorMessage(err, 'Update failed'), 'error')
+      showToast(apiErrorMessage(err, tr("Update failed")), 'error')
     }
   }
 
@@ -73,10 +74,10 @@ export default function UserManagement() {
       await apiClient.createUser(form)
       setShowCreate(false)
       setForm({ ...EMPTY_FORM })
-      showToast('User created', 'success')
+      showToast(tr("User created"), 'success')
       load()
     } catch (err) {
-      setFormError(apiErrorMessage(err, 'Could not create user.'))
+      setFormError(apiErrorMessage(err, tr("Could not create user.")))
     } finally {
       setSaving(false)
     }
@@ -88,11 +89,11 @@ export default function UserManagement() {
     setSaving(true)
     try {
       await apiClient.updateUser(resetFor.id, { password: newPassword })
-      showToast(`Password changed for ${resetFor.username}`, 'success')
+      showToast(tr("Password changed for {0}", resetFor.username), 'success')
       setResetFor(null)
       setNewPassword('')
     } catch (err) {
-      showToast(apiErrorMessage(err, 'Password change failed'), 'error')
+      showToast(apiErrorMessage(err, tr("Password change failed")), 'error')
     } finally {
       setSaving(false)
     }
@@ -106,14 +107,14 @@ export default function UserManagement() {
   const labelClass = 'block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide'
 
   return (
-    <AdminLayout title="User Management" subtitle="Manage team members and access">
+    <AdminLayout title={tr("User Management")} subtitle={tr("Manage team members and access")}>
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Active Workers', value: workers,  icon: <Users size={18} />,   color: 'text-green-600 bg-green-50' },
-          { label: 'Administrators', value: admins,   icon: <Shield size={18} />,  color: 'text-blue-600 bg-blue-50'  },
-          { label: 'Deactivated',    value: inactive, icon: <XCircle size={18} />, color: 'text-gray-500 bg-gray-100' },
+          { label: tr("Active Workers"), value: workers,  icon: <Users size={18} />,   color: 'text-green-600 bg-green-50' },
+          { label: tr("Administrators"), value: admins,   icon: <Shield size={18} />,  color: 'text-blue-600 bg-blue-50'  },
+          { label: tr("Deactivated"),    value: inactive, icon: <XCircle size={18} />, color: 'text-gray-500 bg-gray-100' },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color}`}>{s.icon}</div>
@@ -132,7 +133,7 @@ export default function UserManagement() {
             <Search size={14} className="text-gray-400" />
             <input
               type="text"
-              placeholder="Search users..."
+              placeholder={tr("Search users...")}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="bg-transparent text-sm outline-none flex-1 text-gray-700 placeholder-gray-400"
@@ -155,7 +156,7 @@ export default function UserManagement() {
             onClick={() => { setFormError(''); setShowCreate(true) }}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
           >
-            <Plus size={15} /> Add User
+            <Plus size={15} /> {tr("Add User")}
           </button>
         </div>
 
@@ -164,12 +165,12 @@ export default function UserManagement() {
           <table className="w-full">
             <thead>
               <tr className="text-[11px] text-gray-500 uppercase tracking-wide border-b border-gray-50">
-                <th className="text-left px-4 py-3 font-semibold">User</th>
-                <th className="text-left px-4 py-3 font-semibold">Role</th>
-                <th className="text-left px-4 py-3 font-semibold">Status</th>
-                <th className="text-left px-4 py-3 font-semibold hidden md:table-cell">Tasks Done</th>
-                <th className="text-left px-4 py-3 font-semibold hidden lg:table-cell">Joined</th>
-                <th className="text-right px-4 py-3 font-semibold">Actions</th>
+                <th className="text-left px-4 py-3 font-semibold">{tr("User")}</th>
+                <th className="text-left px-4 py-3 font-semibold">{tr("Role")}</th>
+                <th className="text-left px-4 py-3 font-semibold">{tr("Status")}</th>
+                <th className="text-left px-4 py-3 font-semibold hidden md:table-cell">{tr("Tasks Done")}</th>
+                <th className="text-left px-4 py-3 font-semibold hidden lg:table-cell">{tr("Joined")}</th>
+                <th className="text-right px-4 py-3 font-semibold">{tr("Actions")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -185,7 +186,7 @@ export default function UserManagement() {
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-gray-900 truncate">
                             {u.full_name || u.username}
-                            {isSelf && <span className="ml-1.5 text-[10px] text-gray-400 font-normal">(you)</span>}
+                            {isSelf && <span className="ml-1.5 text-[10px] text-gray-400 font-normal">{tr("(you)")}</span>}
                           </p>
                           <div className="flex items-center gap-1">
                             <Mail size={10} className="text-gray-400" />
@@ -199,7 +200,7 @@ export default function UserManagement() {
                         u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
                       }`}>
                         {u.role === 'admin' ? <Shield size={10} /> : <UserCircle size={10} />}
-                        {u.role}
+                        {trEnum(u.role)}
                       </span>
                     </td>
                     <td className="px-4 py-3.5">
@@ -209,7 +210,7 @@ export default function UserManagement() {
                         {u.is_active
                           ? <CheckCircle2 size={12} className="text-green-600" />
                           : <XCircle size={12} className="text-gray-400" />}
-                        {u.is_active ? 'Active' : 'Inactive'}
+                        {u.is_active ? tr("Active") : tr("Inactive")}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 hidden md:table-cell">
@@ -230,25 +231,25 @@ export default function UserManagement() {
                         <div className="absolute right-4 top-10 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-48 py-1 text-left">
                           {!isSelf && (
                             <button
-                              onClick={() => update(u, { is_active: !u.is_active }, u.is_active ? 'Account deactivated' : 'Account activated')}
+                              onClick={() => update(u, { is_active: !u.is_active }, u.is_active ? tr("Account deactivated") : tr("Account activated"))}
                               className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700"
                             >
-                              {u.is_active ? 'Deactivate' : 'Activate'} Account
+                              {u.is_active ? tr("Deactivate") : tr("Activate")} {tr("Account")}
                             </button>
                           )}
                           {!isSelf && (
                             <button
-                              onClick={() => update(u, { role: u.role === 'admin' ? 'worker' : 'admin' }, 'Role updated')}
+                              onClick={() => update(u, { role: u.role === 'admin' ? 'worker' : 'admin' }, tr("Role updated"))}
                               className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700"
                             >
-                              Make {u.role === 'admin' ? 'Worker' : 'Admin'}
+                              {tr("Make")} {u.role === 'admin' ? tr("Worker") : tr("Admin")}
                             </button>
                           )}
                           <button
                             onClick={() => { setOpenMenu(null); setNewPassword(''); setResetFor(u) }}
                             className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-gray-700"
                           >
-                            Change Password
+                            {tr("Change Password")}
                           </button>
                         </div>
                       )}
@@ -262,10 +263,10 @@ export default function UserManagement() {
           {!loading && filtered.length === 0 && (
             <div className="text-center py-12 text-gray-400">
               <Users size={32} className="mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No users match your search</p>
+              <p className="text-sm">{tr("No users match your search")}</p>
             </div>
           )}
-          {loading && <p className="text-center py-12 text-sm text-gray-400">Loading users…</p>}
+          {loading && <p className="text-center py-12 text-sm text-gray-400">{tr("Loading users…")}</p>}
         </div>
       </div>
 
@@ -273,32 +274,32 @@ export default function UserManagement() {
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Add New User</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">{tr("Add New User")}</h3>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className={labelClass}>Full Name</label>
+                <label className={labelClass}>{tr("Full Name")}</label>
                 <input required value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })}
-                  placeholder="e.g. Siti Aminah" className={inputClass} />
+                  placeholder={tr("e.g. Siti Aminah")} className={inputClass} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={labelClass}>Username</label>
+                  <label className={labelClass}>{tr("Username")}</label>
                   <input required minLength={3} value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
-                    placeholder="siti" className={inputClass} />
+                    placeholder={tr("siti")} className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Password</label>
+                  <label className={labelClass}>{tr("Password")}</label>
                   <input required minLength={6} type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-                    placeholder="Min 6 characters" className={inputClass} />
+                    placeholder={tr("Min 6 characters")} className={inputClass} />
                 </div>
               </div>
               <div>
-                <label className={labelClass}>Email Address</label>
+                <label className={labelClass}>{tr("Email Address")}</label>
                 <input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                  placeholder="worker@example.com" className={inputClass} />
+                  placeholder={tr("worker@example.com")} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Role</label>
+                <label className={labelClass}>{tr("Role")}</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['worker', 'admin'] as UserRole[]).map(r => (
                     <button
@@ -321,10 +322,10 @@ export default function UserManagement() {
               )}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowCreate(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
-                  Cancel
+                  {tr("Cancel")}
                 </button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-60">
-                  {saving ? 'Creating…' : 'Create User'}
+                  {saving ? tr("Creating…") : tr("Create User")}
                 </button>
               </div>
             </form>
@@ -336,17 +337,17 @@ export default function UserManagement() {
       {resetFor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-1">Change Password</h3>
-            <p className="text-xs text-gray-500 mb-4">Set a new password for {resetFor.full_name || resetFor.username}.</p>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">{tr("Change Password")}</h3>
+            <p className="text-xs text-gray-500 mb-4">{tr("Set a new password for")} {resetFor.full_name || resetFor.username}.</p>
             <form onSubmit={handleResetPassword} className="space-y-4">
               <input required minLength={6} type="password" autoFocus value={newPassword}
-                onChange={e => setNewPassword(e.target.value)} placeholder="New password (min 6 characters)" className={inputClass} />
+                onChange={e => setNewPassword(e.target.value)} placeholder={tr("New password (min 6 characters)")} className={inputClass} />
               <div className="flex gap-3">
                 <button type="button" onClick={() => setResetFor(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
-                  Cancel
+                  {tr("Cancel")}
                 </button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-60">
-                  {saving ? 'Saving…' : 'Save Password'}
+                  {saving ? tr("Saving…") : tr("Save Password")}
                 </button>
               </div>
             </form>
