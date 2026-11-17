@@ -14,8 +14,19 @@ from typing import List, Optional, Tuple
 class ScheduleService:
     """Service for schedule management operations"""
 
-    # Valid task types, priorities and statuses
-    TASK_TYPES = ["harvest", "transport", "inspection", "maintenance", "other"]
+    # Post-harvest task categories. The column is a plain VARCHAR(50), so adding
+    # values needs no migration. "maintenance" is no longer offered for new tasks
+    # but stays valid so historical tasks keep loading and can still be edited.
+    POST_HARVEST_TASK_TYPES = [
+        "inspection",             # quality inspection (grades are set manually)
+        "sorting_grading",
+        "packaging",
+        "transport_preparation",
+        "transport",              # delivery
+        "waste_handling",
+    ]
+    LEGACY_TASK_TYPES = ["harvest", "maintenance", "other"]
+    TASK_TYPES = POST_HARVEST_TASK_TYPES + LEGACY_TASK_TYPES
     PRIORITY_LEVELS = ["low", "medium", "high"]
     STATUSES = ["pending", "in_progress", "completed", "cancelled"]
 

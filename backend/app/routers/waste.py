@@ -147,7 +147,7 @@ def update_waste(
     _check_batch_access(db, waste_data.harvest_id, current_user)
 
     try:
-        return WasteService.update_waste(db, waste_id, waste_data)
+        return WasteService.update_waste(db, waste_id, waste_data, current_user.get("user_id"))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -165,7 +165,7 @@ def delete_waste(
             detail="Only admins can delete waste records"
         )
 
-    deleted = WasteService.delete_waste(db, waste_id)
+    deleted = WasteService.delete_waste(db, waste_id, current_user.get("user_id"))
 
     if not deleted:
         raise HTTPException(

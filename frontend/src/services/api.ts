@@ -9,6 +9,8 @@ import {
   TransportEfficiency,
   Waste,
   WasteStats,
+  WasteAnalysis,
+  WasteAnalysisList,
   Schedule,
   AIHarvestPrediction,
   AIWastePrediction,
@@ -20,16 +22,48 @@ import {
   UserStats,
   AIStatus,
   AIRecommendations,
+  AnalysisScope,
+  SulurAnalytics,
   AnalyticsOverview,
   AppSettings,
+  BatchDetails,
+  BatchEventList,
+  BatchSummary,
+  GradeQuantities,
+  MarketabilityPolicy,
+  HistoricalYield,
+  PlannerInput,
+  PlannerResult,
+  PlannerScenarioResult,
+  WhatIfResult,
 } from '../types'
 
-type HarvestServerFields =
-  | 'id' | 'worker_id' | 'created_at' | 'updated_at'
-  | 'batch_number' | 'harvest_status'
-  | 'spoilage_kg' | 'rejected_kg'
-  | 'marketable_yield_kg' | 'marketable_yield_percent'
-  | 'spoilage_rate_percent' | 'rejection_rate_percent'
+/** What a client sends to create a batch; everything else is set by the backend */
+export interface HarvestCreateInput {
+  field_name: string
+  harvest_date: string
+  quantity_kg: number
+  /** Grading breakdown in kg; leave out for a batch not graded yet */
+  grades?: GradeQuantities
+  /** Unsellable kg sorted out at harvest; part of quantity_kg, logged in Waste Management */
+  non_marketable_kg?: number
+  non_marketable_reason?: string
+  ripeness_level?: number
+  notes?: string
+}
+
+export interface HarvestUpdateInput {
+  grades?: GradeQuantities
+  /** Sent with grades: grades + this = harvested */
+  non_marketable_kg?: number
+  non_marketable_reason?: string
+  ripeness_level?: number
+  harvest_status?: Harvest['harvest_status']
+  spoilage_kg?: number
+  /** Total rejection: non-marketable at sorting plus anything rejected after grading */
+  rejected_kg?: number
+  notes?: string
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
@@ -81,7 +115,7 @@ class APIClient {
     return res.data
   }
 
-  async createHarvest(data: Omit<Harvest, HarvestServerFields>): Promise<Harvest> {
+  async createHarvest(data: HarvestCreateInput): Promise<Harvest> {
     const res = await this.client.post('/harvest', data)
     return res.data
   }
@@ -91,7 +125,7 @@ class APIClient {
     return res.data
   }
 
-  async updateHarvest(id: number, data: Partial<Harvest>): Promise<Harvest> {
+  async updateHarvest(id: number, data: HarvestUpdateInput): Promise<Harvest> {
     const res = await this.client.patch(`/harvest/${id}`, data)
     return res.data
   }
@@ -103,6 +137,59 @@ class APIClient {
   async getHarvestStats(): Promise<HarvestStats> {
     const res = await this.client.get('/harvest/statistics/summary')
     return res.data
+  }
+
+  // ── Marketability policy ──────────────────────────────────────────────
+  async getMarketabilityPolicy(): Promise<MarketabilityPolicy> {
+    const res = await this.client.get('/harvest/policy/marketability')
+    return res.data
+  }
+
+  async listMarketabilityPolicies(): Promise<MarketabilityPolicy[]> {
+    const res = await this.client.get('/harvest/policy/marketability/history')
+    return res.data
+  }
+
+  async updateMarketabilityPolicy(data: { marketable_grades: string[]; note?: string }): Promise<MarketabilityPolicy> {
+    const res = await this.client.put('/harvest/policy/marketability', data)
+    return res.data
+  }
+
+  // ── Harvest & Profit Planner (admin) ──────────────────────────────────
+  async calculatePlan(data: PlannerInput, signal?: AbortSignal): Promise<PlannerResult> {
+    const res = await this.client.post('/planner/calculate', data, { signal })
+    return res.data
+  }
+
+  async comparePlans(scenarios: { label: string; inputs: PlannerInput }[]): Promise<PlannerScenarioResult[]> {
+    const res = await this.client.post('/planner/compare', { scenarios })
+    return res.data.items
+  }
+
+  async getWhatIf(data: PlannerInput, signal?: AbortSignal): Promise<WhatIfResult> {
+    const res = await this.client.post('/planner/what-if', data, { signal })
+    return res.data
+  }
+
+  async getHistoricalYield(months = 12): Promise<HistoricalYield> {
+    const res = await this.client.get('/planner/historical-yield', { params: { months } })
+    return res.data
+  }
+
+  // ── Batch lifecycle & traceability ────────────────────────────────────
+  async getBatchDetails(id: number): Promise<BatchDetails> {
+    const res = await this.client.get(`/harvest/${id}/details`)
+    return res.data
+  }
+
+  async getBatchEvents(id: number, eventType?: string): Promise<BatchEventList> {
+    const res = await this.client.get(`/harvest/${id}/events`, { params: { event_type: eventType || undefined } })
+    return res.data
+  }
+
+  async getBatchOverview(): Promise<BatchSummary[]> {
+    const res = await this.client.get('/harvest/lifecycle/overview')
+    return res.data.items
   }
 
   async getQualityTargets(): Promise<QualityTargets> {
@@ -118,6 +205,11 @@ class APIClient {
   // ── Transport ─────────────────────────────────────────────────────────
   async listTransports(skip = 0, limit = 100): Promise<PaginatedResponse<Transport>> {
     const res = await this.client.get('/transport', { params: { skip, limit } })
+    return res.data
+  }
+
+  async getTransport(id: number): Promise<Transport> {
+    const res = await this.client.get(`/transport/${id}`)
     return res.data
   }
 
@@ -158,6 +250,17 @@ class APIClient {
 
   async deleteWaste(id: number): Promise<void> {
     await this.client.delete(`/waste/${id}`)
+  }
+
+  async getWasteAnalyses(): Promise<WasteAnalysisList> {
+    const res = await this.client.get('/ai/waste-analysis')
+    return res.data
+  }
+
+  /** PineTrack Agent analysis for up to 25 records per call */
+  async analyseWaste(wasteIds: number[]): Promise<WasteAnalysis[]> {
+    const res = await this.client.post('/ai/waste-analysis', { waste_ids: wasteIds })
+    return res.data.items
   }
 
   async getWasteStats(): Promise<WasteStats> {
@@ -241,6 +344,11 @@ class APIClient {
   }
 
   // ── Analytics & settings ──────────────────────────────────────────────
+  async getSulurAnalytics(months = 6): Promise<SulurAnalytics> {
+    const res = await this.client.get('/analytics/sulur', { params: { months } })
+    return res.data
+  }
+
   async getAnalyticsOverview(months = 6): Promise<AnalyticsOverview> {
     const res = await this.client.get('/analytics/overview', { params: { months } })
     return res.data
@@ -296,14 +404,15 @@ class APIClient {
     return res.data
   }
 
-  async getAIRecommendations(): Promise<AIRecommendations> {
-    const res = await this.client.get('/ai/recommendations')
+  /** Cached recommendations for a scope; the backend generates and caches each scope separately */
+  async getAIRecommendations(scope: AnalysisScope = 'post_harvest'): Promise<AIRecommendations> {
+    const res = await this.client.get('/ai/recommendations', { params: { scope } })
     return res.data
   }
 
-  async refreshAIRecommendations(): Promise<AIRecommendations> {
+  async refreshAIRecommendations(scope: AnalysisScope = 'post_harvest'): Promise<AIRecommendations> {
     // Gemini can take a while to answer
-    const res = await this.client.post('/ai/recommendations/refresh', null, { timeout: 60000 })
+    const res = await this.client.post('/ai/recommendations/refresh', null, { params: { scope }, timeout: 60000 })
     return res.data
   }
 

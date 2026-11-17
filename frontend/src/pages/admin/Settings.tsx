@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Settings, Bell, Database, Save, CheckCircle2, Target } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
+import MarketabilityPolicyCard from '../../components/batch/MarketabilityPolicyCard'
 import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
+import AppSelect from '../../components/ui/AppSelect'
 
 interface ToggleSetting { id: string; label: string; desc: string; value: boolean }
 
@@ -167,26 +169,13 @@ export default function AdminSettings() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Timezone</label>
-                  <select
-                    value={timezone}
-                    onChange={e => setTimezone(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-                  >
-                    <option>Asia/Kuala_Lumpur</option>
-                    <option>Asia/Singapore</option>
-                    <option>UTC</option>
-                  </select>
+                  <AppSelect aria-label="Timezone" value={timezone} onChange={setTimezone}
+                    options={['Asia/Kuala_Lumpur', 'Asia/Singapore', 'UTC'].map((t) => ({ value: t, label: t }))} />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Language</label>
-                  <select
-                    value={language}
-                    onChange={e => setLanguage(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
-                  >
-                    <option>English</option>
-                    <option>Bahasa Melayu</option>
-                  </select>
+                  <AppSelect aria-label="Language" value={language} onChange={setLanguage}
+                    options={['English', 'Bahasa Melayu'].map((l) => ({ value: l, label: l }))} />
                 </div>
               </div>
             </div>
@@ -269,6 +258,9 @@ export default function AdminSettings() {
 
         {/* Right column */}
         <div className="space-y-6">
+
+          {/* Marketability policy (saved on its own, as a new version) */}
+          <MarketabilityPolicyCard />
 
           {/* Notifications */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm">

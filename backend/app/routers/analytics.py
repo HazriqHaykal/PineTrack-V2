@@ -13,8 +13,9 @@ from sqlalchemy.orm import Session
 from typing import Dict
 from app.config import get_db
 from app.middleware.rbac import require_admin
-from app.models import AppSetting, Harvest, Transport, Waste, Schedule, User
+from app.models import AppSetting, Harvest, HarvestGrade, MarketabilityPolicy, Transport, Waste, Schedule, User
 from app.services.analytics_service import AnalyticsService
+from app.services.sulur_insights_service import SulurInsightsService
 
 router = APIRouter()
 
@@ -47,6 +48,20 @@ def get_analytics_overview(
     - **months**: How many calendar months the trend charts cover
     """
     return AnalyticsService.get_overview(db, months)
+
+
+@router.get("/analytics/sulur")
+def get_sulur_analytics(
+    months: int = Query(6, ge=1, le=24),
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Sulur Inventory analytics (admin only). Read-only; quantities are sulur pieces, not kg.
+
+    - **months**: How many calendar months the movement trend covers
+    """
+    return SulurInsightsService.get_overview(db, months)
 
 
 @router.get("/settings")
@@ -82,8 +97,13 @@ EXPORT_TABLES = {
     "users": (User, ["id", "username", "email", "full_name", "role", "is_active", "created_at"]),
     "harvest": (Harvest, [
         "id", "batch_number", "user_id", "field_name", "harvest_date", "quantity_kg", "quality_grade",
-        "ripeness_level", "harvest_status", "spoilage_kg", "rejected_kg", "marketable_yield_kg", "notes", "created_at",
+        "ripeness_level", "harvest_status", "spoilage_kg", "rejected_kg", "marketable_yield_kg",
+        "marketable_yield_percent", "grading_basis", "grading_policy_version", "notes", "created_at",
     ]),
+    "harvest_grades": (HarvestGrade, [
+        "id", "harvest_id", "grade", "quantity_kg", "is_marketable", "policy_id", "created_at", "updated_at",
+    ]),
+    "marketability_policies": (MarketabilityPolicy, ["id", "marketable_grades", "note", "created_by", "created_at"]),
     "transport": (Transport, [
         "id", "harvest_id", "batch_number", "driver_id", "driver_name", "vehicle_number", "destination",
         "scheduled_date", "actual_delivery", "cargo_weight_kg", "status", "notes", "created_at",

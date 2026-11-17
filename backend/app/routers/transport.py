@@ -163,7 +163,7 @@ def update_transport(
             )
 
     try:
-        return TransportService.update_transport(db, transport_id, transport_data)
+        return TransportService.update_transport(db, transport_id, transport_data, current_user.get("user_id"))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -183,7 +183,7 @@ def update_transport_status(
     _get_owned_transport(db, transport_id, current_user, "update")
 
     try:
-        return TransportService.update_transport_status(db, transport_id, new_status)
+        return TransportService.update_transport_status(db, transport_id, new_status, current_user.get("user_id"))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -201,7 +201,10 @@ def delete_transport(
             detail="Only admins can delete transports"
         )
 
-    deleted = TransportService.delete_transport(db, transport_id)
+    try:
+        deleted = TransportService.delete_transport(db, transport_id, current_user.get("user_id"))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
     if not deleted:
         raise HTTPException(

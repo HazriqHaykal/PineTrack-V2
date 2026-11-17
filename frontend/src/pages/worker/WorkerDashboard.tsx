@@ -1,57 +1,54 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { CheckCircle2, Clock, AlertCircle, Sprout, Truck, Recycle, ChevronRight, Sun, ClipboardCheck, Wrench } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  CalendarCheck, CheckCircle2, ChevronRight, ClipboardCheck, Clock, PackageOpen, PlayCircle, Recycle, Sprout, Truck,
+} from 'lucide-react'
 import WorkerLayout from '../../components/layout/WorkerLayout'
+import { ErrorNote, EmptyState, ICON_STROKE, ListHeading, StatTile, WorkerPage, cardCls } from '../../components/worker/ui'
+import {
+  OverdueBadge, PriorityBadge, TASK_STATUS_META, TaskStatusBadge, byDateTime, formatDay, formatTime, isOverdue, taskLabel,
+} from '../../components/schedule/taskMeta'
+import { useFarmToday } from '../../hooks/useFarmToday'
 import { authService } from '../../services/auth'
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { Schedule } from '../../types'
 
-const PRIORITY_STYLES = {
-  high:   { bar: 'bg-red-500',    badge: 'bg-red-100 text-red-700',    label: 'High'   },
-  medium: { bar: 'bg-amber-500',  badge: 'bg-amber-100 text-amber-700', label: 'Medium' },
-  low:    { bar: 'bg-blue-500',   badge: 'bg-blue-100 text-blue-700',   label: 'Low'    },
-}
-
-const STATUS_ICON: Record<string, React.ReactNode> = {
-  pending:     <Clock size={15} className="text-gray-400" />,
-  in_progress: <AlertCircle size={15} className="text-amber-500" />,
-  completed:   <CheckCircle2 size={15} className="text-green-500" />,
-}
-
-const TYPE_ICON: Record<string, React.ReactNode> = {
-  harvest:     <Sprout size={16} className="text-green-600" />,
-  transport:   <Truck size={16} className="text-blue-600" />,
-  inspection:  <ClipboardCheck size={16} className="text-purple-600" />,
-  maintenance: <Wrench size={16} className="text-slate-600" />,
-  other:       <CheckCircle2 size={16} className="text-purple-600" />,
-}
-
-// Page where the work for each task type is recorded
+/** Page where the work for each task type is recorded */
 const TYPE_PATH: Record<string, string> = {
-  harvest:   '/harvest-entry',
-  transport: '/transport-update',
+  harvest:               '/harvest-entry',
+  sorting_grading:       '/harvest-entry',
+  transport:             '/transport-update',
+  transport_preparation: '/transport-update',
+  waste_handling:        '/waste-submit',
 }
 
-const localDate = (d = new Date()) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const QUICK_ACTIONS = [
+  { label: 'New Harvest', hint: 'Record and grade a batch', icon: Sprout,  path: '/harvest-entry' },
+  { label: 'Deliveries',  hint: 'Update transport status',  icon: Truck,   path: '/transport-update' },
+  { label: 'Log Waste',   hint: 'Record unusable produce',  icon: Recycle, path: '/waste-submit' },
+]
+
+function greetingFor(hour: number) {
+  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+}
 
 export default function WorkerDashboard() {
   const navigate = useNavigate()
+  const { today } = useFarmToday()
   const user = authService.getUser()
   const [tasks, setTasks] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [greeting, setGreeting] = useState('Good morning')
+  const [busyId, setBusyId] = useState<number | null>(null)
 
   const load = async () => {
     try {
       const data = await apiClient.getMySchedule()
-      const todayStr = localDate()
       // Today's tasks, plus anything older that is still open
       setTasks(data.schedules.filter(t =>
         t.status !== 'cancelled' &&
-        (t.assigned_date === todayStr || (t.assigned_date < todayStr && t.status !== 'completed'))
-      ))
+        (t.assigned_date === today || (t.assigned_date < today && t.status !== 'completed'))
+      ).sort(byDateTime))
       setError('')
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not load your tasks.'))
@@ -60,24 +57,17 @@ export default function WorkerDashboard() {
     }
   }
 
-  useEffect(() => {
-    const hour = new Date().getHours()
-    if (hour < 12) setGreeting('Good morning')
-    else if (hour < 17) setGreeting('Good afternoon')
-    else setGreeting('Good evening')
-    load()
-  }, [])
-
-  const pending    = tasks.filter(t => t.status === 'pending').length
-  const inProgress = tasks.filter(t => t.status === 'in_progress').length
-  const completed  = tasks.filter(t => t.status === 'completed').length
+  useEffect(() => { load() }, [today])
 
   const setStatus = async (task: Schedule, status: Schedule['status']) => {
+    setBusyId(task.id)
     try {
       await apiClient.updateScheduleStatus(task.id, status)
       await load()
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not update the task.'))
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -87,177 +77,129 @@ export default function WorkerDashboard() {
     if (path) navigate(path)
   }
 
-  const today = new Date().toLocaleDateString('en-MY', { weekday: 'long', month: 'long', day: 'numeric' })
-  const todayStr = localDate()
+  const counts = {
+    pending: tasks.filter(t => t.status === 'pending').length,
+    in_progress: tasks.filter(t => t.status === 'in_progress').length,
+    completed: tasks.filter(t => t.status === 'completed').length,
+  }
+  const open = counts.pending + counts.in_progress
+  const name = user?.full_name || user?.username || 'Worker'
 
   return (
     <WorkerLayout>
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
+      <WorkerPage title="My Tasks" subtitle={formatDay(today, { weekday: 'long', day: 'numeric', month: 'long' })}>
 
-        {/* Greeting header */}
-        <div className="bg-gradient-to-r from-green-600 to-emerald-500 rounded-2xl p-5 text-white shadow-lg shadow-green-200">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Sun size={18} className="text-yellow-200" />
-                <span className="text-green-100 text-sm">{greeting}</span>
-              </div>
-              <h1 className="text-xl font-bold leading-tight">
-                {user?.full_name || user?.username || 'Worker'}
-              </h1>
-              <p className="text-green-100 text-xs mt-1">{today}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-3xl font-bold">{tasks.length}</p>
-              <p className="text-green-100 text-xs">tasks today</p>
-            </div>
-          </div>
+        {/* Greeting */}
+        <section className="rounded-xl bg-green-800 px-5 py-4 text-white">
+          <p className="text-sm text-green-100">{greetingFor(new Date().getHours())},</p>
+          <p className="text-lg font-semibold leading-snug truncate">{name}</p>
+          <p className="mt-2 flex items-center gap-1.5 text-sm text-green-50">
+            <CalendarCheck size={15} strokeWidth={ICON_STROKE} />
+            {loading ? 'Checking your tasks…'
+              : open === 0 ? 'Nothing left to do today'
+              : `${open} task${open === 1 ? '' : 's'} still to do today`}
+          </p>
+        </section>
 
-          {/* Mini progress */}
-          <div className="mt-4 flex gap-3">
-            <div className="flex-1 bg-white/20 rounded-lg p-2.5 text-center">
-              <p className="text-lg font-bold">{pending}</p>
-              <p className="text-[10px] text-green-100 uppercase tracking-wide">Pending</p>
-            </div>
-            <div className="flex-1 bg-white/20 rounded-lg p-2.5 text-center">
-              <p className="text-lg font-bold">{inProgress}</p>
-              <p className="text-[10px] text-green-100 uppercase tracking-wide">Active</p>
-            </div>
-            <div className="flex-1 bg-white/20 rounded-lg p-2.5 text-center">
-              <p className="text-lg font-bold">{completed}</p>
-              <p className="text-[10px] text-green-100 uppercase tracking-wide">Done</p>
-            </div>
-          </div>
+        {/* Summary */}
+        <div className="grid grid-cols-3 gap-3">
+          {(['pending', 'in_progress', 'completed'] as const).map((s) => (
+            <StatTile key={s} label={s === 'completed' ? 'Done' : TASK_STATUS_META[s].label}
+              value={loading ? '—' : counts[s]} dot={TASK_STATUS_META[s].dot} />
+          ))}
         </div>
 
         {/* Quick actions */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Quick Actions</h2>
+          <ListHeading>Quick Actions</ListHeading>
           <div className="grid grid-cols-3 gap-3">
-            <button
-              onClick={() => navigate('/harvest-entry')}
-              className="flex flex-col items-center gap-2 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-green-200 active:scale-95 transition-all"
-            >
-              <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center">
-                <Sprout size={22} className="text-green-600" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700 text-center leading-tight">New Harvest</span>
-            </button>
-            <button
-              onClick={() => navigate('/transport-update')}
-              className="flex flex-col items-center gap-2 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-200 active:scale-95 transition-all"
-            >
-              <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center">
-                <Truck size={22} className="text-blue-600" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700 text-center leading-tight">Transport</span>
-            </button>
-            <button
-              onClick={() => navigate('/waste-submit')}
-              className="flex flex-col items-center gap-2 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-orange-200 active:scale-95 transition-all"
-            >
-              <div className="w-11 h-11 rounded-xl bg-orange-50 flex items-center justify-center">
-                <Recycle size={22} className="text-orange-500" />
-              </div>
-              <span className="text-xs font-semibold text-gray-700 text-center leading-tight">Log Waste</span>
-            </button>
+            {QUICK_ACTIONS.map(({ label, hint, icon: Icon, path }) => (
+              <Link key={path} to={path}
+                className={`${cardCls} flex flex-col items-center gap-2 px-2 py-3.5 text-center transition-colors hover:border-green-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 sm:flex-row sm:text-left sm:px-4`}>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-800">
+                  <Icon size={20} strokeWidth={ICON_STROKE} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-gray-900 leading-tight">{label}</span>
+                  <span className="hidden sm:block text-xs text-gray-500 truncate">{hint}</span>
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
 
-        {/* Task list */}
+        {/* Today's tasks */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Today's Tasks</h2>
-            <button onClick={() => navigate('/my-schedule')} className="text-xs text-green-600 font-semibold flex items-center gap-0.5">
-              View all <ChevronRight size={13} />
-            </button>
-          </div>
+          <ListHeading action={
+            <Link to="/my-schedule" className="inline-flex items-center gap-0.5 text-sm font-medium text-green-800 hover:underline">
+              Full schedule <ChevronRight size={15} />
+            </Link>
+          }>
+            Today's Tasks
+          </ListHeading>
 
-          {error && (
-            <p className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-xs mb-3">{error}</p>
-          )}
+          {error && <div className="mb-3"><ErrorNote>{error}</ErrorNote></div>}
 
           {loading ? (
-            <p className="text-center text-sm text-gray-400 py-8">Loading tasks…</p>
+            <p className="py-8 text-center text-sm text-gray-500">Loading tasks…</p>
           ) : tasks.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
-              <CheckCircle2 size={28} className="mx-auto text-green-500 mb-2" />
-              <p className="text-sm font-semibold text-gray-700">No tasks assigned for today</p>
-              <p className="text-xs text-gray-400 mt-1">New tasks from your supervisor will appear here.</p>
-            </div>
+            <EmptyState icon={PackageOpen} title="No tasks for today"
+              body="When your supervisor assigns you work, it will appear here. You can still record a harvest or log waste above." />
           ) : (
-            <div className="space-y-3">
+            <ul className="space-y-3">
               {tasks.map(task => {
-                const p = PRIORITY_STYLES[task.priority ?? 'medium'] ?? PRIORITY_STYLES.medium
-                const overdue = task.assigned_date < todayStr && task.status !== 'completed'
+                const done = task.status === 'completed'
+                const late = isOverdue(task, today)
+                const path = TYPE_PATH[task.task_type]
                 return (
-                  <div
-                    key={task.id}
-                    className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-opacity ${
-                      task.status === 'completed' ? 'opacity-60' : ''
-                    }`}
-                  >
-                    <div className={`h-1 ${p.bar}`} />
-                    <div className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0">
-                          {TYPE_ICON[task.task_type] ?? TYPE_ICON.other}
+                  <li key={task.id} className={`${cardCls} overflow-hidden ${done ? 'opacity-70' : ''}`}>
+                    <div className="flex items-start gap-3 px-4 pt-3.5 pb-3">
+                      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
+                        {done ? <CheckCircle2 size={18} strokeWidth={ICON_STROKE} className="text-green-700" />
+                          : <ClipboardCheck size={18} strokeWidth={ICON_STROKE} />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={`text-sm font-semibold ${done ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                            {taskLabel(task.task_type)}
+                          </p>
+                          <PriorityBadge priority={task.priority} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className={`font-semibold text-sm capitalize ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                              {task.task_type}
-                            </p>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${p.badge}`}>{p.label}</span>
-                            {overdue && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">Overdue</span>
-                            )}
-                          </div>
-                          {task.details && (
-                            <p className="text-xs text-gray-500 mt-0.5 leading-snug">{task.details}</p>
-                          )}
-                          <div className="flex items-center gap-3 mt-2">
-                            <div className="flex items-center gap-1">
-                              {STATUS_ICON[task.status]}
-                              <span className="text-[10px] text-gray-500 capitalize">{task.status.replace('_', ' ')}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Clock size={11} className="text-gray-400" />
-                              <span className="text-[10px] text-gray-500">
-                                {overdue ? `Due ${task.assigned_date}` : task.scheduled_time ? `Due ${task.scheduled_time.slice(0, 5)}` : 'Due today'}
-                              </span>
-                            </div>
-                          </div>
+                        {task.details && <p className="mt-0.5 text-sm text-gray-600 line-clamp-2 break-words">{task.details}</p>}
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+                          <TaskStatusBadge status={task.status} />
+                          {late && <OverdueBadge />}
+                          <span className="inline-flex items-center gap-1">
+                            <Clock size={12} strokeWidth={ICON_STROKE} />
+                            {late ? formatDay(task.assigned_date, { day: 'numeric', month: 'short' })
+                              : task.scheduled_time ? formatTime(task.scheduled_time) : 'Any time today'}
+                          </span>
                         </div>
                       </div>
-
-                      {task.status !== 'completed' && (
-                        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-50">
-                          {(task.status === 'pending' || TYPE_PATH[task.task_type]) && (
-                            <button
-                              onClick={() => startTask(task)}
-                              className="flex-1 py-2 bg-green-50 text-green-700 rounded-xl text-xs font-semibold hover:bg-green-100 transition-colors"
-                            >
-                              {task.status === 'pending' ? 'Start Task' : 'Open'}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setStatus(task, 'completed')}
-                            className="flex-1 py-2 bg-gray-50 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-100 transition-colors"
-                          >
-                            Mark Done
-                          </button>
-                        </div>
-                      )}
                     </div>
-                  </div>
+
+                    {!done && (
+                      <div className="flex gap-2 border-t border-gray-100 px-4 py-2.5">
+                        {(task.status === 'pending' || path) && (
+                          <button onClick={() => startTask(task)} disabled={busyId === task.id}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60">
+                            <PlayCircle size={15} strokeWidth={ICON_STROKE} />
+                            {task.status === 'pending' ? 'Start' : 'Open'}
+                          </button>
+                        )}
+                        <button onClick={() => setStatus(task, 'completed')} disabled={busyId === task.id}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-60">
+                          <CheckCircle2 size={15} strokeWidth={2} /> {busyId === task.id ? 'Saving…' : 'Mark as Completed'}
+                        </button>
+                      </div>
+                    )}
+                  </li>
                 )
               })}
-            </div>
+            </ul>
           )}
         </div>
-
-      </div>
+      </WorkerPage>
     </WorkerLayout>
   )
 }

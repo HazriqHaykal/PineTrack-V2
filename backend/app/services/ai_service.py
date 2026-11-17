@@ -12,6 +12,8 @@ from app.models import AILog, Harvest, Transport, Waste, Schedule, QualityTarget
 from app.schemas import AILogCreate
 from app.services.gemini_service import GeminiService, GeminiError
 from typing import Optional, Dict, List, Tuple
+from app.services.yield_calc import farm_yield
+from app.services.sulur_insights_service import SulurInsightsService
 import json
 import logging
 
@@ -25,6 +27,16 @@ TRANSPORT_PRIORITIES = ["Urgent", "High", "Normal"]
 WASTE_TYPES = ["rotten", "damaged", "overripe", "unused_parts", "other"]
 DISPOSAL_METHODS = ["compost", "recycle", "discard", "donate", "animal feed"]
 RECOMMENDATION_TYPES = ["harvest", "waste", "transport", "schedule"]
+SULUR_TYPE = "sulur"
+
+# Analysis scope -> ai_logs.prediction_type, so each scope keeps its own cached set.
+# "post_harvest" keeps the original type, so existing cached sets and history still apply.
+SCOPE_PREDICTION_TYPE = {
+    "post_harvest": "recommendations",
+    "sulur": "recommendations_sulur",
+    "all": "recommendations_all",
+}
+SCOPES = tuple(SCOPE_PREDICTION_TYPE)
 RECOMMENDATION_PRIORITIES = ["high", "medium", "low"]
 
 FARM_CONTEXT = (
@@ -414,6 +426,12 @@ class AIService:
                 "spoilage_rate_percent": round(spoilage_kg / total_kg * 100, 1) if total_kg else 0.0,
                 "rejection_rate_percent": round(rejected_kg / total_kg * 100, 1) if total_kg else 0.0,
                 "grade_counts": grades,
+                # Farmer-recorded grade quantities (no AI grading); weighted over grade-based batches only
+                "graded_yield": {
+                    k: v for k, v in farm_yield([h.yield_breakdown for h in harvests]).items()
+                    if k in ("graded_batches", "harvested_kg", "marketable_kg", "marketable_yield_percent",
+                             "grade_kg", "legacy_batches", "ungraded_batches")
+                },
                 "ungraded_pending_batches": sum(1 for h in harvests if h.harvest_status == "pending"),
                 "by_field": field_rows,
             },
@@ -449,14 +467,11 @@ class AIService:
         harvest, waste, transport, tasks = snapshot["harvest"], snapshot["waste"], snapshot["transport"], snapshot["tasks"]
         targets = snapshot["targets"]
 
-        if harvest["batches"] == 0:
-            return [{
-                "type": "harvest", "priority": "low", "title": "No recent harvest data",
-                "description": f"No harvests were recorded in the last {snapshot['period_days']} days, so there is nothing to analyse yet.",
-                "confidence": 90, "impact": "Enables recommendations", "action": "Log harvest batches",
-            }]
+        # Without recent harvests there is nothing to judge quality against. Missing data is not a
+        # recommendation; the page shows it as a notice. Delivery and task checks still apply.
+        has_harvests = harvest["batches"] > 0
 
-        if harvest["spoilage_rate_percent"] > targets["max_spoilage_rate_percent"]:
+        if has_harvests and harvest["spoilage_rate_percent"] > targets["max_spoilage_rate_percent"]:
             recs.append({
                 "type": "waste", "priority": "high", "title": "Spoilage rate is above target",
                 "description": (
@@ -468,7 +483,7 @@ class AIService:
                 "action": "Review harvest timing",
             })
 
-        if harvest["rejection_rate_percent"] > targets["max_rejection_rate_percent"]:
+        if has_harvests and harvest["rejection_rate_percent"] > targets["max_rejection_rate_percent"]:
             recs.append({
                 "type": "harvest", "priority": "high", "title": "Rejection rate is above target",
                 "description": (
@@ -520,7 +535,7 @@ class AIService:
                 "confidence": 88, "impact": "Faster dispatch", "action": "Grade pending batches",
             })
 
-        if not recs:
+        if not recs and has_harvests:
             recs.append({
                 "type": "harvest", "priority": "low", "title": "Operations are within targets",
                 "description": (
@@ -533,23 +548,19 @@ class AIService:
         return recs
 
     @staticmethod
-    def _recommendation_gemini(snapshot: Dict) -> List[Dict]:
-        prompt = (
-            f"{FARM_CONTEXT}\n\n"
-            f"Here is a summary of the farm's operations for the last {snapshot['period_days']} days:\n"
-            f"{json.dumps(snapshot, indent=2)}\n\n"
-            "Give between 3 and 5 recommendations for the farm manager, most important first. "
-            "Each must be grounded in specific numbers from the summary. For each give: type "
-            "(harvest, waste, transport or schedule), priority, a short title, a description of two sentences "
-            "at most, your confidence as a whole number from 0 to 100, the expected impact in a few words, "
-            "and a short action label for a button."
-        )
+    def _recommendation_gemini(snapshot: Dict, scope: str = "post_harvest") -> List[Dict]:
+        allowed = RECOMMENDATION_TYPES
+        if scope == "post_harvest":
+            prompt = AIService._post_harvest_prompt(snapshot)
+        else:
+            allowed = [SULUR_TYPE] if scope == "sulur" else RECOMMENDATION_TYPES + [SULUR_TYPE]
+            prompt = AIService._scoped_prompt(snapshot, scope, allowed)
         schema = {
             "type": "ARRAY",
             "items": {
                 "type": "OBJECT",
                 "properties": {
-                    "type": {"type": "STRING", "enum": RECOMMENDATION_TYPES},
+                    "type": {"type": "STRING", "enum": allowed},
                     "priority": {"type": "STRING", "enum": RECOMMENDATION_PRIORITIES},
                     "title": {"type": "STRING"},
                     "description": {"type": "STRING"},
@@ -569,7 +580,7 @@ class AIService:
             if not isinstance(item, dict) or not item.get("title") or not item.get("description"):
                 continue
             recs.append({
-                "type": item.get("type") if item.get("type") in RECOMMENDATION_TYPES else "harvest",
+                "type": item.get("type") if item.get("type") in allowed else allowed[0],
                 "priority": item.get("priority") if item.get("priority") in RECOMMENDATION_PRIORITIES else "medium",
                 "title": str(item["title"]),
                 "description": str(item["description"]),
@@ -582,43 +593,114 @@ class AIService:
         return recs
 
     @staticmethod
-    def generate_recommendations(db: Session, user_id: int) -> AILog:
-        """Generate farm-wide recommendations and store them as an AI log"""
+    def _scoped_prompt(snapshot: Dict, scope: str, allowed: List[str]) -> str:
+        unit = snapshot["sulur"]["unit"]
+        if scope == "sulur":
+            intro = (
+                "You are PineTrack Agent. This analysis covers only the Sulur Inventory module: pineapple planting "
+                "material (sulur) held in the nursery. Base every answer only on the data provided."
+            )
+            data = f"Sulur inventory summary (quantities are counts of {unit}):\n{json.dumps(snapshot['sulur'], indent=2)}"
+        else:
+            intro = (
+                f"{FARM_CONTEXT} This analysis covers two separate modules: Post-Harvest Management (fruit, measured "
+                "in kg) and Sulur Inventory (planting material, counted in pieces). Never add, compare or convert "
+                "quantities across the two modules; treat them as separate operations."
+            )
+            post = {k: v for k, v in snapshot.items() if k not in ("sulur", "scope")}
+            data = (
+                f"Post-Harvest Management, last {snapshot['period_days']} days (kg):\n{json.dumps(post, indent=2)}\n\n"
+                f"Sulur Inventory (counts of {unit}):\n{json.dumps(snapshot['sulur'], indent=2)}"
+            )
+        return (
+            f"{intro}\n\n{data}\n\n"
+            "Give between 3 and 5 recommendations for the farm manager, most important first. "
+            "Each must be grounded in specific numbers from the summary. If a module or section has no records, "
+            "do not make recommendations about it. Use type 'sulur' only for Sulur Inventory recommendations. "
+            f"For each give: type ({', '.join(allowed)}), priority, a short title, a description of two sentences "
+            "at most, your confidence as a whole number from 0 to 100, the expected impact in a few words, "
+            "and a short action label for a button."
+        )
+
+    @staticmethod
+    def _post_harvest_prompt(snapshot: Dict) -> str:
+        return (
+            f"{FARM_CONTEXT}\n\n"
+            f"Here is a summary of the farm's operations for the last {snapshot['period_days']} days:\n"
+            f"{json.dumps(snapshot, indent=2)}\n\n"
+            "Give between 3 and 5 recommendations for the farm manager, most important first. "
+            "Each must be grounded in specific numbers from the summary. If a section has no records "
+            "(for example zero harvest batches), do not make recommendations about it. For each give: type "
+            "(harvest, waste, transport or schedule), priority, a short title, a description of two sentences "
+            "at most, your confidence as a whole number from 0 to 100, the expected impact in a few words, "
+            "and a short action label for a button."
+        )
+
+    @staticmethod
+    def build_scope_snapshot(db: Session, scope: str = "post_harvest") -> Dict:
+        """Data the agent is given for an analysis scope; each module stays in its own section"""
+        if scope == "sulur":
+            sulur = SulurInsightsService.build_snapshot(db)
+            return {"scope": "sulur", "period_days": sulur["period_days"], "date": sulur["date"], "sulur": sulur}
         snapshot = AIService.build_farm_snapshot(db)
+        snapshot["scope"] = scope
+        if scope == "all":
+            snapshot["sulur"] = SulurInsightsService.build_snapshot(db)
+        return snapshot
+
+    @staticmethod
+    def _scope_rules(snapshot: Dict, scope: str) -> List[Dict]:
+        if scope == "sulur":
+            return SulurInsightsService.rules(snapshot["sulur"])
+        recs = AIService._recommendation_rules(snapshot)
+        if scope == "all":
+            recs += SulurInsightsService.rules(snapshot["sulur"])
+        return recs
+
+    @staticmethod
+    def generate_recommendations(db: Session, user_id: int, scope: str = "post_harvest") -> AILog:
+        """Generate recommendations for an analysis scope and store them as an AI log"""
+        if scope not in SCOPE_PREDICTION_TYPE:
+            raise ValueError(f"Unknown scope: {scope}")
+        snapshot = AIService.build_scope_snapshot(db, scope)
+        # With no Sulur batches there is nothing to analyse; do not ask Gemini to make something up
+        nothing_to_analyse = scope == "sulur" and snapshot["sulur"]["batches"] == 0
 
         items, source, model = None, "rules", RULES_MODEL
-        if GeminiService.is_configured():
+        if GeminiService.is_configured() and not nothing_to_analyse:
             try:
-                items = AIService._recommendation_gemini(snapshot)
+                items = AIService._recommendation_gemini(snapshot, scope)
                 source, model = "gemini", GeminiService.model_label()
             except (GeminiError, AttributeError) as e:
                 logger.warning(f"Gemini recommendations failed, using rules: {e}")
         if items is None:
-            items = AIService._recommendation_rules(snapshot)
+            items = AIService._scope_rules(snapshot, scope)
 
         for index, item in enumerate(items, start=1):
             item["id"] = index
 
         log = AILogCreate(
             harvest_id=None,
-            prediction_type="recommendations",
-            input_data={"source": source, "items": items, "snapshot": snapshot},
-            prediction_result=f"{len(items)} recommendations generated",
-            confidence_score=round(sum(i["confidence"] for i in items) / len(items) / 100, 3),
+            prediction_type=SCOPE_PREDICTION_TYPE[scope],
+            input_data={"source": source, "scope": scope, "items": items, "snapshot": snapshot},
+            prediction_result=f"{len(items)} recommendation{'' if len(items) == 1 else 's'} generated",
+            confidence_score=round(sum(i["confidence"] for i in items) / len(items) / 100, 3) if items else None,
             model_version=model,
         )
         return AIService.create_ai_log(db, log, user_id)
 
     @staticmethod
-    def get_recommendations(db: Session, user_id: int, refresh: bool = False) -> Dict:
-        """Return the latest stored recommendations, generating them when missing or on refresh"""
+    def get_recommendations(db: Session, user_id: int, refresh: bool = False, scope: str = "post_harvest") -> Dict:
+        """Return the latest stored recommendations for a scope, generating them when missing or on refresh"""
+        if scope not in SCOPE_PREDICTION_TYPE:
+            raise ValueError(f"Unknown scope: {scope}")
         log = None
         if not refresh:
             log = db.query(AILog).filter(
-                AILog.prediction_type == "recommendations"
+                AILog.prediction_type == SCOPE_PREDICTION_TYPE[scope]
             ).order_by(desc(AILog.created_at), desc(AILog.id)).first()
         if log is None:
-            log = AIService.generate_recommendations(db, user_id)
+            log = AIService.generate_recommendations(db, user_id, scope)
 
         data = json.loads(log.input_data)
         return {
@@ -626,6 +708,9 @@ class AIService:
             "source": data.get("source", "rules"),
             "model_version": log.model_version,
             "generated_at": log.created_at,
+            "scope": scope,
+            # The farm summary the agent was given, so the page can show what it looked at
+            "snapshot": data.get("snapshot"),
         }
 
     # ── Metrics ───────────────────────────────────────────────────────────

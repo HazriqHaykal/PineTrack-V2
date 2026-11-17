@@ -6,9 +6,12 @@ Handles business logic for harvest operations
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from datetime import datetime, date
-from app.models import Harvest, User, QualityTarget
+from app.models import Harvest, User, QualityTarget, Transport, Waste
 from app.schemas import HarvestCreate, HarvestUpdate, QualityTargetUpdate
 from typing import List, Optional, Dict, Tuple
+from app.services.batch_service import BatchService
+from app.services.grading_service import SORTED_OUT_WASTE_TYPES, GradingService
+from app.services.yield_calc import compute_yield, farm_yield, kg
 
 VALID_HARVEST_STATUSES = ["pending", "graded", "processed", "rejected"]
 
@@ -42,7 +45,20 @@ class HarvestService:
 
         Returns:
             Created Harvest object
+
+        Raises:
+            ValueError: the grading breakdown does not reconcile with the harvested quantity
         """
+        quantities = None
+        sorted_out = kg(harvest_data.non_marketable_kg or 0)
+        reason = HarvestService._sorted_out_reason(harvest_data.non_marketable_reason)
+        if harvest_data.grades is not None:
+            quantities = GradingService.validate_breakdown(
+                harvest_data.quantity_kg, harvest_data.grades, harvest_data.non_marketable_kg
+            )
+        elif sorted_out > 0:
+            raise ValueError("Record the grade quantities together with the non-marketable quantity")
+
         harvest = Harvest(
             user_id=user_id,
             batch_number=HarvestService.generate_batch_number(db),
@@ -53,10 +69,18 @@ class HarvestService:
             ripeness_level=harvest_data.ripeness_level,
             harvest_status="pending",
             spoilage_kg=0,
-            rejected_kg=0,
+            rejected_kg=float(sorted_out),  # non-marketable fruit sorted out at harvest
             notes=harvest_data.notes
         )
+        if quantities is not None:
+            GradingService.apply_breakdown(harvest, quantities, GradingService.current_policy(db))
         db.add(harvest)
+        db.flush()  # assigns the id the creation event refers to
+        BatchService.log_harvest_created(db, harvest, user_id)
+        if quantities is not None:
+            BatchService.log_grading(db, None, harvest, user_id)
+        if sorted_out > 0:
+            HarvestService._log_sorted_out_waste(db, harvest, sorted_out, reason, user_id)
         db.commit()
         db.refresh(harvest)
         return harvest
@@ -101,7 +125,8 @@ class HarvestService:
     def update_harvest(
         db: Session, 
         harvest_id: int, 
-        harvest_data: HarvestUpdate
+        harvest_data: HarvestUpdate,
+        actor_id: Optional[int] = None
     ) -> Optional[Harvest]:
         """
         Update harvest record
@@ -110,15 +135,50 @@ class HarvestService:
             db: Database session
             harvest_id: Harvest ID to update
             harvest_data: Update data
+            actor_id: User making the change, recorded on the batch timeline
             
         Returns:
             Updated Harvest object or None if not found
+
+        Raises:
+            ValueError: the change would leave transport commitments without stock
         """
-        harvest = db.query(Harvest).filter(Harvest.id == harvest_id).first()
+        # Locked so a transport cannot be allocated against the old quantities meanwhile
+        harvest = BatchService.lock_batch(db, harvest_id)
         if not harvest:
             return None
 
-        if harvest_data.quality_grade is not None:
+        quantities = policy = grade_rows = None
+        rejected = harvest_data.rejected_kg
+        old_sorted_out = kg(harvest.rejected_at_sorting_kg or 0)
+        new_sorted_out = old_sorted_out
+        reason = HarvestService._sorted_out_reason(harvest_data.non_marketable_reason)
+        if harvest_data.grades is not None:
+            quantities = GradingService.validate_breakdown(
+                harvest.quantity_kg, harvest_data.grades, harvest_data.non_marketable_kg
+            )
+            policy = GradingService.current_policy(db)
+            grade_rows = GradingService.proposed_rows(quantities, policy)
+            new_sorted_out = kg(harvest_data.non_marketable_kg or 0)
+            if rejected is None:
+                if harvest.grading_basis == "grade_based":
+                    # Keep any rejection recorded after grading on top of the new sorting figure
+                    rejected = float(new_sorted_out + kg(harvest.rejected_after_grading_kg or 0))
+                else:
+                    # A rejection entered before grading is taken to be the same fruit as the sorted-out kg
+                    rejected = float(max(kg(harvest.rejected_kg), new_sorted_out))
+        elif harvest_data.non_marketable_kg is not None:
+            raise ValueError("Send the grade quantities together with the non-marketable quantity")
+
+        HarvestService._check_grade_based_update(harvest, harvest_data, grade_rows, rejected)
+        BatchService.check_harvest_change(
+            db, harvest, harvest_data.spoilage_kg, rejected, harvest_data.harvest_status, grade_rows
+        )
+        before = BatchService.harvest_snapshot(harvest)
+
+        if quantities is not None:
+            GradingService.apply_breakdown(harvest, quantities, policy)
+        elif harvest_data.quality_grade is not None:
             harvest.quality_grade = harvest_data.quality_grade
 
         if harvest_data.ripeness_level is not None:
@@ -130,17 +190,78 @@ class HarvestService:
         if harvest_data.spoilage_kg is not None:
             harvest.spoilage_kg = harvest_data.spoilage_kg
 
-        if harvest_data.rejected_kg is not None:
-            harvest.rejected_kg = harvest_data.rejected_kg
+        if rejected is not None:
+            harvest.rejected_kg = rejected
+
+        # Newly sorted-out fruit is logged in Waste Management; a reduction leaves
+        # existing waste records alone (the batch page flags the difference)
+        if new_sorted_out > old_sorted_out:
+            HarvestService._log_sorted_out_waste(db, harvest, new_sorted_out - old_sorted_out, reason, actor_id)
 
         if harvest_data.notes is not None:
             harvest.notes = harvest_data.notes
 
+        BatchService.log_harvest_changes(db, before, harvest, actor_id)
         harvest.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(harvest)
         return harvest
     
+    @staticmethod
+    def _sorted_out_reason(reason: Optional[str]) -> str:
+        value = (reason or "damaged").strip().lower()
+        if value not in SORTED_OUT_WASTE_TYPES:
+            raise ValueError(f"Non-marketable reason must be one of: {', '.join(SORTED_OUT_WASTE_TYPES)}")
+        return value
+
+    @staticmethod
+    def _log_sorted_out_waste(db: Session, harvest: Harvest, amount, reason: str, user_id: Optional[int]) -> None:
+        waste = GradingService.sorted_out_waste(harvest, amount, reason, user_id or harvest.user_id)
+        db.add(waste)
+        db.flush()
+        BatchService.log_waste_change(db, None, waste, user_id)
+
+    @staticmethod
+    def _check_grade_based_update(harvest: Harvest, data: HarvestUpdate, grade_rows, rejected_kg) -> None:
+        """
+        Rules for a batch that has (or is getting) a grading breakdown:
+          - the overall grade comes from the breakdown and cannot be set separately
+          - rejection includes the non-marketable kg sorted out at harvest
+          - spoilage and rejection after grading come out of the marketable
+            grades, so together they cannot exceed them
+
+        rejected_kg: the batch's proposed total rejection (None = unchanged)
+
+        Raises:
+            ValueError: with a message suitable for the user
+        """
+        rows = grade_rows if grade_rows is not None else (
+            [(g.grade, g.quantity_kg, g.is_marketable) for g in harvest.grades]
+            if harvest.grading_basis == "grade_based" else None
+        )
+        if rows is None:
+            return
+
+        if data.quality_grade is not None and grade_rows is None and data.quality_grade != harvest.quality_grade:
+            raise ValueError(
+                "This batch has a grading breakdown; change the grade quantities instead of the overall grade"
+            )
+        spoilage = kg(data.spoilage_kg if data.spoilage_kg is not None else harvest.spoilage_kg)
+        rejected = kg(rejected_kg if rejected_kg is not None else harvest.rejected_kg)
+        sorted_out = kg(harvest.quantity_kg) - sum((kg(q) for _, q, _ in rows), kg(0))
+        if rejected < sorted_out:
+            raise ValueError(
+                f"Rejected ({float(rejected):g} kg) cannot be less than the {float(sorted_out):g} kg "
+                f"non-marketable recorded at sorting"
+            )
+        y = compute_yield(harvest.quantity_kg, spoilage, rejected, rows)
+        after = rejected - sorted_out
+        if spoilage + after > y["graded_marketable"]:
+            raise ValueError(
+                f"Spoilage and rejection after grading ({float(spoilage + after):g} kg) cannot exceed the "
+                f"marketable graded quantity ({float(y['graded_marketable']):g} kg)"
+            )
+
     @staticmethod
     def delete_harvest(db: Session, harvest_id: int) -> bool:
         """
@@ -152,11 +273,24 @@ class HarvestService:
             
         Returns:
             True if deleted, False if not found
+
+        Raises:
+            ValueError: transports or waste records are still linked to the batch
         """
         harvest = db.query(Harvest).filter(Harvest.id == harvest_id).first()
         if not harvest:
             return False
-        
+
+        # Linked records would be left pointing at a missing batch
+        transports = db.query(Transport.id).filter(Transport.harvest_id == harvest_id).count()
+        waste = db.query(Waste.id).filter(Waste.harvest_id == harvest_id).count()
+        if transports or waste:
+            raise ValueError(
+                f"Batch {harvest.batch_number} has {transports} transport and {waste} waste record(s) "
+                "linked to it. Remove or relink them before deleting the batch"
+            )
+
+        # Its timeline events are removed with it
         db.delete(harvest)
         db.commit()
         return True
@@ -207,6 +341,7 @@ class HarvestService:
                 "spoilage_rate_percent": 0.0,
                 "rejection_rate_percent": 0.0,
                 "marketable_yield_percent": 0.0,
+                "grading": farm_yield([]),
             }
 
         today = date.today()
@@ -235,6 +370,8 @@ class HarvestService:
             "spoilage_rate_percent": round((total_spoilage / total_quantity) * 100, 2) if total_quantity else 0.0,
             "rejection_rate_percent": round((total_rejected / total_quantity) * 100, 2) if total_quantity else 0.0,
             "marketable_yield_percent": round((total_marketable / total_quantity) * 100, 2) if total_quantity else 0.0,
+            # Quantity-weighted yield over grade-based batches only; legacy and ungraded batches are counted apart
+            "grading": farm_yield([h.yield_breakdown for h in harvests]),
         }
     
     @staticmethod
@@ -290,6 +427,10 @@ class HarvestService:
         """
         if harvest_data.harvest_status and harvest_data.harvest_status not in VALID_HARVEST_STATUSES:
             return False, f"Harvest status must be one of: {', '.join(VALID_HARVEST_STATUSES)}"
+
+        # Grade-based batches are checked against their breakdown in update_harvest
+        if harvest_data.grades is not None or harvest.grading_basis == "grade_based":
+            return True, None
 
         spoilage = harvest_data.spoilage_kg if harvest_data.spoilage_kg is not None else harvest.spoilage_kg
         rejected = harvest_data.rejected_kg if harvest_data.rejected_kg is not None else harvest.rejected_kg

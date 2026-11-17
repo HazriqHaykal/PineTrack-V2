@@ -5,6 +5,7 @@ import {
   CheckCircle2, Trophy, Zap, Leaf, PackageCheck,
 } from 'lucide-react'
 import WorkerLayout from '../../components/layout/WorkerLayout'
+import { ErrorNote, ListHeading, WorkerPage, cardCls } from '../../components/worker/ui'
 import { authService } from '../../services/auth'
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { UserStats } from '../../types'
@@ -45,10 +46,10 @@ export default function Profile() {
   }
 
   const statCards: Stat[] = [
-    { label: 'Harvests',   value: stats?.harvest_count ?? '—',   icon: <Sprout  size={16} />, color: 'text-green-600 bg-green-50'  },
-    { label: 'Deliveries', value: stats?.transport_count ?? '—', icon: <Truck   size={16} />, color: 'text-blue-600 bg-blue-50'    },
-    { label: 'Waste Logs', value: stats?.waste_count ?? '—',     icon: <Recycle size={16} />, color: 'text-orange-500 bg-orange-50'},
-    { label: 'Tasks Done', value: stats?.tasks_completed ?? '—', icon: <CheckCircle2 size={16} />, color: 'text-purple-600 bg-purple-50'},
+    { label: 'Harvests',   value: stats?.harvest_count ?? '—',   icon: <Sprout  size={16} strokeWidth={1.75} />, color: 'text-green-800 bg-green-50' },
+    { label: 'Deliveries', value: stats?.transport_count ?? '—', icon: <Truck   size={16} strokeWidth={1.75} />, color: 'text-green-800 bg-green-50' },
+    { label: 'Waste Logs', value: stats?.waste_count ?? '—',     icon: <Recycle size={16} strokeWidth={1.75} />, color: 'text-green-800 bg-green-50' },
+    { label: 'Tasks Done', value: stats?.tasks_completed ?? '—', icon: <CheckCircle2 size={16} strokeWidth={1.75} />, color: 'text-green-800 bg-green-50' },
   ]
 
   // Earned from the worker's real activity
@@ -86,13 +87,13 @@ export default function Profile() {
 
   return (
     <WorkerLayout>
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
+      <WorkerPage title="Profile">
 
         {/* Profile card */}
-        <div className="bg-gradient-to-br from-green-600 to-emerald-500 rounded-2xl p-6 text-white shadow-lg shadow-green-200">
+        <div className="bg-green-800 rounded-xl p-5 text-white">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
-              <UserCircle size={36} className="text-white" />
+            <div className="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center shrink-0">
+              <UserCircle size={30} strokeWidth={1.5} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
               {editing ? (
@@ -134,17 +135,15 @@ export default function Profile() {
           </div>
         </div>
 
-        {error && (
-          <p className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-xs">{error}</p>
-        )}
+        {error && <ErrorNote>{error}</ErrorNote>}
 
         {/* Stats grid */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">My Statistics</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <ListHeading>My Statistics</ListHeading>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {statCards.map(s => (
-              <div key={s.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.color}`}>
+              <div key={s.label} className={`${cardCls} p-3.5 flex items-center gap-3`}>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${s.color}`}>
                   {s.icon}
                 </div>
                 <div>
@@ -158,20 +157,21 @@ export default function Profile() {
 
         {/* Achievements */}
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Award size={14} className="text-amber-500" />
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Achievements</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+          <ListHeading>
+            <span className="inline-flex items-center gap-1.5"><Award size={15} strokeWidth={1.75} className="text-gray-500" /> Achievements</span>
+          </ListHeading>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {achievements.map(a => (
               <div
                 key={a.label}
-                className={`rounded-2xl border p-3.5 ${
-                  a.earned ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-100 opacity-60'
+                className={`rounded-xl border p-3.5 ${
+                  a.earned ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
                 }`}
               >
-                <div className={`mb-1.5 ${a.earned ? 'text-amber-500' : 'text-gray-400'}`}>{a.icon}</div>
-                <p className={`text-xs font-bold ${a.earned ? 'text-amber-800' : 'text-gray-500'}`}>{a.label}</p>
+                <div className={`mb-1.5 ${a.earned ? 'text-green-800' : 'text-gray-400'}`}>{a.icon}</div>
+                <p className={`text-xs font-semibold ${a.earned ? 'text-green-900' : 'text-gray-600'}`}>
+                  {a.label}{!a.earned && <span className="font-normal text-gray-400"> · not yet</span>}
+                </p>
                 <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">{a.desc}</p>
               </div>
             ))}
@@ -179,15 +179,15 @@ export default function Profile() {
         </div>
 
         {/* Quick links */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className={`${cardCls} overflow-hidden`}>
           {[
-            { icon: <Calendar size={16} className="text-purple-600" />, label: 'My Schedule', path: '/my-schedule' },
-            { icon: <Sprout size={16} className="text-green-600" />,    label: 'My Harvest & Waste Records', path: '/my-records' },
+            { icon: <Calendar size={16} strokeWidth={1.75} className="text-gray-600" />, label: 'My Schedule', path: '/my-schedule' },
+            { icon: <Sprout size={16} strokeWidth={1.75} className="text-gray-600" />,   label: 'My Harvest & Waste Records', path: '/my-records' },
           ].map(link => (
             <button
               key={link.path}
               onClick={() => navigate(link.path)}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
             >
               <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">{link.icon}</div>
               <span className="flex-1 text-sm font-medium text-gray-700 text-left">{link.label}</span>
@@ -199,13 +199,13 @@ export default function Profile() {
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-50 text-red-600 rounded-2xl font-semibold text-sm hover:bg-red-100 transition-colors border border-red-100"
+          className="w-full flex items-center justify-center gap-2 py-3 bg-white text-red-700 rounded-lg font-semibold text-sm hover:bg-red-50 transition-colors border border-red-200"
         >
-          <LogOut size={16} />
+          <LogOut size={16} strokeWidth={1.75} />
           Sign Out
         </button>
 
-      </div>
+      </WorkerPage>
     </WorkerLayout>
   )
 }

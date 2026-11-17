@@ -16,18 +16,21 @@ from sqlalchemy import func
 from app.config import get_db
 from app import models, schemas
 
-# Graceful RBAC import that matches Hazriq's middleware/rbac.py or dependencies
-try:
-    from app.middleware.rbac import get_current_user
-except ImportError:
-    try:
-        from app.routers.auth import get_current_user
-    except ImportError:
-        def get_current_user(db: Session = Depends(get_db)):
-            user = db.query(models.User).first()
-            if not user:
-                raise HTTPException(status_code=401, detail="No user found")
-            return user
+from app.middleware.rbac import get_current_user as _token_user
+
+
+def get_current_user(
+    token_user: dict = Depends(_token_user),
+    db: Session = Depends(get_db),
+) -> models.User:
+    """
+    The shared JWT check returns {"user_id", "role"}; this module's handlers use the
+    User row (current_user.id, .full_name), so resolve the verified token to that row.
+    """
+    user = db.query(models.User).filter(models.User.id == token_user.get("user_id")).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
 
 router = APIRouter()
 
@@ -315,7 +318,9 @@ def get_sulur_dashboard_summary(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    ensure_sample_sulur_data(db, current_user.id)
+    # Sample records are no longer inserted automatically (no demo data in the shared DB);
+    # ensure_sample_sulur_data() remains available for an explicit seed script.
+    ensure_default_configs(db)
     configs = {c.variety: c for c in ensure_default_configs(db)}
     batches = db.query(models.SulurBatch).order_by(models.SulurBatch.created_at.desc()).all()
 
@@ -400,7 +405,9 @@ def list_sulur_batches(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    ensure_sample_sulur_data(db, current_user.id)
+    # Sample records are no longer inserted automatically (no demo data in the shared DB);
+    # ensure_sample_sulur_data() remains available for an explicit seed script.
+    ensure_default_configs(db)
     query = db.query(models.SulurBatch)
     if variety:
         query = query.filter(models.SulurBatch.variety == variety)

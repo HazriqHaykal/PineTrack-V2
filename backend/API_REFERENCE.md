@@ -81,15 +81,36 @@ Create new harvest record
 {
   "field_name": "Field A",
   "harvest_date": "2026-05-20",
-  "quantity_kg": 150.5,
-  "quality_grade": "A",
+  "quantity_kg": 200,
+  "grades": {"A": 100, "B": 60, "C": 25, "D": 15},
+  "ripeness_level": 7.5,
   "notes": "Good yield"
 }
 ```
 
-**Response (201):** Harvest object with ID
+**Response (201):** Harvest object with ID, including the calculated yield:
+`grading_basis` (`grade_based`, `legacy` or `ungraded`), `grade_quantities`, `marketable_grades`,
+`graded_marketable_kg`, `non_marketable_kg`, `marketable_yield_kg`, `marketable_yield_percent`,
+`grading_yield_percent`, `grading_policy_version`.
 
-**Quality Grades:** A, B, C, D (optional, defaults to "ungraded")
+**Grading breakdown (FR08):** kg per grade, entered by the farmer. Grades left out count as 0 kg.
+The grades must add up to `quantity_kg` exactly (0.01 kg precision); none may be negative or exceed it.
+Leave `grades` out for a batch that has not been graded yet. A batch with grades is saved as `graded`,
+and its `quality_grade` becomes the single grade letter or `"mixed"`.
+
+**Non-marketable fruit:** `non_marketable_kg` (with `grades`) is fruit sorted out as unsellable at harvest,
+and `non_marketable_reason` is one of `damaged`, `rotten`, `overripe`, `other`. Then
+A + B + C + D + non_marketable_kg = quantity_kg. It is stored as the batch's rejection (`rejected_at_sorting_kg`)
+and a linked waste record is created for it. That record classifies the loss and is not subtracted again.
+`rejected_kg` is the total rejection: non-marketable at sorting + `rejected_after_grading_kg`.
+
+**Legacy:** `quality_grade` (A, B, C, D) without `grades` still records one overall grade.
+
+**Marketable quantity (FR09)**, calculated only in `app/services/yield_calc.py`:
+- Grade-based: marketable grades − spoilage − rejected. Every grade (D included) is marketable by
+  default; spoiled and rejected fruit comes out of the graded quantities, so nothing is counted twice.
+  A grade the admin excludes in the policy is left out of marketable stock as well.
+- Legacy / ungraded: harvested − spoilage − rejected.
 
 ---
 
@@ -127,12 +148,18 @@ Update harvest record
 **Request:**
 ```json
 {
-  "quality_grade": "A",
+  "grades": {"A": 110, "B": 50, "C": 25, "D": 15},
+  "spoilage_kg": 5,
   "notes": "Updated notes"
 }
 ```
 
 **Response (200):** Updated harvest object
+
+**Grade-based batches:** `quality_grade` comes from the grades and cannot be set separately (400).
+Spoilage plus rejection cannot exceed the marketable graded quantity. A change that would leave less
+marketable stock than is reserved or delivered on transports is refused (400); transports are never
+changed. Re-grading applies the current marketability policy and is logged as a `grading_updated` event.
 
 ---
 
@@ -140,6 +167,8 @@ Update harvest record
 Delete harvest record (admin only)
 
 **Response (204):** No content
+
+**Response (409):** transports or waste records are still linked to the batch
 
 ---
 
@@ -160,9 +189,22 @@ Get harvest statistics
     "A": 2,
     "B": 2,
     "ungraded": 1
+  },
+  "grading": {
+    "graded_batches": 3,
+    "harvested_kg": 600,
+    "marketable_kg": 540,
+    "marketable_yield_percent": 90.0,
+    "grade_kg": {"A": 300, "B": 180, "C": 60, "D": 60},
+    "legacy_batches": 1,
+    "ungraded_batches": 1
   }
 }
 ```
+
+`grading` is the farm-wide yield, weighted by quantity: sum(marketable kg) / sum(harvested kg) x 100,
+over grade-based batches only. Legacy and ungraded batches are counted separately, not averaged in.
+The same block appears in `/api/analytics/overview` as `grading`, with a monthly `yield_trend`.
 
 ---
 
@@ -180,7 +222,123 @@ Get all harvests from specific field
 
 ---
 
+### GET /harvest/policy/marketability
+Current marketability policy (any signed-in user; the harvest form uses it for the live preview)
+
+```json
+{
+  "version": 1,
+  "marketable_grades": ["A", "B", "C", "D"],
+  "non_marketable_grades": [],
+  "note": "Initial default ...",
+  "created_at": "...",
+  "created_by": null,
+  "is_current": true,
+  "explanation": "..."
+}
+```
+
+### PUT /harvest/policy/marketability
+Save a new policy version (admin only). Batches already graded keep the version they were graded under.
+
+```json
+{ "marketable_grades": ["A", "B"], "note": "Grade C goes to processing" }
+```
+
+### GET /harvest/policy/marketability/history
+Every policy version, newest first (admin only)
+
+---
+
+### GET /harvest/lifecycle/overview
+Lifecycle status and available quantity for every batch the user can see (workers: their own)
+
+**Response (200):**
+```json
+{ "items": [ { "harvest_id": 6, "lifecycle_status": "fully_allocated", "lifecycle_label": "Fully Allocated",
+               "marketable_kg": 180, "reserved_kg": 180, "delivered_kg": 0, "available_kg": 0 } ] }
+```
+
+---
+
+### GET /harvest/{id}/details
+Batch overview, lifecycle, quantity reconciliation, linked transports and waste.
+Workers may open only batches they recorded (403 otherwise). `hidden_count` is the number of linked records they cannot open.
+
+**Response (200):**
+```json
+{
+  "batch": { "...": "same fields as GET /harvest/{id}" },
+  "created_by": "Hazriq",
+  "lifecycle": { "code": "partially_allocated", "label": "Partially Allocated", "reason": "100 kg reserved, 50 kg still available." },
+  "quantities": { "...": "see /reconciliation" },
+  "transports": { "items": [], "hidden_count": 0 },
+  "waste": { "items": [], "hidden_count": 0 },
+  "history_complete": true,
+  "history_note": null
+}
+```
+
+---
+
+### GET /harvest/{id}/lifecycle
+`{ "code", "label", "reason" }` only.
+
+---
+
+### GET /harvest/{id}/reconciliation
+Quantities in kg, calculated by the backend.
+
+**Response (200):**
+```json
+{
+  "unit": "kg", "harvested_kg": 200, "spoilage_kg": 5, "rejected_kg": 5, "marketable_kg": 190,
+  "pending_kg": 100, "in_transit_kg": 0, "reserved_kg": 100, "delivered_kg": 40, "dispatched_kg": 40,
+  "available_kg": 50, "withheld_kg": 0, "over_allocated_kg": 0, "unquantified_transports": 0,
+  "waste_recorded_kg": 10, "recorded_losses_kg": 10, "unclassified_losses_kg": 0, "waste_exceeds_losses_kg": 0,
+  "waste_policy": "Waste records classify the spoilage and rejection already recorded on this batch. ..."
+}
+```
+
+---
+
+### GET /harvest/{id}/events
+Traceability timeline, newest first.
+
+**Query Parameters:**
+- `event_type`: string (optional), e.g. `transport_delivered`
+- `skip`, `limit` (default 200, max 500)
+
+**Response (200):**
+```json
+{
+  "total": 1, "skip": 0, "limit": 200,
+  "items": [ { "id": 7, "batch_id": 6, "event_type": "transport_delivered", "actor_name": "Admin",
+               "actor_user_id": 1, "related_module": "transport", "related_record_id": 4,
+               "description": "150 kg confirmed delivered to Kuala Lumpur Central Market.",
+               "metadata": { "changes": { "status": { "from": "in_transit", "to": "delivered" } } },
+               "created_at": "2026-11-09T08:30:00Z" } ],
+  "event_types": ["harvest_created", "transport_delivered"],
+  "history_complete": true,
+  "history_note": null
+}
+```
+Workers see other workers as "Another worker", and `actor_user_id` is omitted for them.
+
+Event types: `harvest_created`, `quality_updated`, `status_changed`, `spoilage_changed`, `rejection_changed`, `harvest_updated`,
+`transport_allocated`, `allocation_changed`, `transport_unlinked`, `transport_dispatched`, `transport_delivered`,
+`transport_cancelled`, `transport_status_changed`, `transport_removed`, `waste_recorded`, `waste_updated`, `waste_unlinked`, `waste_removed`.
+
+---
+
+### GET /harvest/{id}/transports, GET /harvest/{id}/waste
+Linked records only: `{ "items": [...], "hidden_count": 0 }`.
+
+---
+
 ## 🚚 Transport Management (`/api/transport`)
+
+A transport with a `harvest_id` reserves its `cargo_weight_kg` from that batch. Creating or editing one returns **400** if the batch is rejected, the cargo weight is missing, or the weight exceeds what is available (e.g. `Only 50 kg of batch PT-2026-014 is available; cannot allocate 60 kg`). A delivered batch transport cannot change its batch or weight, and cannot be cancelled (400) or deleted (409).
 
 ### POST /transport/
 Create transport job
@@ -589,6 +747,68 @@ Get AI model performance metrics
   }
 }
 ```
+
+---
+
+## 🧮 Harvest & Profit Planner (`/api/planner`, admin only)
+
+Deterministic planning estimates (FR12). Nothing is stored and no farm records change.
+Calculated only in `app/services/planner_service.py`; no AI is used.
+
+### POST /planner/calculate
+```json
+{
+  "mode": "target_profit",
+  "target_profit": 10000,
+  "selling_price_per_kg": 3.5,
+  "variable_cost_per_kg": 1.5,
+  "fixed_cost": 2000,
+  "marketable_yield_percent": 80,
+  "productivity_kg_per_ha": 40000
+}
+```
+For `"mode": "forecast"`, send exactly one of `planned_harvest_kg` or `land_area_ha` instead of `target_profit`.
+The prices and costs above are example inputs only, not market rates.
+
+**Response (200):** `harvest_kg`, `marketable_kg`, `land_ha`, `revenue`, `variable_cost`, `fixed_cost`,
+`total_cost`, `profit`, `profit_margin_percent` (null when revenue is 0), `break_even_marketable_kg`,
+`assumptions`, `steps` (each formula with the figures used), `notes`, `disclaimer`, `calculation_version`.
+
+Formulas (variable cost is per **marketable** kg):
+- Marketable kg = Harvest kg × yield rate; Revenue = Marketable kg × price
+- Total cost = Fixed + Marketable kg × variable cost; Profit = Revenue − Total cost
+- Required marketable kg = (Target + Fixed) / (Price − Variable cost); Required harvest = Required marketable / yield rate
+- Land (ha) = Harvest kg / productivity; Margin % = Profit / Revenue × 100
+
+Decimal arithmetic; money and percentages rounded to 0.01 (half up), kg to 0.01, ha to 0.001.
+In target mode, quantities and land are rounded **up** so the target is still met.
+
+**Errors:** 422 for missing or out-of-range inputs; 400 when the selling price is not above the
+variable cost in target-profit mode (no harvest quantity can reach the target).
+
+### POST /planner/compare
+`{"scenarios": [{"label": "Conservative", "inputs": {...}}, ...]}` (1–5). Each item returns
+`result`, or `error` if that scenario's target cannot be reached.
+
+### POST /planner/what-if
+Body: the same `PlannerInput` as `/planner/calculate`. Returns Conservative, Expected and Optimistic
+versions of that plan (`scenarios`, each with the `inputs` used and a `result` or `error`), plus the
+adjustment `rules`. Expected is the input unchanged. The others are fixed, hypothetical adjustments, not predictions:
+
+| Assumption | Conservative | Optimistic |
+|---|---|---|
+| Selling price | −10% | +10% |
+| Variable cost per marketable kg | +10% | −10% |
+| Fixed cost | +10% | −10% |
+| Marketable yield | −5 percentage points (min 1%) | +5 percentage points (max 100%) |
+| Productivity | −10% | +10% |
+
+The target profit, planned harvest or land area is the same in every scenario.
+
+### GET /planner/historical-yield?months=12
+Quantity-weighted marketable yield (total marketable kg / total harvested kg) over batches in the
+period with recorded grade quantities. Legacy and ungraded batches are excluded and counted.
+`available` is false (and the yield null) when fewer than 3 graded batches exist.
 
 ---
 

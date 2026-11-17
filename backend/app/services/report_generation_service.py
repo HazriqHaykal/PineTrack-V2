@@ -10,6 +10,7 @@ from typing import Dict, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models import Harvest, Transport, Waste, User
+from app.services.yield_calc import farm_yield
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -99,7 +100,7 @@ class ReportGenerationService:
         
         for h in harvests:
             grade = h.quality_grade or "ungraded"
-            quality_dist[grade] = quality_dist.get(grade, 0) + 1
+            quality_dist[grade] = quality_dist.get(grade, 0) + 1  # batches by overall grade label
             total_kg += h.quantity_kg
         
         return {
@@ -228,6 +229,8 @@ class ReportGenerationService:
         total_kg = stats["total_quantity_kg"]
         spoilage = round(sum(h.spoilage_kg or 0 for h in harvests), 2)
         rejected = round(sum(h.rejected_kg or 0 for h in harvests), 2)
+        marketable = round(sum(h.marketable_yield_kg for h in harvests), 2)
+        grading = farm_yield([h.yield_breakdown for h in harvests])
 
         rows = [
             ["Total Harvests", str(stats['total_harvests'])],
@@ -235,10 +238,23 @@ class ReportGenerationService:
             ["Average per Harvest", f"{stats['average_quantity']} kg"],
             ["Spoilage", f"{spoilage} kg"],
             ["Rejected", f"{rejected} kg"],
-            ["Marketable Yield", f"{round(total_kg - spoilage - rejected, 2)} kg"],
+            ["Marketable Quantity (all batches)", f"{marketable} kg"],
         ]
+        if grading["graded_batches"]:
+            rows.append([
+                "Marketable Yield (grade-based, weighted)",
+                f"{grading['marketable_yield_percent']}% of {grading['harvested_kg']:g} kg "
+                f"({grading['graded_batches']} batch(es))",
+            ])
+            for g, amount in grading["grade_kg"].items():
+                rows.append([f"Grade {g} quantity", f"{amount:g} kg ({grading['grade_percent'][g]}%)"])
+        excluded = grading["legacy_batches"] + grading["ungraded_batches"]
+        if excluded:
+            rows.append(["Excluded from graded yield", f"{grading['legacy_batches']} legacy, "
+                                                       f"{grading['ungraded_batches']} ungraded batch(es)"])
         for grade, count in sorted(stats['quality_distribution'].items(), key=lambda kv: str(kv[0])):
-            rows.append([f"Grade {grade}", str(count)])
+            label = "Mixed grades" if grade == "mixed" else ("Ungraded" if grade == "ungraded" else f"Grade {grade}")
+            rows.append([f"Batches: {label}", str(count)])
 
         elements = [
             Paragraph("Harvest Management", styles['heading']),

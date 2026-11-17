@@ -5,6 +5,8 @@ import { authService } from './services/auth'
 // Auth
 import LoginPage    from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import BatchDetails from './pages/BatchDetails'
+import TransportDetails from './pages/TransportDetails'
 
 // Admin pages
 import AdminDashboard  from './pages/admin/AdminDashboard'
@@ -17,7 +19,7 @@ import TransportPage   from './pages/admin/Transport'
 import SchedulePage    from './pages/admin/Schedule'
 import WastePage       from './pages/admin/Waste'
 import AnalyticsPage   from './pages/admin/Analytics'
-import AIPage          from './pages/admin/AIPage'
+import ProfitPlanner   from './pages/admin/ProfitPlanner'
 
 // Worker pages
 import WorkerDashboard  from './pages/worker/WorkerDashboard'
@@ -28,11 +30,6 @@ import MySchedule       from './pages/worker/MySchedule'
 import Profile          from './pages/worker/Profile'
 import MyRecords        from './pages/worker/MyRecords'
 import SulurManagement from './pages/admin/SulurManagement'
-
-
-
-
-
 
 // ─── Route guards ──────────────────────────────────────────────────────────────
 
@@ -77,33 +74,15 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/admin/sulur" element={<SulurManagement />} />
-        <Route path="/admin/sulur/*" element={<SulurManagement />} />
-        <Route path="/worker/sulur" element={<SulurManagement />} />
-        <Route path="/worker/sulur/*" element={<SulurManagement />} />
-        <Route path="/sulur" element={<SulurManagement />} />
-        <Route path="/sulur/*" element={<SulurManagement />} />
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+        {/* ── Sulur Inventory module (same URLs as before; now behind the route guards) ── */}
+        <Route path="/admin/sulur"   element={<AdminRoute><SulurManagement /></AdminRoute>} />
+        <Route path="/admin/sulur/*" element={<AdminRoute><SulurManagement /></AdminRoute>} />
+        {/* Picks the admin or worker layout itself; the API authorises every request */}
+        <Route path="/worker/sulur"   element={<ProtectedRoute><SulurManagement /></ProtectedRoute>} />
+        <Route path="/worker/sulur/*" element={<ProtectedRoute><SulurManagement /></ProtectedRoute>} />
+        <Route path="/sulur"   element={<ProtectedRoute><SulurManagement /></ProtectedRoute>} />
+        <Route path="/sulur/*" element={<ProtectedRoute><SulurManagement /></ProtectedRoute>} />
+
         {/* Public */}
         <Route path="/login"    element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -114,11 +93,17 @@ function App() {
         {/* ── Admin routes ── */}
         <Route path="/dashboard"  element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         <Route path="/harvest"    element={<AdminRoute><HarvestPage /></AdminRoute>} />
+        {/* Admins see any batch, workers their own; the backend enforces this */}
+        <Route path="/harvest/:batchId" element={<ProtectedRoute><BatchDetails /></ProtectedRoute>} />
         <Route path="/transport"  element={<AdminRoute><TransportPage /></AdminRoute>} />
+        {/* Admins and the transport's own creator/driver; the API enforces which */}
+        <Route path="/transport/:transportId" element={<ProtectedRoute><TransportDetails /></ProtectedRoute>} />
         <Route path="/schedule"   element={<AdminRoute><SchedulePage /></AdminRoute>} />
         <Route path="/waste"      element={<AdminRoute><WastePage /></AdminRoute>} />
         <Route path="/analytics"  element={<AdminRoute><AnalyticsPage /></AdminRoute>} />
-        <Route path="/ai"         element={<AdminRoute><AIPage /></AdminRoute>} />
+        <Route path="/profit-planner" element={<AdminRoute><ProfitPlanner /></AdminRoute>} />
+        {/* The former Ask page now lives in the agent's Ask tab */}
+        <Route path="/ai"         element={<Navigate to="/admin/ai-insights?tab=ask" replace />} />
 
         <Route path="/admin/ai-insights" element={<AdminRoute><AIInsights /></AdminRoute>} />
         <Route path="/admin/reports"     element={<AdminRoute><Reports /></AdminRoute>} />
