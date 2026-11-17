@@ -33,6 +33,7 @@ import SulurManagement from './pages/admin/SulurManagement'
 
 
 
+
 // ─── Route guards ──────────────────────────────────────────────────────────────
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -82,6 +83,12 @@ function App() {
         <Route path="/worker/sulur/*" element={<SulurManagement />} />
         <Route path="/sulur" element={<SulurManagement />} />
         <Route path="/sulur/*" element={<SulurManagement />} />
+        
+        
+        
+        
+        
+        
         
         
         
