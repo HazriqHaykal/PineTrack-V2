@@ -5,6 +5,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+import { tr } from '../../i18n'
 /**
  * Admin Portal navigation. Routes are the existing ones; the hierarchy here is
  * presentation only. Visibility is a convenience: every page is still guarded
@@ -34,56 +35,62 @@ export interface NavGroup {
 export type NavEntry = ({ kind: 'link' } & NavLink) | ({ kind: 'group' } & NavGroup)
 
 export interface NavSection {
-  label: string
+  /** Heading above the entries; omitted for the top-level Dashboard link */
+  label?: string
   entries: NavEntry[]
 }
 
 export const ADMIN_NAV: NavSection[] = [
   {
-    label: 'Operations',
+    // Farm-wide overview of both modules, so it sits outside either module group
+    entries: [
+      { kind: 'link', label: tr("Dashboard"), icon: LayoutDashboard, path: '/dashboard', roles: ['admin'] },
+    ],
+  },
+  {
+    label: tr("Operations"),
     entries: [
       {
         kind: 'group',
         id: 'sulur',
-        label: 'Sulur Inventory',
+        label: tr("Sulur Inventory"),
         icon: Layers,
         roles: ['admin'],
         children: [
-          { label: 'Stock & Batches',   icon: Package,        path: '/admin/sulur/stock', alsoActiveOn: ['/admin/sulur'] },
-          { label: 'Movement History',  icon: ArrowRightLeft, path: '/admin/sulur/movements' },
-          { label: 'Profit Calculator', icon: Calculator,     path: '/admin/sulur/planner' },
+          { label: tr("Stock & Batches"),   icon: Package,        path: '/admin/sulur/stock', alsoActiveOn: ['/admin/sulur'] },
+          { label: tr("Movement History"),  icon: ArrowRightLeft, path: '/admin/sulur/movements' },
+          { label: tr("Profit Calculator"), icon: Calculator,     path: '/admin/sulur/planner' },
         ],
       },
       {
         kind: 'group',
         id: 'post-harvest',
-        label: 'Post-Harvest Management',
+        label: tr("Post-Harvest Management"),
         icon: Warehouse,
         roles: ['admin'],
         children: [
-          { label: 'Dashboard',                icon: LayoutDashboard, path: '/dashboard' },
-          { label: 'Harvest',                  icon: Sprout,          path: '/harvest' },
-          { label: 'Transport',                icon: Truck,           path: '/transport' },
-          { label: 'Scheduling',               icon: Calendar,        path: '/schedule' },
-          { label: 'Waste Management',         icon: Recycle,         path: '/waste' },
-          { label: 'Harvest & Profit Planner', icon: Calculator,      path: '/profit-planner' },
+          { label: tr("Harvest"),                  icon: Sprout,          path: '/harvest' },
+          { label: tr("Transport"),                icon: Truck,           path: '/transport' },
+          { label: tr("Scheduling"),               icon: Calendar,        path: '/schedule' },
+          { label: tr("Waste Management"),         icon: Recycle,         path: '/waste' },
+          { label: tr("Harvest & Profit Planner"), icon: Calculator,      path: '/profit-planner' },
         ],
       },
     ],
   },
   {
-    label: 'Shared Intelligence',
+    label: tr("Shared Intelligence"),
     entries: [
-      { kind: 'link', label: 'PineTrack Agent', icon: Lightbulb, path: '/admin/ai-insights', roles: ['admin'] },
-      { kind: 'link', label: 'Analytics',       icon: BarChart3, path: '/analytics',         roles: ['admin'] },
+      { kind: 'link', label: tr("PineTrack Agent"), icon: Lightbulb, path: '/admin/ai-insights', roles: ['admin'] },
+      { kind: 'link', label: tr("Analytics"),       icon: BarChart3, path: '/analytics',         roles: ['admin'] },
     ],
   },
   {
-    label: 'Administration',
+    label: tr("Administration"),
     entries: [
-      { kind: 'link', label: 'Reports',  icon: FileText, path: '/admin/reports',  roles: ['admin'] },
-      { kind: 'link', label: 'Users',    icon: Users,    path: '/admin/users',    roles: ['admin'] },
-      { kind: 'link', label: 'Settings', icon: Settings, path: '/admin/settings', roles: ['admin'] },
+      { kind: 'link', label: tr("Reports"),  icon: FileText, path: '/admin/reports',  roles: ['admin'] },
+      { kind: 'link', label: tr("Users"),    icon: Users,    path: '/admin/users',    roles: ['admin'] },
+      { kind: 'link', label: tr("Settings"), icon: Settings, path: '/admin/settings', roles: ['admin'] },
     ],
   },
 ]

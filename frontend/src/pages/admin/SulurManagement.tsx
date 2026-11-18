@@ -1,13 +1,79 @@
+import { tr, trEnum } from '../../i18n'
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Package, PlusCircle, ArrowRightLeft, Calculator, ShieldCheck,
-  Sprout, TrendingUp, AlertTriangle, Download, Search, X, CheckCircle2,
-  SlidersHorizontal, Droplets,ClipboardCheck, Wrench
+  Package, Plus, ArrowRightLeft, Calculator, Sprout, AlertTriangle, Download, Search,
+  CheckCircle2, SlidersHorizontal, Droplets, ClipboardCheck, Wrench
 } from 'lucide-react';
-import AdminLayout from '../../components/layout/AdminLayout';
+import AdminLayout, { AdminPageHeader } from '../../components/layout/AdminLayout';
 import WorkerLayout from '../../components/layout/WorkerLayout';
+import { Dialog, btnPrimary, btnSecondary } from '../../components/ui/Dialog';
+import AppSelect from '../../components/ui/AppSelect';
+import {
+  ICON_STROKE, Segmented, StatTile, WorkerPage, cardCls, inputCls, labelCls, primaryBtn, secondaryBtn,
+} from '../../components/worker/ui';
 import { authService } from '../../services/auth';
+
+const VARIETIES = ['MD2', 'Moris', 'Josapine', 'N36'] as const;
+
+/** Same badge shape as LifecycleBadge; colours match the Sulur analytics charts */
+const MOVE_BADGE: Record<string, string> = {
+  stock_in: 'bg-green-50 text-green-800 ring-green-200',
+  plant:    'bg-blue-50 text-blue-800 ring-blue-200',
+  reserve:  'bg-amber-50 text-amber-800 ring-amber-200',
+  sell:     'bg-violet-50 text-violet-800 ring-violet-200',
+  damage:   'bg-red-50 text-red-800 ring-red-200',
+};
+const badgeBase = 'inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-0.5 rounded-md text-xs font-medium ring-1 ring-inset';
+
+function MoveBadge({ type }: { type: string }) {
+  return (
+    <span className={`${badgeBase} ${MOVE_BADGE[type] ?? 'bg-gray-100 text-gray-700 ring-gray-200'}`}>
+      {trEnum(type).replace(/^\w/, (c) => c.toUpperCase())}
+    </span>
+  );
+}
+
+type Tone = 'good' | 'bad' | 'info' | 'neutral';
+const TONE: Record<Tone, string> = {
+  good:    'bg-green-50 border-green-200 text-green-900',
+  bad:     'bg-red-50 border-red-200 text-red-900',
+  info:    'bg-blue-50 border-blue-200 text-blue-900',
+  neutral: 'bg-gray-50 border-gray-200 text-gray-700',
+};
+
+function ResultCard({ className, label, value, unit, valueClass = 'text-gray-900', note, callout, tone = 'neutral', icon }: {
+  className: string; label: string; value: React.ReactNode; unit?: string; valueClass?: string
+  note: React.ReactNode; callout: React.ReactNode; tone?: Tone; icon?: React.ReactNode
+}) {
+  return (
+    <div className={`${className} p-5 flex flex-col`}>
+      <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
+      <p className={`text-2xl font-bold tabular-nums mt-1 ${valueClass}`}>
+        {value} {unit && <span className="text-sm font-medium text-gray-500">{unit}</span>}
+      </p>
+      <p className="text-xs text-gray-500 mt-1.5">{note}</p>
+      <div className="mt-auto pt-4">
+        <div className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium ${TONE[tone]}`}>
+          {icon}{callout}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Advice({ tone, title, children }: { tone: Tone; title: string; children: React.ReactNode }) {
+  const Icon = tone === 'bad' ? AlertTriangle : tone === 'info' ? ClipboardCheck : CheckCircle2;
+  return (
+    <div className={`rounded-lg border p-4 ${TONE[tone]}`}>
+      <p className="text-sm font-semibold flex items-center gap-2">
+        <Icon size={16} strokeWidth={ICON_STROKE} className="shrink-0" />
+        <span>{title}</span>
+      </p>
+      <p className="mt-1 text-xs leading-relaxed">{children}</p>
+    </div>
+  );
+}
 
 // VITE_API_URL ends in /api (see .env.example); these calls add /api/sulur themselves
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
@@ -403,831 +469,535 @@ export const SulurManagementContent: React.FC<{ isWorker: boolean }> = ({ isWork
   const projectedProfit = customRevenue - totalCost;
   const roiPct = totalCost > 0 ? Number(((projectedProfit / totalCost) * 100).toFixed(1)) : 0;
 
-  // Distinct Tab Labels for Worker vs Admin
-  const TABS_LIST = isWorker
+  // Short, role-specific tab labels
+  const TABS_LIST: { id: SimpleTabKey; icon: React.ElementType; label: string }[] = isWorker
     ? [
-        { id: 'stock',     icon: Package,        label: '1. Nursery Stock & Field Issue' },
-        { id: 'movements', icon: ClipboardCheck, label: '2. My Field Planting Log' },
-        { id: 'planner',   icon: Calculator,     label: '3. Seed & Fertilizer Calculator' },
+        { id: 'stock',     icon: Package,        label: tr("Nursery Stock") },
+        { id: 'movements', icon: ClipboardCheck, label: tr("Planting Log") },
+        { id: 'planner',   icon: Calculator,     label: tr("Field Calculator") },
       ]
     : [
-        { id: 'stock',     icon: Package,        label: '1. Stock & LPNM Certification' },
-        { id: 'movements', icon: ArrowRightLeft, label: '2. Full Audit & Movement Ledger' },
-        { id: 'planner',   icon: Calculator,     label: '3. Planting, Fertilizer & Profit DSS' },
+        // Same names as the admin sidebar links
+        { id: 'stock',     icon: Package,        label: tr("Stock & Batches") },
+        { id: 'movements', icon: ArrowRightLeft, label: tr("Movement History") },
+        { id: 'planner',   icon: Calculator,     label: tr("Profit Calculator") },
       ];
 
-  return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12 animate-fade-up">
-      {/* =====================================================================
-          ROLE-DISTINCT HEADER BANNER FOR WORKER VS ADMIN
-         ===================================================================== */}
-      {isWorker && (
-        <div className="bg-gradient-to-r from-green-700 to-emerald-600 rounded-2xl p-5 text-white shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div>
-            <span className="px-2.5 py-1 bg-white/20 text-white font-bold text-[11px] rounded-full uppercase tracking-wider">
-              Worker Field Mode  Nursery & Planting Operations
-            </span>
-            <h1 className="text-xl font-extrabold mt-1.5">
-              Sulur Nursery Stock, Curing & Field Planting Tasks
-            </h1>
-            <p className="text-xs text-green-100 mt-0.5">
-              Quickly log newly harvested sulur, update fungicide/curing status, or check seed & fertilizer quantities for your plot.
-            </p>
-          </div>
-        </div>
-      )}
+  // Shared PineTrack styles: admin uses the Dialog button styles, worker the worker/ui ones
+  const card    = isWorker ? cardCls : 'bg-white rounded-xl border border-gray-100 shadow-sm';
+  const btnMain = isWorker ? primaryBtn : `inline-flex items-center justify-center gap-2 ${btnPrimary}`;
+  const btnAlt  = isWorker ? secondaryBtn : `inline-flex items-center justify-center gap-2 ${btnSecondary}`;
+  const curingCount = batches.length - readyBatchesCount;
+  const visibleMovements = movements.filter(m => !isWorker || m.movement_type !== 'sell');
 
-      {/* =====================================================================
-          CLEAN 3-TAB TOP BAR + ROLE-APPROPRIATE ACTION BUTTON
-         ===================================================================== */}
-      <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-200 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-        <div className="flex flex-wrap gap-2">
-          {TABS_LIST.map(t => {
-            const Icon = t.icon;
-            const active = activeTab === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => switchTab(t.id as SimpleTabKey)}
-                className={`flex items-center gap-2.5 px-5 py-3 rounded-xl text-sm font-bold transition-all ${
-                  active
-                    ? isWorker
-                      ? 'bg-green-600 text-white shadow-sm'
-                      : 'bg-[#162f25] text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Icon size={17} className={active ? (isWorker ? 'text-white' : 'text-[#f5922a]') : 'text-gray-400'} />
-                <span>{t.label}</span>
-              </button>
-            );
-          })}
-        </div>
+  const openMove = (batch: any, remarks: string) => {
+    if (!batch) return;
+    setMoveModalBatch(batch);
+    setMoveForm({ movement_type: 'plant', quantity: 1000, destination_or_plot: 'Plot B2 - Field Cultivation', remarks });
+  };
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className={`flex items-center justify-center gap-2 px-5 py-3 text-white font-bold rounded-xl text-sm shadow-sm transition ${
-            isWorker ? 'bg-green-600 hover:bg-green-700' : 'bg-emerald-700 hover:bg-emerald-800'
-          }`}
-        >
-          <PlusCircle size={18} />
-          <span>{isWorker ? '+ Log Harvested Sulur' : '+ Add New Sulur Batch'}</span>
-        </button>
-      </div>
+  const addButton = (
+    <button type="button" onClick={() => setShowAddModal(true)} className={btnMain}>
+      <Plus size={16} strokeWidth={2} />
+      <span>{isWorker ? tr("Log Harvested Sulur") : tr("Add Sulur Batch")}</span>
+    </button>
+  );
 
-      {/* =====================================================================
-          TAB 1: STOCK & BATCHES (Distinct KPIs & Buttons for Worker vs Admin)
-         ===================================================================== */}
+  // Admin switches sections from the sidebar (Sulur Inventory group), so only the
+  // worker page, whose nav has a single Sulur link, keeps an in-page switcher
+  const tabs = isWorker ? (
+    <div className="overflow-x-auto">
+      <Segmented<SimpleTabKey> label={tr("Sulur Inventory")} value={activeTab} onChange={switchTab}
+        options={TABS_LIST.map(t => ({ value: t.id, label: <span className="whitespace-nowrap">{t.label}</span> }))} />
+    </div>
+  ) : null;
+  const activeLabel = TABS_LIST.find(t => t.id === activeTab)?.label ?? tr("Sulur Inventory");
+
+  const kpis = [
+    { label: tr("Available in Nursery"), value: totalAvailable.toLocaleString(), sub: tr("Sulur ready in nursery sheds"), dot: 'bg-green-700' },
+    isWorker
+      ? { label: tr("Planted to Field"), value: totalPlanted.toLocaleString(), sub: tr("Sulur planted by field workers"), dot: 'bg-blue-600' }
+      : { label: tr("Planted & Reserved"), value: totalPlantedAndReserved.toLocaleString(), sub: tr("Sulur deployed or locked for farm plots"), dot: 'bg-blue-600' },
+    isWorker
+      ? { label: tr("Ready-to-Plant Batches"), value: `${readyBatchesCount} / ${batches.length}`, sub: tr("{0} curing or drying", curingCount), dot: 'bg-amber-500' }
+      : { label: tr("LPNM Quality Certified"), value: `${certifiedCount} / ${batches.length}`, sub: tr("Verified uniform grading for management"), dot: 'bg-violet-600' },
+  ];
+
+  const body = (
+    <>
+      {tabs}
+
+      {/* ── Tab 1: stock & batches ── */}
       {activeTab === 'stock' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-5">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                <Sprout size={28} />
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Available in Nursery</p>
-                <p className="text-3xl font-extrabold text-gray-900 mt-0.5">{totalAvailable.toLocaleString()}</p>
-                <p className="text-xs text-emerald-700 font-medium mt-1">Sulur ready in nursery sheds</p>
-              </div>
+        <div className={isWorker ? 'space-y-5' : 'space-y-6'}>
+          {isWorker ? (
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+              {kpis.map(k => <StatTile key={k.label} label={k.label} value={k.value} sub={k.sub} dot={k.dot} />)}
             </div>
-
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-5">
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-                <TrendingUp size={28} />
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  {isWorker ? 'Planted to Field' : 'Planted & Reserved'}
-                </p>
-                <p className="text-3xl font-extrabold text-gray-900 mt-0.5">
-                  {(isWorker ? totalPlanted : totalPlantedAndReserved).toLocaleString()}
-                </p>
-                <p className="text-xs text-blue-700 font-medium mt-1">
-                  {isWorker ? 'Sulur planted by field workers' : 'Sulur deployed or locked for farm plots'}
-                </p>
-              </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {kpis.map(k => (
+                <div key={k.label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">{k.label}</p>
+                  <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{k.value}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5 truncate">{k.sub}</p>
+                </div>
+              ))}
             </div>
+          )}
 
-            {isWorker ? (
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                  <Wrench size={28} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Ready-to-Plant Batches</p>
-                  <p className="text-3xl font-extrabold text-gray-900 mt-0.5">{readyBatchesCount} of {batches.length} Batches</p>
-                  <p className="text-xs text-amber-700 font-medium mt-1">1 batch currently in curing/drying</p>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                  <ShieldCheck size={28} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-gray-400">LPNM Quality Certified</p>
-                  <p className="text-3xl font-extrabold text-gray-900 mt-0.5">{certifiedCount} of {batches.length} Batches</p>
-                  <p className="text-xs text-purple-700 font-medium mt-1">Verified uniform grading for management</p>
-                </div>
-              </div>
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="relative flex-1 sm:max-w-sm">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder={tr("Search batch or plot...")}
+                aria-label={tr("Search batch or plot...")}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className={`w-full ${isWorker ? 'h-11' : 'h-9'} pl-9 pr-4 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500`}
+              />
+            </div>
+            <AppSelect size={isWorker ? 'md' : 'sm'} aria-label={tr("Filter by variety")} value={varietyFilter} onChange={setVarietyFilter}
+              highlighted={varietyFilter !== 'ALL'} triggerClassName="sm:w-44"
+              options={[{ value: 'ALL', label: tr("All Varieties") }, ...VARIETIES.map(v => ({ value: v, label: v }))]} />
+            {(searchQuery || varietyFilter !== 'ALL') && (
+              <span className="sm:ml-auto text-xs text-gray-500">{filteredBatches.length} {tr("of")} {batches.length} {tr("batches")}</span>
             )}
           </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
-            <div className="flex flex-wrap gap-2">
-              {['ALL', 'MD2', 'Moris', 'Josapine', 'N36'].map(v => (
-                <button
-                  key={v}
-                  onClick={() => setVarietyFilter(v)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-                    varietyFilter === v
-                      ? 'bg-emerald-700 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {v === 'ALL' ? 'All Varieties' : v}
-                </button>
-              ))}
+          {filteredBatches.length === 0 ? (
+            <div className={`${card} px-6 py-10 text-center`}>
+              <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+                <Sprout size={20} strokeWidth={ICON_STROKE} />
+              </span>
+              <p className="text-sm font-semibold text-gray-900">{tr("No sulur batches found")}</p>
+              <p className="text-sm text-gray-500 mt-1">{tr("Try adjusting filters or add a new batch")}</p>
             </div>
-
-            <div className="relative sm:w-72">
-              <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search batch or plot..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {filteredBatches.map(b => {
-              const isReady = b.treatment_status === 'ready_to_plant' || b.treatment_status === 'fungicide_treated';
-              return (
-                <div
-                  key={b.id}
-                  className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/80 hover:border-emerald-300 transition flex flex-col justify-between space-y-5"
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 rounded-lg bg-emerald-700 text-white font-extrabold text-xs">
-                          {b.variety}
-                        </span>
-                        <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 font-bold text-xs">
-                          {b.size_grade}
-                        </span>
-                        <span className="text-xs text-gray-400 capitalize">({b.sulur_type})</span>
+          ) : (
+            <div className={`grid grid-cols-1 ${isWorker ? '' : 'lg:grid-cols-2'} gap-4`}>
+              {filteredBatches.map(b => {
+                const isReady = b.treatment_status === 'ready_to_plant' || b.treatment_status === 'fungicide_treated';
+                const qtys = [
+                  { label: tr("Available"), qty: b.available_quantity, dot: 'bg-green-700' },
+                  { label: tr("Reserved"),  qty: b.reserved_quantity,  dot: 'bg-amber-500' },
+                  { label: tr("Planted"),   qty: b.planted_quantity,   dot: 'bg-blue-600' },
+                ];
+                return (
+                  <div key={b.id} className={`${card} p-4 sm:p-5 flex flex-col gap-4`}>
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className={`${badgeBase} bg-green-50 text-green-800 ring-green-200 font-semibold`}>{b.variety}</span>
+                          <span className={`${badgeBase} bg-gray-100 text-gray-700 ring-gray-200`}>{b.size_grade}</span>
+                          <span className="text-xs text-gray-500 capitalize">{trEnum(b.sulur_type)}</span>
+                        </div>
+                        <h3 className="text-base font-bold text-gray-900 mt-2 tabular-nums break-all">{b.batch_code}</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {tr("Origin:")} <span className="font-medium text-gray-700">{b.source_plot}</span>{' '}
+                          {tr("| Stored at:")} <span className="font-medium text-gray-700">{b.storage_location}</span>
+                        </p>
                       </div>
-                      <h3 className="text-lg font-extrabold text-gray-900 mt-2">{b.batch_code}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Origin: <strong>{b.source_plot}</strong> | Stored at: <strong>{b.storage_location}</strong>
-                      </p>
+                      <span className={`${badgeBase} shrink-0 ${isReady ? 'bg-green-50 text-green-800 ring-green-200' : 'bg-amber-50 text-amber-800 ring-amber-200'}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${isReady ? 'bg-green-600' : 'bg-amber-500'}`} aria-hidden />
+                        {isReady ? tr("Ready to Plant") : tr("Curing / Drying")}
+                      </span>
                     </div>
 
-                    <span
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold shrink-0 ${
-                        isReady
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {isReady ? 'Ready to Plant' : 'Curing / Drying'}
-                    </span>
+                    <dl className="grid grid-cols-3 divide-x divide-gray-200 rounded-lg border border-gray-100 bg-gray-50 text-center">
+                      {qtys.map(q => (
+                        <div key={q.label} className="px-2 py-3">
+                          <dt className="flex items-center justify-center gap-1.5 text-xs text-gray-500">
+                            <span className={`h-2 w-2 rounded-full ${q.dot}`} aria-hidden />{q.label}
+                          </dt>
+                          <dd className="text-lg font-bold text-gray-900 tabular-nums mt-0.5">{Number(q.qty || 0).toLocaleString()}</dd>
+                        </div>
+                      ))}
+                    </dl>
+
+                    {isWorker ? (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <button type="button" onClick={() => openMove(b, `Planted by worker from ${b.batch_code}`)} className={btnMain}>
+                          <Sprout size={16} strokeWidth={ICON_STROKE} />
+                          <span>{tr("Take & Plant to Field")}</span>
+                        </button>
+                        <button type="button" onClick={() => handleToggleCuringStatus(b)} className={btnAlt}>
+                          <Wrench size={16} strokeWidth={ICON_STROKE} />
+                          <span>{isReady ? tr("Mark as Curing") : tr("Mark Ready to Plant")}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <button type="button" onClick={() => openMove(b, `Issued from ${b.batch_code}`)} className={btnMain}>
+                          <ArrowRightLeft size={15} strokeWidth={ICON_STROKE} />
+                          <span>{tr("Plant / Move Stock")}</span>
+                        </button>
+                        <button type="button" onClick={() => handleDownloadCertificate(b)} className={btnAlt}>
+                          <Download size={15} strokeWidth={ICON_STROKE} />
+                          <span>{b.is_certified ? tr("Certificate PDF") : tr("Certify & PDF")}</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-
-                  <div className="grid grid-cols-3 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
-                    <div>
-                      <span className="text-[11px] font-bold uppercase text-gray-400 block">Available</span>
-                      <span className="text-xl font-extrabold text-emerald-700">{b.available_quantity.toLocaleString()}</span>
-                    </div>
-                    <div className="border-x border-gray-200">
-                      <span className="text-[11px] font-bold uppercase text-gray-400 block">Reserved</span>
-                      <span className="text-xl font-extrabold text-amber-600">{b.reserved_quantity.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-bold uppercase text-gray-400 block">Planted</span>
-                      <span className="text-xl font-extrabold text-blue-600">{b.planted_quantity.toLocaleString()}</span>
-                    </div>
-                  </div>
-
-                  {/* Role-Distinct Action Buttons on Each Batch Card */}
-                  {isWorker ? (
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <button
-                        onClick={() => {
-                          setMoveModalBatch(b);
-                          setMoveForm({
-                            movement_type: 'plant',
-                            quantity: 1000,
-                            destination_or_plot: 'Plot B2 - Field Cultivation',
-                            remarks: `Planted by worker from ${b.batch_code}`
-                          });
-                        }}
-                        className="py-3 px-4 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
-                      >
-                        <Sprout size={15} />
-                        <span>Take & Plant to Field</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleToggleCuringStatus(b)}
-                        className="py-3 px-4 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-xs flex items-center justify-center gap-2 transition"
-                      >
-                        <Wrench size={15} />
-                        <span>{isReady ? 'Mark as Curing' : 'Mark Ready to Plant'}</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <button
-                        onClick={() => {
-                          setMoveModalBatch(b);
-                          setMoveForm({
-                            movement_type: 'plant',
-                            quantity: 1000,
-                            destination_or_plot: 'Plot B2 - Field Cultivation',
-                            remarks: `Issued from ${b.batch_code}`
-                          });
-                        }}
-                        className="py-3 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
-                      >
-                        <ArrowRightLeft size={15} />
-                        <span>Plant / Move Stock</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleDownloadCertificate(b)}
-                        className={`py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition ${
-                          b.is_certified
-                            ? 'bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100'
-                            : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
-                        }`}
-                      >
-                        <Download size={15} />
-                        <span>{b.is_certified ? 'Certificate PDF' : 'Certify & PDF'}</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* =====================================================================
-          TAB 2: MOVEMENT HISTORY (Worker Field Log vs Admin Full Audit Ledger)
-         ===================================================================== */}
+      {/* ── Tab 2: movement history ── */}
       {activeTab === 'movements' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">
-                {isWorker ? 'My Field Planting & Nursery Stock Log' : 'Full Sulur Stock Movement & Traceability Audit Ledger'}
-              </h3>
-              <p className="text-sm text-gray-500">
+        <div className={`${card} overflow-hidden`}>
+          <div className="px-4 sm:px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-gray-900">
+                {isWorker ? tr("My Field Planting & Nursery Stock Log") : tr("Full Sulur Stock Movement & Traceability Audit Ledger")}
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
                 {isWorker
-                  ? 'Recent field planting, stock-in, and damaged sulur updates'
-                  : 'Complete administrative log of every batch harvested, reserved, planted, or sold'}
+                  ? tr("Recent field planting, stock-in, and damaged sulur updates")
+                  : tr("Complete administrative log of every batch harvested, reserved, planted, or sold")}
               </p>
             </div>
-            <button
-              onClick={() => {
-                setMoveModalBatch(batches[0]);
-                setMoveForm({
-                  movement_type: 'plant',
-                  quantity: 1000,
-                  destination_or_plot: 'Plot B2 - Field Cultivation',
-                  remarks: 'Scheduled planting'
-                });
-              }}
-              className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs transition"
-            >
-              {isWorker ? '+ Log Field Planting' : '+ Record Stock Movement'}
+            <button type="button" onClick={() => openMove(batches[0], 'Scheduled planting')} className={`${btnMain} self-start sm:self-auto shrink-0`}>
+              <Plus size={16} strokeWidth={2} />
+              <span>{isWorker ? tr("Log Field Planting") : tr("Record Stock Movement")}</span>
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 text-gray-500 uppercase text-xs font-bold tracking-wider border-b border-gray-100">
-                  <th className="py-4 px-6">Date</th>
-                  <th className="py-4 px-6">Batch Code</th>
-                  <th className="py-4 px-6">Action</th>
-                  <th className="py-4 px-6">Quantity</th>
-                  <th className="py-4 px-6">Target Plot / Destination</th>
-                  <th className="py-4 px-6">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-sm">
-                {movements
-                  .filter(m => !isWorker || m.movement_type !== 'sell')
-                  .map(m => (
-                    <tr key={m.id} className="hover:bg-gray-50">
-                      <td className="py-4 px-6 text-gray-500 font-medium">{m.movement_date}</td>
-                      <td className="py-4 px-6 font-bold text-gray-900">{m.batch_code}</td>
-                      <td className="py-4 px-6">
-                        <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 font-bold text-xs uppercase">
-                          {m.movement_type.replace(/_/g, ' ')}
-                        </span>
+          {visibleMovements.length === 0 ? (
+            <p className="px-5 py-10 text-center text-sm text-gray-500">{tr("No movements recorded yet")}</p>
+          ) : isWorker ? (
+            <ul className="divide-y divide-gray-100">
+              {visibleMovements.map(m => (
+                <li key={m.id} className="px-4 sm:px-5 py-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 tabular-nums break-all">{m.batch_code}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{m.movement_date} · {m.destination_or_plot || '-'}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <MoveBadge type={m.movement_type} />
+                      <p className="text-sm font-semibold text-gray-900 tabular-nums mt-1">{Number(m.quantity).toLocaleString()} {tr("sulur")}</p>
+                    </div>
+                  </div>
+                  {m.remarks && <p className="text-xs text-gray-600 mt-1.5">{m.remarks}</p>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    {[
+                      [tr("Date"), ''],
+                      [tr("Batch Code"), ''],
+                      [tr("Action"), ''],
+                      [tr("Quantity"), 'text-right'],
+                      [tr("Target Plot / Destination"), ''],
+                      [tr("Notes"), ''],
+                    ].map(([h, cls]) => (
+                      <th key={h} className={`text-left px-4 py-3 text-xs text-gray-600 font-semibold uppercase tracking-wide whitespace-nowrap ${cls}`}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleMovements.map(m => (
+                    <tr key={m.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/70 transition-colors">
+                      <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">{m.movement_date}</td>
+                      <td className="px-4 py-3 font-bold text-gray-900 whitespace-nowrap tabular-nums">{m.batch_code}</td>
+                      <td className="px-4 py-3"><MoveBadge type={m.movement_type} /></td>
+                      <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap tabular-nums">
+                        {Number(m.quantity).toLocaleString()} {tr("sulur")}
                       </td>
-                      <td className="py-4 px-6 font-extrabold text-gray-900">{m.quantity.toLocaleString()} sulur</td>
-                      <td className="py-4 px-6 text-gray-700 font-medium">{m.destination_or_plot || '-'}</td>
-                      <td className="py-4 px-6 text-gray-500">{m.remarks || '-'}</td>
+                      <td className="px-4 py-3 text-gray-700">{m.destination_or_plot || '-'}</td>
+                      <td className="px-4 py-3 text-gray-500">{m.remarks || '-'}</td>
                     </tr>
                   ))}
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
-      {/* =====================================================================
-          TAB 3: CALCULATOR (Distinct Worker Field Calculator vs Admin Profit DSS)
-         ===================================================================== */}
+      {/* ── Tab 3: calculator / DSS ── */}
       {activeTab === 'planner' && (
-        <div className="space-y-6">
-          <div className="bg-white p-7 rounded-2xl shadow-sm border border-gray-100 space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
-              <div>
-                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs uppercase">
-                  {isWorker ? 'Worker Field Preparation Tool (LPNM Standard)' : 'Management Financial & Resource DSS (LPNM Standard)'}
-                </span>
-                <h3 className="text-xl font-bold text-gray-900 mt-2">
+        <div className={isWorker ? 'space-y-5' : 'space-y-6'}>
+          <section className={`${card} p-4 sm:p-5`}>
+            <div className="flex flex-col md:flex-row justify-between items-start gap-4 pb-4 mb-5 border-b border-gray-100">
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500">
+                  {isWorker ? tr("Worker Field Preparation Tool (LPNM Standard)") : tr("Management Financial & Resource DSS (LPNM Standard)")}
+                </p>
+                <h2 className="text-base font-semibold text-gray-900 mt-1">
+                  {isWorker ? tr("Field Seed & Fertilizer Quantity Calculator") : tr("Smart Planting, Fertilizer & Profit Calculator (DSS)")}
+                </h2>
+                <p className="text-sm text-gray-500 mt-0.5">
                   {isWorker
-                    ? 'Field Seed & Fertilizer Quantity Calculator'
-                    : 'Smart Planting, Fertilizer & Profit Calculator (DSS)'}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {isWorker
-                    ? 'Select your Pineapple Variety and Land Area (Hectares) to see how many sulur baskets, NPK bags, and foliar tanks to prepare.'
-                    : 'Select Pineapple Variety and Land Area (Hectares) to auto-calculate required sulur, fertilizer budget, and projected net profit (RM).'}
+                    ? tr("Select your Pineapple Variety and Land Area (Hectares) to see how many sulur baskets, NPK bags, and foliar tanks to prepare.")
+                    : tr("Select Pineapple Variety and Land Area (Hectares) to auto-calculate required sulur, fertilizer budget, and projected net profit (RM).")}
                 </p>
               </div>
-
-              {/* ONLY ADMIN CAN SEE & ADJUST FINANCIAL COSTS (RM) */}
+              {/* Only admin sees and adjusts financial costs (RM) */}
               {!isWorker && (
-                <button
-                  type="button"
-                  onClick={() => setShowAdvancedRates(!showAdvancedRates)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-bold transition"
-                >
-                  <SlidersHorizontal size={15} />
-                  <span>{showAdvancedRates ? 'Hide Cost Adjustments' : 'Adjust Custom Costs (RM)'}</span>
+                <button type="button" onClick={() => setShowAdvancedRates(!showAdvancedRates)} aria-expanded={showAdvancedRates}
+                  className={`${btnAlt} shrink-0`}>
+                  <SlidersHorizontal size={15} strokeWidth={ICON_STROKE} />
+                  <span>{showAdvancedRates ? tr("Hide Cost Adjustments") : tr("Adjust Custom Costs (RM)")}</span>
                 </button>
               )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
-                  Step 1: Select Pineapple Variety
-                </label>
-                <div className="grid grid-cols-2 gap-2.5">
-                  {(['MD2', 'Moris', 'Josapine', 'N36'] as const).map(v => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => handleAreaOrVarietyChange(v, calcAreaHa)}
-                      className={`py-3 px-4 rounded-xl font-bold text-sm border transition text-left flex justify-between items-center ${
-                        calcVariety === v
-                          ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
-                      }`}
-                    >
-                      <span>{v}</span>
-                      <span className={`text-xs ${calcVariety === v ? 'text-emerald-100' : 'text-gray-400'}`}>
-                        {(LPNM_STANDARDS[v].density / 1000).toFixed(1)}k/ha
-                      </span>
-                    </button>
-                  ))}
+              <div>
+                <p className={labelCls}>{tr("Step 1: Select Pineapple Variety")}</p>
+                <div role="radiogroup" aria-label={tr("Step 1: Select Pineapple Variety")} className="grid grid-cols-2 gap-2">
+                  {VARIETIES.map(v => {
+                    const on = calcVariety === v;
+                    return (
+                      <button key={v} type="button" role="radio" aria-checked={on} onClick={() => handleAreaOrVarietyChange(v, calcAreaHa)}
+                        className={`flex justify-between items-center px-3.5 py-2.5 rounded-lg border text-sm font-semibold transition-colors ${
+                          on ? 'border-green-700 bg-green-50 text-green-900 ring-1 ring-green-700' : 'border-gray-200 bg-white text-gray-700 hover:border-green-600'
+                        }`}>
+                        <span>{v}</span>
+                        <span className={`text-xs font-medium tabular-nums ${on ? 'text-green-800' : 'text-gray-500'}`}>
+                          {(LPNM_STANDARDS[v].density / 1000).toFixed(1)}{tr("k/ha")}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
-                  Step 2: Enter Land Area (Hectares)
-                </label>
+              <div>
+                <label htmlFor="sulur-area" className={labelCls}>{tr("Step 2: Enter Land Area (Hectares)")}</label>
                 <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0.1"
-                    value={calcAreaHa}
-                    onChange={e => handleAreaOrVarietyChange(calcVariety, Math.max(Number(e.target.value), 0.1))}
-                    className="w-36 p-3.5 bg-white border border-gray-300 rounded-xl text-xl font-extrabold text-gray-900"
-                  />
-                  <span className="text-sm font-bold text-gray-600">Hectares (ha)</span>
+                  <div className="w-36">
+                    <input id="sulur-area" type="number" step="0.1" min="0.1" value={calcAreaHa}
+                      onChange={e => handleAreaOrVarietyChange(calcVariety, Math.max(Number(e.target.value), 0.1))}
+                      className={`${inputCls} tabular-nums font-semibold`} />
+                  </div>
+                  <span className="text-sm text-gray-600">{tr("Hectares (ha)")}</span>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  {[0.5, 1.0, 2.0, 5.0].map(preset => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => handleAreaOrVarietyChange(calcVariety, preset)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                        calcAreaHa === preset
-                          ? 'bg-amber-500 text-gray-950'
-                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      {preset} ha {preset === 0.5 && !isWorker ? '(Appendix 11.0 Example)' : ''}
-                    </button>
-                  ))}
+                  {[0.5, 1.0, 2.0, 5.0].map(preset => {
+                    const on = calcAreaHa === preset;
+                    return (
+                      <button key={preset} type="button" aria-pressed={on} onClick={() => handleAreaOrVarietyChange(calcVariety, preset)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                          on ? 'border-green-700 bg-green-700 text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-green-600'
+                        }`}>
+                        {preset} {tr("ha")} {preset === 0.5 && !isWorker ? tr("(Appendix 11.0 Example)") : ''}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
             {!isWorker && showAdvancedRates && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5 bg-amber-50/60 border border-amber-200 rounded-2xl">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Sulur Seed Cost (RM)</label>
-                  <input
-                    type="number"
-                    value={customSulurCost}
-                    onChange={e => setCustomSulurCost(Number(e.target.value))}
-                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Nutrient Cost (RM)</label>
-                  <input
-                    type="number"
-                    value={customNutrientCost}
-                    onChange={e => setCustomNutrientCost(Number(e.target.value))}
-                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Operational Cost (RM)</label>
-                  <input
-                    type="number"
-                    value={customOpCost}
-                    onChange={e => setCustomOpCost(Number(e.target.value))}
-                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Expected Revenue (RM)</label>
-                  <input
-                    type="number"
-                    value={customRevenue}
-                    onChange={e => setCustomRevenue(Number(e.target.value))}
-                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold"
-                  />
-                </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-gray-100">
+                {([
+                  ['cost-sulur',    tr("Sulur Seed Cost (RM)"),    customSulurCost,    setCustomSulurCost],
+                  ['cost-nutrient', tr("Nutrient Cost (RM)"),      customNutrientCost, setCustomNutrientCost],
+                  ['cost-op',       tr("Operational Cost (RM)"),   customOpCost,       setCustomOpCost],
+                  ['revenue',       tr("Expected Revenue (RM)"),   customRevenue,      setCustomRevenue],
+                ] as const).map(([id, label, value, setter]) => (
+                  <div key={id}>
+                    <label htmlFor={id} className={labelCls}>{label}</label>
+                    <input id={id} type="number" value={value} onChange={e => setter(Number(e.target.value))} className={`${inputCls} tabular-nums`} />
+                  </div>
+                ))}
               </div>
+            )}
+          </section>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {isWorker ? (
+              <>
+                <ResultCard className={card} label={tr("1. Sulur Seed to Prepare")} value={requiredSulur.toLocaleString()} unit={tr("sulur")}
+                  note={<>{tr("Field Load:")} <strong className="font-semibold text-gray-700">~{Math.ceil(requiredSulur / 500)} {tr("Baskets (Raga)")}</strong> {tr("@ 500 sulur/raga")}</>}
+                  tone={shortfall > 0 ? 'bad' : 'good'}
+                  callout={shortfall > 0
+                    ? tr("Nursery Shortfall: Need {0} more {1} sulur", shortfall.toLocaleString(), calcVariety)
+                    : tr("Stock Ready in Nursery ({0} available)", availForVariety.toLocaleString())} />
+                <ResultCard className={card} label={tr("2. Granular NPK Fertilizer")} value={npkNeededKg.toLocaleString()} unit={tr("kg NPK")}
+                  note={<>{tr("LPNM Rate:")} {std.npkPer1000} {tr("kg per 1,000 sulur planted")}</>}
+                  callout={<>{tr("Store Issue: Prepare ~")}{Math.ceil(npkNeededKg / 50)} {tr("Bags (Guni 50kg)")}</>} />
+                <ResultCard className={card} label={tr("3. Foliar Liquid Spray")} value={foliarNeededL.toLocaleString()} unit={tr("Liters")}
+                  note={<>{tr("LPNM Rate:")} {std.foliarPer1000} {tr("L per 1,000 sulur planted")}</>}
+                  icon={<Droplets size={14} strokeWidth={ICON_STROKE} className="shrink-0" />}
+                  callout={<>{tr("Knapsack Mix: ~")}{Math.ceil(foliarNeededL / 20)} {tr("Spray Tanks (20L)")}</>} />
+              </>
+            ) : (
+              <>
+                <ResultCard className={card} label={tr("1. Sulur Seed Needed")} value={requiredSulur.toLocaleString()} unit={tr("sulur")}
+                  note={<>{tr("Formula:")} {calcAreaHa} {tr("ha x")} {std.density.toLocaleString()} {tr("trees/ha")}</>}
+                  tone={shortfall > 0 ? 'bad' : 'good'}
+                  callout={shortfall > 0
+                    ? tr("Shortfall: Need {0} more {1} sulur (Available: {2})", shortfall.toLocaleString(), calcVariety, availForVariety.toLocaleString())
+                    : tr("Stock Sufficient! ({0} {1} sulur in nursery)", availForVariety.toLocaleString(), calcVariety)} />
+                <ResultCard className={card} label={tr("2. MPIB Fertilizer Needed")} value={npkNeededKg.toLocaleString()} unit={tr("kg NPK")}
+                  note={<>+ <strong className="font-semibold text-gray-700">{foliarNeededL} {tr("Liters")}</strong> {tr("Foliar Fertilizer")}</>}
+                  callout={<>{tr("Estimated Nutrient Budget: RM")} {customNutrientCost.toLocaleString()}</>} />
+                <ResultCard className={card} label={tr("3. Projected Net Profit (Admin Only)")}
+                  value={`${tr("RM")} ${projectedProfit.toLocaleString()}`}
+                  valueClass={projectedProfit >= 0 ? 'text-green-700' : 'text-red-700'}
+                  note={<>{tr("Revenue: RM")} {customRevenue.toLocaleString()} {tr("| Total Cost: RM")} {totalCost.toLocaleString()}</>}
+                  tone={projectedProfit >= 0 ? 'good' : 'bad'}
+                  callout={<>{tr("Projected Return (ROI):")} {roiPct}%</>} />
+              </>
             )}
           </div>
 
-          {/* =================================================================
-              ROLE-DISTINCT RESULT CARDS (WORKER FIELD UNITS vs ADMIN PROFIT RM)
-             ================================================================= */}
-          {isWorker ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <span className="text-xs font-bold uppercase text-gray-400">1. Sulur Seed to Prepare</span>
-                <p className="text-3xl font-extrabold text-gray-900 mt-1">
-                  {requiredSulur.toLocaleString()} <span className="text-sm font-semibold text-gray-500">sulur</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Field Load: <strong>~{Math.ceil(requiredSulur / 500)} Baskets (Raga)</strong> @ 500 sulur/raga
-                </p>
-                <div className={`mt-4 p-3 rounded-xl text-xs font-bold ${
-                  shortfall > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'
-                }`}>
-                  {shortfall > 0
-                    ? `Nursery Shortfall: Need ${shortfall.toLocaleString()} more ${calcVariety} sulur`
-                    : `Stock Ready in Nursery (${availForVariety.toLocaleString()} available)`}
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <span className="text-xs font-bold uppercase text-gray-400">2. Granular NPK Fertilizer</span>
-                <p className="text-3xl font-extrabold text-blue-700 mt-1">
-                  {npkNeededKg.toLocaleString()} <span className="text-sm font-semibold text-gray-500">kg NPK</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  LPNM Rate: {std.npkPer1000} kg per 1,000 sulur planted
-                </p>
-                <div className="mt-4 p-3 rounded-xl bg-blue-50 text-blue-800 text-xs font-bold">
-                  Store Issue: Prepare ~{Math.ceil(npkNeededKg / 50)} Bags (Guni 50kg)
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <span className="text-xs font-bold uppercase text-gray-400">3. Foliar Liquid Spray</span>
-                <p className="text-3xl font-extrabold text-teal-700 mt-1">
-                  {foliarNeededL.toLocaleString()} <span className="text-sm font-semibold text-gray-500">Liters</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  LPNM Rate: {std.foliarPer1000} L per 1,000 sulur planted
-                </p>
-                <div className="mt-4 p-3 rounded-xl bg-teal-50 text-teal-800 text-xs font-bold flex items-center gap-1.5">
-                  <Droplets size={14} />
-                  <span>Knapsack Mix: ~{Math.ceil(foliarNeededL / 20)} Spray Tanks (20L)</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <span className="text-xs font-bold uppercase text-gray-400">1. Sulur Seed Needed</span>
-                <p className="text-3xl font-extrabold text-gray-900 mt-1">
-                  {requiredSulur.toLocaleString()} <span className="text-sm font-semibold text-gray-500">sulur</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Formula: {calcAreaHa} ha x {std.density.toLocaleString()} trees/ha
-                </p>
-                <div className={`mt-4 p-3 rounded-xl text-xs font-bold ${
-                  shortfall > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'
-                }`}>
-                  {shortfall > 0
-                    ? `Shortfall: Need ${shortfall.toLocaleString()} more ${calcVariety} sulur (Available: ${availForVariety.toLocaleString()})`
-                    : `Stock Sufficient! (${availForVariety.toLocaleString()} ${calcVariety} sulur in nursery)`}
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <span className="text-xs font-bold uppercase text-gray-400">2. MPIB Fertilizer Needed</span>
-                <p className="text-3xl font-extrabold text-blue-700 mt-1">
-                  {npkNeededKg.toLocaleString()} <span className="text-sm font-semibold text-gray-500">kg NPK</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  + <strong>{foliarNeededL} Liters</strong> Foliar Fertilizer
-                </p>
-                <div className="mt-4 p-3 rounded-xl bg-blue-50 text-blue-800 text-xs font-bold">
-                  Estimated Nutrient Budget: RM {customNutrientCost.toLocaleString()}
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <span className="text-xs font-bold uppercase text-gray-400">3. Projected Net Profit (Admin Only)</span>
-                <p className={`text-3xl font-extrabold mt-1 ${projectedProfit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                  RM {projectedProfit.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Revenue: RM {customRevenue.toLocaleString()} | Total Cost: RM {totalCost.toLocaleString()}
-                </p>
-                <div className="mt-4 p-3 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold">
-                  Projected Return (ROI): {roiPct}%
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Smart Recommendations Box */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-3">
-            <h4 className="text-sm font-bold uppercase tracking-wider text-gray-500">
-              {isWorker
-                ? 'Field Preparation Instructions (Rule-Based Checklist):'
-                : 'Smart Decision Support Recommendations (IF-THEN Rules):'}
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className={`p-4 rounded-xl border text-sm ${
-                shortfall > 0 ? 'bg-red-50 border-red-200 text-red-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'
-              }`}>
-                <div className="font-bold flex items-center gap-2">
-                  {shortfall > 0 ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
-                  <span>{shortfall > 0 ? 'INSUFFICIENT SULUR STOCK ALERT' : 'STOCK AVAILABILITY VERIFIED'}</span>
-                </div>
-                <p className="mt-1 text-xs leading-relaxed">
-                  {shortfall > 0
-                    ? `Your nursery currently has ${availForVariety.toLocaleString()} ${calcVariety} sulur, which is ${shortfall.toLocaleString()} less than the ${requiredSulur.toLocaleString()} required for ${calcAreaHa} ha.`
-                    : `Your nursery has enough ${calcVariety} sulur (${availForVariety.toLocaleString()} available) to cover this ${calcAreaHa} ha planting plan.`}
-                </p>
-              </div>
-
+          {/* Rule-based recommendations */}
+          <section className={`${card} p-4 sm:p-5`}>
+            <h2 className="text-sm font-semibold text-gray-900">
+              {isWorker ? tr("Field Preparation Instructions (Rule-Based Checklist):") : tr("Smart Decision Support Recommendations (IF-THEN Rules):")}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <Advice tone={shortfall > 0 ? 'bad' : 'good'} title={shortfall > 0 ? tr("Insufficient sulur stock") : tr("Stock availability verified")}>
+                {shortfall > 0
+                  ? tr("Your nursery currently has {0} {1} sulur, which is {2} less than the {3} required for {4} ha.", availForVariety.toLocaleString(), calcVariety, shortfall.toLocaleString(), requiredSulur.toLocaleString(), calcAreaHa)
+                  : tr("Your nursery has enough {0} sulur ({1} available) to cover this {2} ha planting plan.", calcVariety, availForVariety.toLocaleString(), calcAreaHa)}
+              </Advice>
               {isWorker ? (
-                <div className="p-4 rounded-xl border bg-blue-50 border-blue-200 text-blue-950 text-sm">
-                  <div className="font-bold flex items-center gap-2">
-                    <ClipboardCheck size={16} />
-                    <span>FIELD OPERATOR CHECKLIST (LPNM GUIDELINE)</span>
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed">
-                    Ensure all {requiredSulur.toLocaleString()} {calcVariety} sulur are sorted by uniform size grade (Grade A/B separated) and fungicide-dipped before transporting to the plot.
-                  </p>
-                </div>
+                <Advice tone="info" title={tr("Field operator checklist (LPNM guideline)")}>
+                  {tr("Ensure all")} {requiredSulur.toLocaleString()} {calcVariety} {tr("sulur are sorted by uniform size grade (Grade A/B separated) and fungicide-dipped before transporting to the plot.")}
+                </Advice>
               ) : (
-                <div className={`p-4 rounded-xl border text-sm ${
-                  projectedProfit < 0 ? 'bg-red-50 border-red-200 text-red-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                }`}>
-                  <div className="font-bold flex items-center gap-2">
-                    {projectedProfit < 0 ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
-                    <span>{projectedProfit < 0 ? 'PROJECTED LOSS WARNING' : 'PROFITABLE CULTIVATION PLAN'}</span>
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed">
-                    {projectedProfit < 0
-                      ? `Total cost (RM ${totalCost.toLocaleString()}) exceeds expected revenue (RM ${customRevenue.toLocaleString()}). Review seed or fertilizer costs.`
-                      : `Expected net profit is RM ${projectedProfit.toLocaleString()} (${roiPct}% ROI). Recommended for Farm Manager approval.`}
-                  </p>
-                </div>
+                <Advice tone={projectedProfit < 0 ? 'bad' : 'good'} title={projectedProfit < 0 ? tr("Projected loss") : tr("Profitable cultivation plan")}>
+                  {projectedProfit < 0
+                    ? tr("Total cost (RM {0}) exceeds expected revenue (RM {1}). Review seed or fertilizer costs.", totalCost.toLocaleString(), customRevenue.toLocaleString())
+                    : tr("Expected net profit is RM {0} ({1}% ROI). Recommended for Farm Manager approval.", projectedProfit.toLocaleString(), roiPct)}
+                </Advice>
               )}
             </div>
-          </div>
+          </section>
         </div>
       )}
 
-      {/* POPUP MODAL 1: "+ ADD NEW SULUR BATCH" */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-5 animate-fade-in">
-            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-              <h3 className="text-lg font-bold text-gray-900">
-                {isWorker ? 'Log Newly Harvested Sulur Batch' : 'Add New Sulur Batch'}
-              </h3>
-              <button onClick={() => setShowAddModal(false)} className="p-1 text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
+      {/* ── Add batch dialog ── */}
+      <Dialog
+        open={showAddModal}
+        title={isWorker ? tr("Log Newly Harvested Sulur Batch") : tr("Add New Sulur Batch")}
+        onClose={() => setShowAddModal(false)}
+        footer={
+          <>
+            <button type="button" onClick={() => setShowAddModal(false)} className={btnSecondary}>{tr("Cancel")}</button>
+            <button type="submit" form="sulur-add-form" className={btnPrimary}>{tr("Save Batch")}</button>
+          </>
+        }
+      >
+        <form id="sulur-add-form" onSubmit={handleCreateBatch} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <AppSelect label={tr("Pineapple Variety")} value={newBatch.variety}
+              onChange={v => setNewBatch({ ...newBatch, variety: v })}
+              options={VARIETIES.map(v => ({ value: v, label: v }))} />
+            <AppSelect label={tr("Size Grade (LPNM)")} value={newBatch.size_grade}
+              onChange={v => setNewBatch({ ...newBatch, size_grade: v })}
+              options={[
+                { value: 'Grade A', label: tr("Grade A (35-45cm)") },
+                { value: 'Grade B', label: tr("Grade B (25-34cm)") },
+                { value: 'Grade C', label: tr("Grade C (<25cm)") },
+              ]} />
+            <div>
+              <label htmlFor="sulur-qty" className={labelCls}>{tr("Quantity (Pieces)")}</label>
+              <input id="sulur-qty" type="number" min="1" value={newBatch.initial_quantity} required
+                onChange={e => setNewBatch({ ...newBatch, initial_quantity: Number(e.target.value) })} className={inputCls} />
             </div>
-
-            <form onSubmit={handleCreateBatch} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Pineapple Variety</label>
-                  <select
-                    value={newBatch.variety}
-                    onChange={e => setNewBatch({ ...newBatch, variety: e.target.value })}
-                    className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
-                  >
-                    <option value="MD2">MD2</option>
-                    <option value="Moris">Moris</option>
-                    <option value="Josapine">Josapine</option>
-                    <option value="N36">N36</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Size Grade (LPNM)</label>
-                  <select
-                    value={newBatch.size_grade}
-                    onChange={e => setNewBatch({ ...newBatch, size_grade: e.target.value })}
-                    className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
-                  >
-                    <option value="Grade A">Grade A (35-45cm)</option>
-                    <option value="Grade B">Grade B (25-34cm)</option>
-                    <option value="Grade C">Grade C (&lt;25cm)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Quantity (Pieces)</label>
-                  <input
-                    type="number"
-                    value={newBatch.initial_quantity}
-                    onChange={e => setNewBatch({ ...newBatch, initial_quantity: Number(e.target.value) })}
-                    className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Status</label>
-                  <select
-                    value={newBatch.treatment_status}
-                    onChange={e => setNewBatch({ ...newBatch, treatment_status: e.target.value })}
-                    className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
-                  >
-                    <option value="ready_to_plant">Ready to Plant</option>
-                    <option value="fungicide_treated">Fungicide Treated</option>
-                    <option value="curing">Curing / Drying</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Source Plot</label>
-                  <input
-                    type="text"
-                    value={newBatch.source_plot}
-                    onChange={e => setNewBatch({ ...newBatch, source_plot: e.target.value })}
-                    className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 mb-1">Nursery Shed</label>
-                  <input
-                    type="text"
-                    value={newBatch.storage_location}
-                    onChange={e => setNewBatch({ ...newBatch, storage_location: e.target.value })}
-                    className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
-                    required
-                  />
-                </div>
-              </div>
-
-              {!isWorker && (
-                <label className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-900 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={newBatch.is_certified}
-                    onChange={e => setNewBatch({ ...newBatch, is_certified: e.target.checked })}
-                  />
-                  <span>Issue LPNM Management Quality Certificate</span>
-                </label>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold"
-                >
-                  Save Batch
-                </button>
-              </div>
-            </form>
+            <AppSelect label={tr("Status")} value={newBatch.treatment_status}
+              onChange={v => setNewBatch({ ...newBatch, treatment_status: v })}
+              options={[
+                { value: 'ready_to_plant', label: tr("Ready to Plant") },
+                { value: 'fungicide_treated', label: tr("Fungicide Treated") },
+                { value: 'curing', label: tr("Curing / Drying") },
+              ]} />
+            <div>
+              <label htmlFor="sulur-source" className={labelCls}>{tr("Source Plot")}</label>
+              <input id="sulur-source" type="text" value={newBatch.source_plot} required
+                onChange={e => setNewBatch({ ...newBatch, source_plot: e.target.value })} className={inputCls} />
+            </div>
+            <div>
+              <label htmlFor="sulur-shed" className={labelCls}>{tr("Nursery Shed")}</label>
+              <input id="sulur-shed" type="text" value={newBatch.storage_location} required
+                onChange={e => setNewBatch({ ...newBatch, storage_location: e.target.value })} className={inputCls} />
+            </div>
           </div>
-        </div>
-      )}
+          {!isWorker && (
+            <label className="flex items-center gap-2.5 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm text-gray-800 cursor-pointer">
+              <input type="checkbox" className="h-4 w-4 accent-green-700" checked={newBatch.is_certified}
+                onChange={e => setNewBatch({ ...newBatch, is_certified: e.target.checked })} />
+              <span>{tr("Issue LPNM Management Quality Certificate")}</span>
+            </label>
+          )}
+        </form>
+      </Dialog>
 
-      {/* POPUP MODAL 2: "PLANT / MOVE STOCK" */}
+      {/* ── Plant / move stock dialog ── */}
       {moveModalBatch && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4 animate-fade-in">
-            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-gray-900">
-                  {isWorker ? 'Take Sulur & Plant to Field' : 'Plant / Move Sulur Stock'}
-                </h3>
-                <p className="text-xs text-gray-500">
-                  {moveModalBatch.batch_code} ({moveModalBatch.variety} - Available: {moveModalBatch.available_quantity.toLocaleString()})
-                </p>
-              </div>
-              <button onClick={() => setMoveModalBatch(null)} className="p-1 text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
+        <Dialog
+          open
+          size="sm"
+          title={isWorker ? tr("Take Sulur & Plant to Field") : tr("Plant / Move Sulur Stock")}
+          subtitle={<>{moveModalBatch.batch_code} ({moveModalBatch.variety} {tr("- Available:")} {Number(moveModalBatch.available_quantity).toLocaleString()})</>}
+          onClose={() => setMoveModalBatch(null)}
+          footer={
+            <>
+              <button type="button" onClick={() => setMoveModalBatch(null)} className={btnSecondary}>{tr("Cancel")}</button>
+              <button type="submit" form="sulur-move-form" className={btnPrimary}>{tr("Confirm & Update Stock")}</button>
+            </>
+          }
+        >
+          <form id="sulur-move-form" onSubmit={handleQuickMove} className="space-y-4">
+            <AppSelect label={tr("Action")} value={moveForm.movement_type}
+              onChange={v => setMoveForm({ ...moveForm, movement_type: v })}
+              options={[
+                { value: 'plant', label: tr("Plant to Field (Stock-Out)") },
+                { value: 'reserve', label: tr("Reserve for Upcoming Plot") },
+                ...(!isWorker ? [{ value: 'sell', label: tr("Sell to Cooperative / Buyer") }] : []),
+                { value: 'damage', label: tr("Record Spoiled / Damaged") },
+                { value: 'stock_in', label: tr("Add More Stock-In") },
+              ]} />
+            <div>
+              <label htmlFor="move-qty" className={labelCls}>{tr("Quantity (Sulur Pieces)")}</label>
+              <input id="move-qty" type="number" min="1" value={moveForm.quantity} required
+                onChange={e => setMoveForm({ ...moveForm, quantity: Number(e.target.value) })} className={inputCls} />
             </div>
-
-            <form onSubmit={handleQuickMove} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Action</label>
-                <select
-                  value={moveForm.movement_type}
-                  onChange={e => setMoveForm({ ...moveForm, movement_type: e.target.value })}
-                  className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
-                >
-                  <option value="plant">Plant to Field (Stock-Out)</option>
-                  <option value="reserve">Reserve for Upcoming Plot</option>
-                  {!isWorker && <option value="sell">Sell to Cooperative / Buyer</option>}
-                  <option value="damage">Record Spoiled / Damaged</option>
-                  <option value="stock_in">Add More Stock-In</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Quantity (Sulur Pieces)</label>
-                <input
-                  type="number"
-                  value={moveForm.quantity}
-                  onChange={e => setMoveForm({ ...moveForm, quantity: Number(e.target.value) })}
-                  className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Target Plot / Destination</label>
-                <input
-                  type="text"
-                  value={moveForm.destination_or_plot}
-                  onChange={e => setMoveForm({ ...moveForm, destination_or_plot: e.target.value })}
-                  className="w-full p-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setMoveModalBatch(null)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold"
-                >
-                  Confirm & Update Stock
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            <div>
+              <label htmlFor="move-dest" className={labelCls}>{tr("Target Plot / Destination")}</label>
+              <input id="move-dest" type="text" value={moveForm.destination_or_plot} required
+                onChange={e => setMoveForm({ ...moveForm, destination_or_plot: e.target.value })} className={inputCls} />
+            </div>
+          </form>
+        </Dialog>
       )}
+    </>
+  );
+
+  if (isWorker) {
+    return (
+      <WorkerPage
+        title={tr("Sulur Inventory")}
+        subtitle={tr("Quickly log newly harvested sulur, update fungicide/curing status, or check seed & fertilizer quantities for your plot.")}
+        actions={addButton}
+      >
+        {body}
+      </WorkerPage>
+    );
+  }
+  return (
+    <div className="space-y-6">
+      <AdminPageHeader
+        title={`${tr("Sulur Inventory")} · ${activeLabel}`}
+        subtitle={tr("LPNM Seed Quality Certification, Batch Traceability & Financial Profit DSS")}
+        actions={addButton}
+      />
+      {body}
     </div>
   );
 };
@@ -1240,17 +1010,12 @@ export const SulurManagement: React.FC = () => {
   if (isWorker) {
     return (
       <WorkerLayout>
-        <div className="p-6">
-          <SulurManagementContent isWorker={true} />
-        </div>
+        <SulurManagementContent isWorker={true} />
       </WorkerLayout>
     );
   }
   return (
-    <AdminLayout
-      title="Sulur Inventory & Tracking (Management Portal)"
-      subtitle="LPNM Seed Quality Certification, Batch Traceability & Financial Profit DSS"
-    >
+    <AdminLayout>
       <SulurManagementContent isWorker={false} />
     </AdminLayout>
   );

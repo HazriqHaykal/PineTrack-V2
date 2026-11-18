@@ -103,7 +103,7 @@ function App() {
         <Route path="/analytics"  element={<AdminRoute><AnalyticsPage /></AdminRoute>} />
         <Route path="/profit-planner" element={<AdminRoute><ProfitPlanner /></AdminRoute>} />
         {/* The former Ask page now lives in the agent's Ask tab */}
-        <Route path="/ai"         element={<Navigate to="/admin/ai-insights?tab=ask" replace />} />
+        <Route path="/ai"         element={<Navigate to="/admin/ai-insights" replace />} />
 
         <Route path="/admin/ai-insights" element={<AdminRoute><AIInsights /></AdminRoute>} />
         <Route path="/admin/reports"     element={<AdminRoute><Reports /></AdminRoute>} />

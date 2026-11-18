@@ -17,13 +17,14 @@ import { apiClient, apiErrorMessage } from '../../services/api'
 import { BatchSummary, Harvest, HarvestStatus, QualityTargets } from '../../types'
 import AppSelect from '../../components/ui/AppSelect'
 
+import { tr, trEnum } from '../../i18n'
 /** Raw filter values; labels are for display only */
 const GRADE_FILTERS: { value: string; label: string }[] = [
-  { value: 'all', label: 'All grades' },
-  ...GRADES.map((g) => ({ value: g, label: `Contains Grade ${g}` })),
-  { value: 'mixed', label: 'Mixed grades' },
-  { value: 'legacy', label: 'Legacy (single grade)' },
-  { value: 'ungraded', label: 'Ungraded' },
+  { value: 'all', label: tr("All grades") },
+  ...GRADES.map((g) => ({ value: g, label: tr("Contains Grade {0}", g) })),
+  { value: 'mixed', label: tr("Mixed grades") },
+  { value: 'legacy', label: tr("Legacy (single grade)") },
+  { value: 'ungraded', label: tr("Ungraded") },
 ]
 
 function matchesGrade(h: Harvest, filter: string): boolean {
@@ -121,7 +122,7 @@ export default function HarvestPage() {
       setBatchInfo(Object.fromEntries(summaries.map((s) => [s.harvest_id, s])))
     } catch (err) {
       setHarvests([])
-      showToast(apiErrorMessage(err, 'Failed to load harvests'), 'error')
+      showToast(apiErrorMessage(err, tr("Failed to load harvests")), 'error')
     } finally {
       setLoading(false)
     }
@@ -156,9 +157,9 @@ export default function HarvestPage() {
       })
       setTargets(updated)
       setTargetsOpen(false)
-      showToast('Quality targets updated', 'success')
+      showToast(tr("Quality targets updated"), 'success')
     } catch (err) {
-      showToast(apiErrorMessage(err, 'Failed to update targets'), 'error')
+      showToast(apiErrorMessage(err, tr("Failed to update targets")), 'error')
     } finally {
       setTargetsSaving(false)
     }
@@ -197,11 +198,11 @@ export default function HarvestPage() {
     const grading = previewGrading(form.quantity_kg, form.grades, [], form.non_marketable)
     const sortedOut = Number(form.non_marketable) || 0
     if (!grading.empty && grading.error) {
-      setFormError(`Grading breakdown: ${grading.error}`)
+      setFormError(tr("Grading breakdown: {0}", grading.error))
       return
     }
     if (editing?.grading_basis === 'grade_based' && grading.empty) {
-      setFormError('A graded batch keeps its grade quantities. Enter them again or cancel.')
+      setFormError(tr("A graded batch keeps its grade quantities. Enter them again or cancel."))
       return
     }
     setFormError('')
@@ -223,7 +224,7 @@ export default function HarvestPage() {
           rejected_kg:    grading.empty ? rejectedInput : Math.round((sortedOut + rejectedInput) * 100) / 100,
           notes:          form.notes,
         })
-        showToast('Harvest updated', 'success')
+        showToast(tr("Harvest updated"), 'success')
       } else {
         await apiClient.createHarvest({
           field_name:     form.field_name,
@@ -234,12 +235,12 @@ export default function HarvestPage() {
           ripeness_level: form.ripeness_level ? parseFloat(form.ripeness_level) : undefined,
           notes:          form.notes,
         })
-        showToast('Harvest created', 'success')
+        showToast(tr("Harvest created"), 'success')
       }
       setModal(false)
       load()
     } catch (err) {
-      setFormError(apiErrorMessage(err, 'Failed to save harvest'))
+      setFormError(apiErrorMessage(err, tr("Failed to save harvest")))
     } finally {
       setSubmitting(false)
     }
@@ -248,11 +249,11 @@ export default function HarvestPage() {
   const handleDelete = async (id: number) => {
     try {
       await apiClient.deleteHarvest(id)
-      showToast('Harvest deleted', 'success')
+      showToast(tr("Harvest deleted"), 'success')
       setDelConfirm(null)
       load()
     } catch (err) {
-      showToast(apiErrorMessage(err, 'Failed to delete'), 'error')
+      showToast(apiErrorMessage(err, tr("Failed to delete")), 'error')
     }
   }
 
@@ -272,7 +273,7 @@ export default function HarvestPage() {
       })
       setAiResult(result)
     } catch (err) {
-      showToast(apiErrorMessage(err, 'PineTrack Agent could not respond'), 'error')
+      showToast(apiErrorMessage(err, tr("PineTrack Agent could not respond")), 'error')
     } finally {
       setAiLoading(false)
     }
@@ -302,26 +303,26 @@ export default function HarvestPage() {
 
   return (
     <AdminLayout>
-      <div className="p-6 lg:p-8">
+      <div>
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Harvest Management</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Track and manage pineapple harvest batches</p>
+            <h1 className="text-2xl font-bold text-gray-900">{tr("Harvest Management")}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{tr("Track and manage pineapple harvest batches")}</p>
           </div>
           <button
             onClick={openCreate}
             className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors self-start sm:self-auto"
           >
-            <Plus size={16} strokeWidth={2} /> New Harvest
+            <Plus size={16} strokeWidth={2} /> {tr("New Harvest")}
           </button>
         </div>
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           {[
-            { label: 'Total Batches', value: harvests.length },
-            { label: 'Total Volume', value: `${totalQty.toLocaleString()} kg` },
+            { label: tr("Total Batches"), value: harvests.length },
+            { label: tr("Total Volume"), value: `${totalQty.toLocaleString()} kg` },
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
               <p className="text-xs text-gray-500 uppercase tracking-wide">{s.label}</p>
@@ -330,18 +331,18 @@ export default function HarvestPage() {
           ))}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3">
             <p className="text-xs text-gray-500 uppercase tracking-wide">
-              <span title="Sum of marketable kg divided by sum of harvested kg, over batches with recorded grade quantities. Legacy and ungraded batches are left out."
-                className="cursor-help">Marketable Yield</span>
+              <span title={tr("Sum of marketable kg divided by sum of harvested kg, over batches with recorded grade quantities. Legacy and ungraded batches are left out.")}
+                className="cursor-help">{tr("Marketable Yield")}</span>
             </p>
             <p className="text-xl font-bold text-gray-900 mt-0.5 tabular-nums">{yieldPct != null ? `${yieldPct}%` : '—'}</p>
             <p className="text-[11px] text-gray-500 mt-0.5 truncate">
-              {gradeBased.length ? `${fmtKg(Math.round(gradedYield * 100) / 100)} marketable` : 'No grade-based batches'}
+              {gradeBased.length ? tr("{0} marketable", fmtKg(Math.round(gradedYield * 100) / 100)) : tr("No grade-based batches")}
               {excluded > 0 && ` · ${excluded} excluded`}
             </p>
           </div>
           {[
-            { label: 'Spoilage Rate',  rate: spoilageRatePct,  target: targets.max_spoilage_rate,  over: spoilageOverTarget },
-            { label: 'Rejection Rate', rate: rejectionRatePct, target: targets.max_rejection_rate, over: rejectionOverTarget },
+            { label: tr("Spoilage Rate"),  rate: spoilageRatePct,  target: targets.max_spoilage_rate,  over: spoilageOverTarget },
+            { label: tr("Rejection Rate"), rate: rejectionRatePct, target: targets.max_rejection_rate, over: rejectionOverTarget },
           ].map((c) => (
             <div key={c.label} className={`rounded-xl border shadow-sm px-4 py-3 ${c.over ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100'}`}>
               <div className="flex items-center justify-between gap-2">
@@ -349,15 +350,15 @@ export default function HarvestPage() {
                 <button
                   type="button"
                   onClick={openTargets}
-                  title="Edit quality targets"
-                  aria-label={`Edit ${c.label.toLowerCase()} target`}
+                  title={tr("Edit quality targets")}
+                  aria-label={tr("Edit {0} target", c.label.toLowerCase())}
                   className="-mr-1.5 -my-1 inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
                 >
                   <Pencil size={14} strokeWidth={1.75} />
                 </button>
               </div>
               <p className={`text-xl font-bold mt-0.5 ${c.over ? 'text-red-700' : 'text-gray-900'}`}>
-                {c.rate}% <span className="text-xs font-medium text-gray-500">/ target {c.target}%</span>
+                {c.rate}% <span className="text-xs font-medium text-gray-500">{tr("/ target")} {c.target}%</span>
               </p>
             </div>
           ))}
@@ -369,19 +370,19 @@ export default function HarvestPage() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by batch # or field name…"
+              placeholder={tr("Search by batch # or field name…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search harvests"
+              aria-label={tr("Search harvests")}
               className="w-full h-9 pl-9 pr-4 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
-          <AppSelect size="sm" aria-label="Filter by grade" value={gradeFilter} onChange={setGrade}
+          <AppSelect size="sm" aria-label={tr("Filter by grade")} value={gradeFilter} onChange={setGrade}
             highlighted={gradeFilter !== 'all'} triggerClassName="sm:w-52"
             options={GRADE_FILTERS} />
           <div className="sm:ml-auto flex items-center gap-3">
             {(search || gradeFilter !== 'all') && (
-              <span className="text-xs text-gray-500">{filtered.length} of {harvests.length} batches</span>
+              <span className="text-xs text-gray-500">{filtered.length} {tr("of")} {harvests.length} {tr("batches")}</span>
             )}
             <StatusGuide />
           </div>
@@ -392,13 +393,13 @@ export default function HarvestPage() {
           {loading ? (
             <div className="flex flex-col items-center justify-center h-48 text-gray-400">
               <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mb-3" />
-              Loading harvests…
+              {tr("Loading harvests…")}
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-gray-400">
               <Sprout size={36} className="mb-2 opacity-30" />
-              <p className="font-medium">No harvests found</p>
-              <p className="text-sm mt-1">Try adjusting filters or create a new harvest</p>
+              <p className="font-medium">{tr("No harvests found")}</p>
+              <p className="text-sm mt-1">{tr("Try adjusting filters or create a new harvest")}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -406,12 +407,12 @@ export default function HarvestPage() {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     {[
-                      ['Batch', 'w-[28%]'],
-                      ['Harvested', ''],
-                      ['Quantity', 'text-right'],
-                      ['Grade', ''],
-                      ['Lifecycle', ''],
-                      ['Actions', 'text-right'],
+                      [tr("Batch"), 'w-[28%]'],
+                      [tr("Harvested"), ''],
+                      [tr("Quantity"), 'text-right'],
+                      [tr("Grade"), ''],
+                      [tr("Lifecycle"), ''],
+                      [tr("Actions"), 'text-right'],
                     ].map(([h, cls]) => (
                       <th key={h} className={`text-left px-4 py-3 text-xs text-gray-600 font-semibold uppercase tracking-wide whitespace-nowrap ${cls}`}>
                         {h}
@@ -435,21 +436,21 @@ export default function HarvestPage() {
                         </td>
                         <td className="px-4 py-3 text-gray-700 whitespace-nowrap tabular-nums">{h.harvest_date}</td>
                         <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap tabular-nums">
-                          {h.quantity_kg.toLocaleString()} kg
+                          {h.quantity_kg.toLocaleString()} {tr("kg")}
                         </td>
                         <td className="px-4 py-3">
                           <GradeSummary harvest={h} />
                         </td>
                         <td className="px-4 py-3">
-                          {info ? <LifecycleBadge code={info.lifecycle_status} label={info.lifecycle_label} /> : <span className="text-gray-400">—</span>}
+                          {info ? <LifecycleBadge code={info.lifecycle_status} label={tr(info.lifecycle_label)} /> : <span className="text-gray-400">—</span>}
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex items-center justify-end gap-1">
-                            <IconButton icon={Eye} label={`View ${h.batch_number}`} onClick={() => navigate(`/harvest/${h.id}`)} />
-                            <IconButton icon={Lightbulb} label={`PineTrack Agent insights for ${h.batch_number}`} onClick={() => openAI(h)} />
-                            <IconButton icon={Pencil} label={`Edit ${h.batch_number}`} onClick={() => openEdit(h)} />
+                            <IconButton icon={Eye} label={tr("View {0}", h.batch_number)} onClick={() => navigate(`/harvest/${h.id}`)} />
+                            <IconButton icon={Lightbulb} label={tr("PineTrack Agent insights for {0}", h.batch_number)} onClick={() => openAI(h)} />
+                            <IconButton icon={Pencil} label={tr("Edit {0}", h.batch_number)} onClick={() => openEdit(h)} />
                             <span className="mx-0.5 h-4 w-px bg-gray-200" aria-hidden />
-                            <IconButton icon={Trash2} label={`Delete ${h.batch_number}`} onClick={() => setDelConfirm(h.id)} danger />
+                            <IconButton icon={Trash2} label={tr("Delete {0}", h.batch_number)} onClick={() => setDelConfirm(h.id)} danger />
                           </div>
                         </td>
                       </tr>
@@ -465,25 +466,25 @@ export default function HarvestPage() {
       {/* Create / Edit Modal */}
       <Modal
         open={modalOpen}
-        title={editing ? 'Edit Harvest' : 'New Harvest Batch'}
+        title={editing ? tr("Edit Harvest") : tr("New Harvest Batch")}
         onClose={() => setModal(false)}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Field Name *</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Field Name *")}</label>
               <input
                 type="text"
                 value={form.field_name}
                 onChange={(e) => setForm({ ...form, field_name: e.target.value })}
                 disabled={!!editing}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-50 disabled:text-gray-400"
-                placeholder="e.g. Field Block A-3"
+                placeholder={tr("e.g. Field Block A-3")}
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Harvest Date *</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Harvest Date *")}</label>
               <input
                 type="date"
                 value={form.harvest_date}
@@ -494,7 +495,7 @@ export default function HarvestPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Quantity (kg) *</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Quantity (kg) *")}</label>
               <input
                 type="number"
                 value={form.quantity_kg}
@@ -506,23 +507,23 @@ export default function HarvestPage() {
               />
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Ripeness Level (0–10)</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Ripeness Level (0–10)")}</label>
               <input
                 type="number"
                 value={form.ripeness_level}
                 onChange={(e) => setForm({ ...form, ripeness_level: e.target.value })}
                 min="0" max="10" step="0.1"
-                placeholder="Optional"
+                placeholder={tr("Optional")}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
 
             <div className="col-span-2 border-t border-gray-100 pt-4">
-              <p className="text-sm font-semibold text-gray-900">Grading Breakdown</p>
+              <p className="text-sm font-semibold text-gray-900">{tr("Grading Breakdown")}</p>
               <p className="text-xs text-gray-500 mt-0.5 mb-3">
                 {editing?.grading_basis === 'legacy'
-                  ? `Legacy record graded as a single Grade ${editing.quality_grade}. Enter the kg of each grade to switch it to grade-based yield, or leave blank to keep it as is.`
-                  : 'Kilograms of each grade, as sorted by the farmer. Leave all blank if the batch has not been graded yet.'}
+                  ? tr("Legacy record graded as a single Grade {0}. Enter the kg of each grade to switch it to grade-based yield, or leave blank to keep it as is.", editing.quality_grade)
+                  : tr("Kilograms of each grade, as sorted by the farmer. Leave all blank if the batch has not been graded yet.")}
               </p>
               <GradingFields
                 total={form.quantity_kg}
@@ -533,8 +534,8 @@ export default function HarvestPage() {
                 reason={form.non_marketable_reason}
                 onReasonChange={(v) => setForm({ ...form, non_marketable_reason: v })}
                 emptyHint={editing?.grading_basis === 'grade_based'
-                  ? 'A graded batch must keep its grade quantities.'
-                  : 'No grades entered: the batch stays ungraded.'}
+                  ? tr("A graded batch must keep its grade quantities.")
+                  : tr("No grades entered: the batch stays ungraded.")}
                 idPrefix="harvest-grade"
               />
             </div>
@@ -542,12 +543,12 @@ export default function HarvestPage() {
             {editing && (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Harvest Status</label>
+                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Harvest Status")}</label>
                   <AppSelect
-                    aria-label="Harvest status"
+                    aria-label={tr("Harvest status")}
                     value={form.harvest_status}
                     onChange={(v) => setForm({ ...form, harvest_status: v as HarvestStatus })}
-                    options={HARVEST_STATUSES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+                    options={HARVEST_STATUSES.map((s) => ({ value: s, label: trEnum(s).replace(/^\w/, (c) => c.toUpperCase()) }))}
                   />
                 </div>
                 {(() => {
@@ -557,7 +558,7 @@ export default function HarvestPage() {
                   return !g.empty ? (
                     <div className="col-span-2 grid grid-cols-2 gap-4 bg-gray-50 rounded-lg p-3">
                       <div>
-                        <label htmlFor="spoilage_kg" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Spoilage (kg)</label>
+                        <label htmlFor="spoilage_kg" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Spoilage (kg)")}</label>
                         <input
                           id="spoilage_kg"
                           type="number"
@@ -568,7 +569,7 @@ export default function HarvestPage() {
                         />
                       </div>
                       <div>
-                        <label htmlFor="rejected_kg" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Rejected after grading (kg)</label>
+                        <label htmlFor="rejected_kg" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Rejected after grading (kg)")}</label>
                         <input
                           id="rejected_kg"
                           type="number"
@@ -579,14 +580,14 @@ export default function HarvestPage() {
                         />
                       </div>
                       <p className="col-span-2 text-xs text-gray-600">
-                        Fruit spoiled or rejected after grading is deducted from the graded quantities; non-marketable fruit at sorting is entered above.
-                        {g.reconciled && ` Marketable quantity: ${fmtKg(Math.max(Math.round((g.marketable - spoiled - rejected) * 100) / 100, 0))} (calculated on save).`}
+                        {tr("Fruit spoiled or rejected after grading is deducted from the graded quantities; non-marketable fruit at sorting is entered above.")}
+                        {g.reconciled && tr(" Marketable quantity: {0} (calculated on save).", fmtKg(Math.max(Math.round((g.marketable - spoiled - rejected) * 100) / 100, 0)))}
                       </p>
                     </div>
                   ) : (
                 <div className="col-span-2 grid grid-cols-2 gap-4 bg-gray-50 rounded-lg p-3">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Spoilage (kg)</label>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Spoilage (kg)")}</label>
                     <input
                       type="number"
                       value={form.spoilage_kg}
@@ -596,7 +597,7 @@ export default function HarvestPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Rejected (kg)</label>
+                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Rejected (kg)")}</label>
                     <input
                       type="number"
                       value={form.rejected_kg}
@@ -606,7 +607,7 @@ export default function HarvestPage() {
                     />
                   </div>
                   <p className="col-span-2 text-xs text-gray-500">
-                    {editing.grading_basis === 'legacy' ? 'Legacy calculation' : 'Provisional, until graded'}: marketable = harvested − spoilage − rejected = {Math.max(parseFloat(form.quantity_kg || '0') - (parseFloat(form.spoilage_kg) || 0) - (parseFloat(form.rejected_kg) || 0), 0).toFixed(2)} kg
+                    {editing.grading_basis === 'legacy' ? tr("Legacy calculation") : tr("Provisional, until graded")}{tr(": marketable = harvested − spoilage − rejected =")} {Math.max(parseFloat(form.quantity_kg || '0') - (parseFloat(form.spoilage_kg) || 0) - (parseFloat(form.rejected_kg) || 0), 0).toFixed(2)} {tr("kg")}
                   </p>
                 </div>
                   )
@@ -615,12 +616,12 @@ export default function HarvestPage() {
             )}
 
             <div className="col-span-2">
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Notes</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("Notes")}</label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={3}
-                placeholder="Optional notes…"
+                placeholder={tr("Optional notes…")}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
               />
             </div>
@@ -631,26 +632,26 @@ export default function HarvestPage() {
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setModal(false)}
               className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancel
+              {tr("Cancel")}
             </button>
             <button type="submit" disabled={submitting}
               className="flex-1 px-4 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
-              {submitting ? 'Saving…' : editing ? 'Update Harvest' : 'Create Harvest'}
+              {submitting ? tr("Saving…") : editing ? tr("Update Harvest") : tr("Create Harvest")}
             </button>
           </div>
         </form>
       </Modal>
 
       {/* Quality targets */}
-      <Modal open={targetsOpen} title="Quality Targets" onClose={() => setTargetsOpen(false)}>
+      <Modal open={targetsOpen} title={tr("Quality Targets")} onClose={() => setTargetsOpen(false)}>
         <form onSubmit={saveTargets} className="space-y-4">
           <p className="text-sm text-gray-600">
-            Maximum acceptable rates, as a percentage of harvested weight. Rate cards turn red when a target is exceeded.
+            {tr("Maximum acceptable rates, as a percentage of harvested weight. Rate cards turn red when a target is exceeded.")}
           </p>
           <div className="grid grid-cols-2 gap-4">
             {([
-              ['max_spoilage_rate',  'Max Spoilage (%)'],
-              ['max_rejection_rate', 'Max Rejection (%)'],
+              ['max_spoilage_rate',  tr("Max Spoilage (%)")],
+              ['max_rejection_rate', tr("Max Rejection (%)")],
             ] as const).map(([key, lbl]) => (
               <div key={key}>
                 <label htmlFor={key} className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{lbl}</label>
@@ -666,53 +667,53 @@ export default function HarvestPage() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500">These are the same targets as in Settings; a change here applies everywhere.</p>
+          <p className="text-xs text-gray-500">{tr("These are the same targets as in Settings; a change here applies everywhere.")}</p>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setTargetsOpen(false)}
               className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancel
+              {tr("Cancel")}
             </button>
             <button type="submit" disabled={targetsSaving}
               className="flex-1 px-4 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
-              {targetsSaving ? 'Saving…' : 'Save Targets'}
+              {targetsSaving ? tr("Saving…") : tr("Save Targets")}
             </button>
           </div>
         </form>
       </Modal>
 
       {/* Delete confirm */}
-      <Modal open={delConfirm !== null} title="Confirm Delete" onClose={() => setDelConfirm(null)}>
+      <Modal open={delConfirm !== null} title={tr("Confirm Delete")} onClose={() => setDelConfirm(null)}>
         <p className="text-sm text-gray-600 mb-6">
-          Are you sure you want to delete this harvest record? This action cannot be undone.
+          {tr("Are you sure you want to delete this harvest record? This action cannot be undone.")}
         </p>
         <div className="flex gap-3">
           <button onClick={() => setDelConfirm(null)}
             className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-            Cancel
+            {tr("Cancel")}
           </button>
           <button onClick={() => delConfirm !== null && handleDelete(delConfirm)}
             className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">
-            Delete
+            {tr("Delete")}
           </button>
         </div>
       </Modal>
 
       {/* AI Modal */}
-      <Modal open={aiModalOpen} title="PineTrack Agent: Harvest Timing" onClose={() => setAiModal(false)}>
+      <Modal open={aiModalOpen} title={tr("PineTrack Agent: Harvest Timing")} onClose={() => setAiModal(false)}>
         {aiHarvest && (
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm">
               <p className="font-medium text-gray-700">{aiHarvest.field_name}</p>
               <p className="text-gray-500">
-                Harvested {aiHarvest.harvest_date} · {isMixed(aiHarvest.quality_grade) ? 'Mixed grades' : normalizeGrade(aiHarvest.quality_grade) ? `Grade ${normalizeGrade(aiHarvest.quality_grade)}` : 'Ungraded'} · {aiHarvest.quantity_kg} kg
+                {tr("Harvested")} {aiHarvest.harvest_date} · {isMixed(aiHarvest.quality_grade) ? tr("Mixed grades") : normalizeGrade(aiHarvest.quality_grade) ? tr("Grade {0}", normalizeGrade(aiHarvest.quality_grade)) : tr("Ungraded")} · {aiHarvest.quantity_kg} {tr("kg")}
               </p>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: 'Ripeness Level (0–10)', key: 'ripeness_level', max: 10 },
-                { label: 'Days Since Last Harvest', key: 'days_since_last_harvest', max: 90 },
-                { label: 'Field Condition (0–10)', key: 'field_condition_score', max: 10 },
+                { label: tr("Ripeness Level (0–10)"), key: 'ripeness_level', max: 10 },
+                { label: tr("Days Since Last Harvest"), key: 'days_since_last_harvest', max: 90 },
+                { label: tr("Field Condition (0–10)"), key: 'field_condition_score', max: 10 },
               ].map(({ label, key, max }) => (
                 <div key={key}>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">{label}</label>
@@ -733,7 +734,7 @@ export default function HarvestPage() {
               className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
             >
               <Lightbulb size={16} strokeWidth={1.75} />
-              {aiLoading ? 'Analyzing…' : 'Ask PineTrack Agent'}
+              {aiLoading ? tr("Analyzing…") : tr("Ask PineTrack Agent")}
             </button>
 
             {aiResult && (
@@ -741,16 +742,16 @@ export default function HarvestPage() {
                 <div className="flex items-center justify-between">
                   <p className="font-bold text-purple-900 text-lg">{aiResult.recommendation}</p>
                   <span className="text-xs bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full font-medium">
-                    {Math.round(aiResult.confidence_score * 100)}% confidence
+                    {Math.round(aiResult.confidence_score * 100)}{tr("% confidence")}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="bg-white rounded-lg p-3 border border-purple-100">
-                    <p className="text-xs text-gray-400 uppercase">Quality</p>
+                    <p className="text-xs text-gray-400 uppercase">{tr("Quality")}</p>
                     <p className="font-semibold text-gray-800">{aiResult.quality_prediction}</p>
                   </div>
                   <div className="bg-white rounded-lg p-3 border border-purple-100">
-                    <p className="text-xs text-gray-400 uppercase">Transport Priority</p>
+                    <p className="text-xs text-gray-400 uppercase">{tr("Transport Priority")}</p>
                     <p className="font-semibold text-gray-800">{aiResult.transport_priority}</p>
                   </div>
                 </div>
@@ -758,7 +759,7 @@ export default function HarvestPage() {
                   <p className="text-xs text-gray-700 leading-relaxed">{aiResult.explanation}</p>
                 )}
                 <p className="text-xs text-purple-700">
-                  Readiness score: {aiResult.reasoning?.total_score}/100 · {aiResult.source === 'gemini' ? 'PineTrack Agent' : 'Built-in rules'}
+                  {tr("Readiness score:")} {aiResult.reasoning?.total_score}/100 · {aiResult.source === 'gemini' ? tr("PineTrack Agent") : tr("Built-in rules")}
                 </p>
               </div>
             )}

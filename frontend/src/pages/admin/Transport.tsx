@@ -16,6 +16,7 @@ import { apiClient, apiErrorMessage } from '../../services/api'
 import { BatchSummary, Harvest, SystemUser, Transport } from '../../types'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 
+import { tr } from '../../i18n'
 // ── Small building blocks ────────────────────────────────────────────────────
 
 const inputCls = (err?: string) =>
@@ -72,22 +73,22 @@ function AllocationPanel({ alloc, weight, locked, onUseMax }: {
     }`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="text-gray-700">
-          Batch <Link to={`/harvest/${batch.id}`} target="_blank" className="font-semibold text-gray-900 hover:text-green-800 underline-offset-2 hover:underline">{batch.batch_number}</Link>
+          {tr("Batch")} <Link to={`/harvest/${batch.id}`} target="_blank" className="font-semibold text-gray-900 hover:text-green-800 underline-offset-2 hover:underline">{batch.batch_number}</Link>
           <span className="text-gray-500"> · {batch.field_name}</span>
         </p>
         {summary && !locked && (
           <p className="text-gray-700">
-            Max for this delivery <span className="font-semibold text-gray-900 tabular-nums">{fmtKg(maxKg ?? 0)}</span>
+            {tr("Max for this delivery")} <span className="font-semibold text-gray-900 tabular-nums">{fmtKg(maxKg ?? 0)}</span>
           </p>
         )}
       </div>
 
       {locked ? (
-        <p className="mt-1.5 text-xs text-gray-600">Delivered from this batch. The batch and cargo weight are locked.</p>
+        <p className="mt-1.5 text-xs text-gray-600">{tr("Delivered from this batch. The batch and cargo weight are locked.")}</p>
       ) : rejected ? (
-        <p className="mt-1.5 text-xs text-red-700">Rejected at grading, so no stock can be allocated from it.</p>
+        <p className="mt-1.5 text-xs text-red-700">{tr("Rejected at grading, so no stock can be allocated from it.")}</p>
       ) : !summary ? (
-        <p className="mt-1.5 text-xs text-gray-600">Availability could not be loaded. The server will still check the cargo weight when you save.</p>
+        <p className="mt-1.5 text-xs text-gray-600">{tr("Availability could not be loaded. The server will still check the cargo weight when you save.")}</p>
       ) : (
         <>
           <div className="mt-2 h-1.5 w-full rounded-full bg-gray-200 overflow-hidden" aria-hidden>
@@ -95,12 +96,12 @@ function AllocationPanel({ alloc, weight, locked, onUseMax }: {
           </div>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
             <span>
-              {fmtKg(Math.max(summary.available_kg, 0))} unallocated on the batch
-              {ownShare > 0 && <> + {fmtKg(ownShare)} already reserved by this delivery</>}
+              {fmtKg(Math.max(summary.available_kg, 0))} {tr("unallocated on the batch")}
+              {ownShare > 0 && <> + {fmtKg(ownShare)} {tr("already reserved by this delivery")}</>}
             </span>
             {(maxKg ?? 0) > 0 && (
               <button type="button" onClick={onUseMax} className="font-medium text-green-800 hover:underline">
-                Use maximum
+                {tr("Use maximum")}
               </button>
             )}
           </div>
@@ -179,7 +180,7 @@ export default function TransportPage() {
         .then((items) => setSummaries(Object.fromEntries(items.map((i) => [i.harvest_id, i]))))
         .catch(() => setSummaries({}))
     } catch (err) {
-      setLoadError(apiErrorMessage(err, 'Failed to load transports'))
+      setLoadError(apiErrorMessage(err, tr("Failed to load transports")))
     } finally {
       setLoading(false)
     }
@@ -225,7 +226,7 @@ export default function TransportPage() {
     if (!editId || loading) return
     const t = transports.find((x) => String(x.id) === editId)
     if (t) openEdit(t)
-    else showToast('That transport could not be found', 'error')
+    else showToast(tr("That transport could not be found"), 'error')
     const next = new URLSearchParams(params)
     next.delete('edit')
     setParams(next, { replace: true })
@@ -264,16 +265,16 @@ export default function TransportPage() {
       if (editing) {
         // Status is not part of the edit form; it changes only through the workflow actions
         await apiClient.updateTransport(editing.id, payload)
-        showToast('Transport updated', 'success')
+        showToast(tr("Transport updated"), 'success')
       } else {
         await apiClient.createTransport({ ...payload, status: 'pending' })
-        showToast('Transport scheduled', 'success')
+        showToast(tr("Transport scheduled"), 'success')
       }
       setModal(false)
       load()
     } catch (err) {
       // Includes the server's locked allocation check, e.g. when another user reserved the stock first
-      setSubmitError(apiErrorMessage(err, 'Failed to save transport'))
+      setSubmitError(apiErrorMessage(err, tr("Failed to save transport")))
       load()
     } finally {
       setSubmitting(false)
@@ -288,15 +289,15 @@ export default function TransportPage() {
     try {
       if (pending.kind === 'status') {
         await apiClient.updateTransportStatus(pending.transport.id, pending.action.to)
-        showToast(`Marked ${TRANSPORT_STATUS_META[pending.action.to].label}`, 'success')
+        showToast(tr("Marked {0}", TRANSPORT_STATUS_META[pending.action.to].label), 'success')
       } else {
         await apiClient.deleteTransport(pending.transport.id)
-        showToast('Transport deleted', 'success')
+        showToast(tr("Transport deleted"), 'success')
       }
       setPending(null)
       load()
     } catch (err) {
-      showToast(apiErrorMessage(err, pending.kind === 'delete' ? 'Delete failed' : 'Status update failed'), 'error')
+      showToast(apiErrorMessage(err, pending.kind === 'delete' ? tr("Delete failed") : tr("Status update failed")), 'error')
     } finally {
       setBusy(false)
     }
@@ -316,7 +317,7 @@ export default function TransportPage() {
 
   const count = (s: TransportStatus) => transports.filter((t) => t.status === s).length
   const kpis = [
-    { label: 'Total deliveries', value: transports.length, dot: 'bg-gray-400' },
+    { label: tr("Total deliveries"), value: transports.length, dot: 'bg-gray-400' },
     ...(['pending', 'in_transit', 'delivered'] as TransportStatus[]).map((s) => ({
       label: TRANSPORT_STATUS_META[s].label, value: count(s), dot: TRANSPORT_STATUS_META[s].dot,
     })),
@@ -324,16 +325,16 @@ export default function TransportPage() {
 
   return (
     <AdminLayout>
-      <div className="p-6 lg:p-8">
+      <div>
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Transport Management</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Schedule deliveries and track them from farm to destination</p>
+            <h1 className="text-2xl font-bold text-gray-900">{tr("Transport Management")}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{tr("Schedule deliveries and track them from farm to destination")}</p>
           </div>
           <button onClick={openCreate}
             className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors self-start sm:self-auto">
-            <Plus size={16} strokeWidth={2} /> New Transport
+            <Plus size={16} strokeWidth={2} /> {tr("New Transport")}
           </button>
         </div>
 
@@ -355,20 +356,20 @@ export default function TransportPage() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search destination, driver, batch or vehicle…"
+              placeholder={tr("Search destination, driver, batch or vehicle…")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search transports"
+              aria-label={tr("Search transports")}
               className="w-full h-9 pl-9 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600"
             />
             {search && (
-              <button onClick={() => setSearch('')} aria-label="Clear search"
+              <button onClick={() => setSearch('')} aria-label={tr("Clear search")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-700">
                 <X size={14} />
               </button>
             )}
           </div>
-          <div role="group" aria-label="Filter by status" className="flex gap-1 overflow-x-auto rounded-lg border border-gray-200 bg-white p-1">
+          <div role="group" aria-label={tr("Filter by status")} className="flex gap-1 overflow-x-auto rounded-lg border border-gray-200 bg-white p-1">
             {(['all', ...TRANSPORT_STATUSES] as StatusFilter[]).map((s) => {
               const active = statusFilter === s
               return (
@@ -376,7 +377,7 @@ export default function TransportPage() {
                   className={`flex items-center gap-1.5 px-2.5 h-7 text-xs font-medium rounded-md whitespace-nowrap transition-colors ${
                     active ? 'bg-green-700 text-white' : 'text-gray-700 hover:bg-gray-100'
                   }`}>
-                  {s === 'all' ? 'All' : TRANSPORT_STATUS_META[s].label}
+                  {s === 'all' ? tr("All") : TRANSPORT_STATUS_META[s].label}
                   <span className={`tabular-nums ${active ? 'text-green-100' : 'text-gray-500'}`}>
                     {s === 'all' ? transports.length : count(s)}
                   </span>
@@ -387,7 +388,7 @@ export default function TransportPage() {
           <div className="lg:ml-auto flex items-center gap-3">
             {filtersActive && (
               <button onClick={clearFilters} className="text-xs font-medium text-gray-600 hover:text-gray-900 whitespace-nowrap">
-                Clear filters
+                {tr("Clear filters")}
               </button>
             )}
             <TransportStatusGuide />
@@ -399,15 +400,15 @@ export default function TransportPage() {
           {loading ? (
             <div className="flex flex-col items-center justify-center h-48 text-gray-500 text-sm">
               <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin mb-3" />
-              Loading transports…
+              {tr("Loading transports…")}
             </div>
           ) : loadError ? (
             <div className="flex flex-col items-center justify-center h-48 text-center px-4">
               <AlertTriangle size={30} className="text-gray-300 mb-2" />
-              <p className="font-medium text-gray-800">Could not load transports</p>
+              <p className="font-medium text-gray-800">{tr("Could not load transports")}</p>
               <p className="text-sm text-gray-500 mt-1">{loadError}</p>
               <button onClick={() => { setLoading(true); load() }} className={`${btnSecondary} mt-4 inline-flex items-center gap-1.5`}>
-                <RefreshCw size={14} strokeWidth={1.75} /> Try again
+                <RefreshCw size={14} strokeWidth={1.75} /> {tr("Try again")}
               </button>
             </div>
           ) : filtered.length === 0 ? (
@@ -415,13 +416,13 @@ export default function TransportPage() {
               <Truck size={34} strokeWidth={1.5} className="text-gray-300 mb-2" />
               {transports.length === 0 ? (
                 <>
-                  <p className="font-medium text-gray-800">No transports yet</p>
-                  <p className="text-sm text-gray-500 mt-1">Schedule a delivery to start tracking it here.</p>
+                  <p className="font-medium text-gray-800">{tr("No transports yet")}</p>
+                  <p className="text-sm text-gray-500 mt-1">{tr("Schedule a delivery to start tracking it here.")}</p>
                 </>
               ) : (
                 <>
-                  <p className="font-medium text-gray-800">No transports match these filters</p>
-                  <button onClick={clearFilters} className="mt-2 text-sm font-medium text-green-800 hover:underline">Clear filters</button>
+                  <p className="font-medium text-gray-800">{tr("No transports match these filters")}</p>
+                  <button onClick={clearFilters} className="mt-2 text-sm font-medium text-green-800 hover:underline">{tr("Clear filters")}</button>
                 </>
               )}
             </div>
@@ -431,8 +432,8 @@ export default function TransportPage() {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     {[
-                      ['Batch', ''], ['Destination', 'w-[30%]'], ['Scheduled', ''],
-                      ['Cargo', 'text-right'], ['Status', ''], ['Actions', 'text-right'],
+                      [tr("Batch"), ''], [tr("Destination"), 'w-[30%]'], [tr("Scheduled"), ''],
+                      [tr("Cargo"), 'text-right'], [tr("Status"), ''], [tr("Actions"), 'text-right'],
                     ].map(([h, cls]) => (
                       <th key={h} className={`text-left px-4 py-3 text-xs text-gray-600 font-semibold uppercase tracking-wide whitespace-nowrap ${cls}`}>{h}</th>
                     ))}
@@ -448,7 +449,7 @@ export default function TransportPage() {
                           {t.harvest_id && t.batch_number ? (
                             <span className="font-bold text-gray-900 tabular-nums">{t.batch_number}</span>
                           ) : (
-                            <span className="inline-flex px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-gray-600">Unlinked</span>
+                            <span className="inline-flex px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-gray-600">{tr("Unlinked")}</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -470,13 +471,13 @@ export default function TransportPage() {
                             <div className="w-[92px] flex justify-end mr-1">
                               {next && <StatusPill action={next} onClick={() => setPending({ kind: 'status', transport: t, action: next })} />}
                             </div>
-                            <IconButton icon={Eye} label={`View transport #${t.id}`} onClick={() => navigate(`/transport/${t.id}`)} />
-                            <IconButton icon={Pencil} label={`Edit transport #${t.id}`} onClick={() => openEdit(t)} />
+                            <IconButton icon={Eye} label={tr("View transport #{0}", t.id)} onClick={() => navigate(`/transport/${t.id}`)} />
+                            <IconButton icon={Pencil} label={tr("Edit transport #{0}", t.id)} onClick={() => openEdit(t)} />
                             <span className="mx-0.5 h-4 w-px bg-gray-200" aria-hidden />
-                            <IconButton icon={Trash2} label={`Delete transport #${t.id}`} danger
+                            <IconButton icon={Trash2} label={tr("Delete transport #{0}", t.id)} danger
                               onClick={() => setPending({ kind: 'delete', transport: t })}
                               disabled={lockedRow}
-                              disabledReason="Delivered transports stay in their batch's history and cannot be deleted" />
+                              disabledReason={tr("Delivered transports stay in their batch's history and cannot be deleted")} />
                           </div>
                         </td>
                       </tr>
@@ -488,7 +489,7 @@ export default function TransportPage() {
           )}
         </div>
         {!loading && !loadError && filtersActive && filtered.length > 0 && (
-          <p className="mt-3 text-xs text-gray-500">Showing {filtered.length} of {transports.length} transports</p>
+          <p className="mt-3 text-xs text-gray-500">{tr("Showing")} {filtered.length} {tr("of")} {transports.length} {tr("transports")}</p>
         )}
       </div>
 
@@ -496,20 +497,20 @@ export default function TransportPage() {
       <Dialog
         open={modalOpen}
         size="lg"
-        title={editing ? `Edit Transport #${editing.id}` : 'New Transport'}
+        title={editing ? tr("Edit Transport #{0}", editing.id) : tr("New Transport")}
         subtitle={editing ? (
           <span className="inline-flex flex-wrap items-center gap-2">
-            Current status <TransportStatusBadge status={editing.status} />
-            <span className="text-xs text-gray-500">Status changes use the Dispatch and Deliver actions.</span>
+            {tr("Current status")} <TransportStatusBadge status={editing.status} />
+            <span className="text-xs text-gray-500">{tr("Status changes use the Dispatch and Deliver actions.")}</span>
           </span>
-        ) : 'New deliveries start as Scheduled.'}
+        ) : tr("New deliveries start as Scheduled.")}
         onClose={() => setModal(false)}
         onSubmit={handleSubmit}
         footer={
           <>
-            <button type="button" onClick={() => setModal(false)} className={btnSecondary}>Cancel</button>
+            <button type="button" onClick={() => setModal(false)} className={btnSecondary}>{tr("Cancel")}</button>
             <button type="submit" disabled={submitting} className={btnPrimary}>
-              {submitting ? 'Saving…' : editing ? 'Save Changes' : 'Schedule Transport'}
+              {submitting ? tr("Saving…") : editing ? tr("Save Changes") : tr("Schedule Transport")}
             </button>
           </>
         }
@@ -521,18 +522,18 @@ export default function TransportPage() {
             </p>
           )}
 
-          <FormSection step="A" title="Delivery Information" description="Where the cargo goes, and which harvest it comes from.">
-            <Field id="destination" label="Destination" required error={visibleError('destination')} className="sm:col-span-2">
+          <FormSection step="A" title={tr("Delivery Information")} description={tr("Where the cargo goes, and which harvest it comes from.")}>
+            <Field id="destination" label={tr("Destination")} required error={visibleError('destination')} className="sm:col-span-2">
               <input id="destination" type="text" value={form.destination} onChange={(e) => set({ destination: e.target.value })}
-                placeholder="e.g. Kuala Lumpur Market" className={inputCls(visibleError('destination'))}
+                placeholder={tr("e.g. Kuala Lumpur Market")} className={inputCls(visibleError('destination'))}
                 aria-invalid={!!visibleError('destination')} />
             </Field>
 
-            <Field id="harvest_id" label="Harvest batch" error={visibleError('harvest_id')} className="sm:col-span-2"
-              hint={locked ? undefined : 'Linking a batch reserves its stock. Choose “No batch linked” for external cargo.'}>
+            <Field id="harvest_id" label={tr("Harvest batch")} error={visibleError('harvest_id')} className="sm:col-span-2"
+              hint={locked ? undefined : tr("Linking a batch reserves its stock. Choose “No batch linked” for external cargo.")}>
               <SearchableSelect id="harvest_id" value={form.harvest_id} disabled={locked} error={!!visibleError('harvest_id')}
-                emptyOptionLabel="No batch linked" placeholder="No batch linked"
-                searchPlaceholder="Search batch number or field" noResultsText="No batches match"
+                emptyOptionLabel={tr("No batch linked")} placeholder={tr("No batch linked")}
+                searchPlaceholder={tr("Search batch number or field")} noResultsText={tr("No batches match")}
                 onChange={(v) => {
                   const next = allocationFor({ ...form, harvest_id: v }, editing, harvests, summaries)
                   // Suggest the batch's remaining stock as the cargo weight when none was typed
@@ -543,7 +544,7 @@ export default function TransportPage() {
                 }}
                 options={harvests.map((h) => {
                   const a = allocationFor({ ...form, harvest_id: String(h.id) }, editing, harvests, summaries)
-                  const avail = h.harvest_status === 'rejected' ? 'Rejected'
+                  const avail = h.harvest_status === 'rejected' ? tr("Rejected")
                     : a?.maxKg !== undefined ? `${fmtKg(a.maxKg)} available` : `${fmtKg(h.quantity_kg)} harvested`
                   return { value: String(h.id), label: h.batch_number, keywords: h.field_name, description: `${h.field_name} · ${avail}` }
                 })} />
@@ -554,27 +555,27 @@ export default function TransportPage() {
                 onUseMax={() => set({ cargo_weight_kg: String(alloc.maxKg ?? '') })} />
             )}
 
-            <Field id="cargo_weight_kg" label="Cargo weight (kg)" required={!!form.harvest_id && !locked}
+            <Field id="cargo_weight_kg" label={tr("Cargo weight (kg)")} required={!!form.harvest_id && !locked}
               error={visibleError('cargo_weight_kg')}
-              hint={locked ? 'Locked after delivery.' : form.harvest_id ? undefined : 'Optional for unlinked deliveries.'}>
+              hint={locked ? tr("Locked after delivery.") : form.harvest_id ? undefined : tr("Optional for unlinked deliveries.")}>
               <input id="cargo_weight_kg" type="number" inputMode="decimal" min="0" step="0.1" disabled={locked}
                 value={form.cargo_weight_kg} onChange={(e) => set({ cargo_weight_kg: e.target.value })}
-                placeholder={form.harvest_id ? '' : 'Optional'} className={inputCls(visibleError('cargo_weight_kg'))}
+                placeholder={form.harvest_id ? '' : tr("Optional")} className={inputCls(visibleError('cargo_weight_kg'))}
                 aria-invalid={!!visibleError('cargo_weight_kg')} />
             </Field>
 
-            <Field id="scheduled_date" label="Scheduled date" required error={visibleError('scheduled_date')}>
+            <Field id="scheduled_date" label={tr("Scheduled date")} required error={visibleError('scheduled_date')}>
               <input id="scheduled_date" type="date" value={form.scheduled_date}
                 onChange={(e) => set({ scheduled_date: e.target.value })} className={inputCls(visibleError('scheduled_date'))} />
             </Field>
           </FormSection>
 
-          <FormSection step="B" title="Driver and Vehicle" description="Who drives, and in which vehicle.">
-            <Field id="driver_id" label="Assign to worker" className="sm:col-span-2"
-              hint="The assigned worker sees this delivery in their app and can update its status.">
+          <FormSection step="B" title={tr("Driver and Vehicle")} description={tr("Who drives, and in which vehicle.")}>
+            <Field id="driver_id" label={tr("Assign to worker")} className="sm:col-span-2"
+              hint={tr("The assigned worker sees this delivery in their app and can update its status.")}>
               <SearchableSelect id="driver_id" value={form.driver_id}
-                emptyOptionLabel="Not assigned (external driver)" placeholder="Not assigned (external driver)"
-                searchPlaceholder="Search workers" noResultsText="No workers match"
+                emptyOptionLabel={tr("Not assigned (external driver)")} placeholder={tr("Not assigned (external driver)")}
+                searchPlaceholder={tr("Search workers")} noResultsText={tr("No workers match")}
                 onChange={(v) => {
                   const worker = workers.find((w) => String(w.id) === v)
                   // Pre-fill the driver name from the chosen account; it stays editable
@@ -582,23 +583,23 @@ export default function TransportPage() {
                 }}
                 options={workers.map((w) => ({
                   value: String(w.id), label: w.full_name || w.username, keywords: w.username,
-                  description: w.role === 'admin' ? 'Admin' : 'Worker',
+                  description: w.role === 'admin' ? tr("Admin") : tr("Worker"),
                 }))} />
             </Field>
-            <Field id="driver_name" label="Driver name" required error={visibleError('driver_name')}>
+            <Field id="driver_name" label={tr("Driver name")} required error={visibleError('driver_name')}>
               <input id="driver_name" type="text" value={form.driver_name} onChange={(e) => set({ driver_name: e.target.value })}
-                placeholder="Driver full name" className={inputCls(visibleError('driver_name'))} />
+                placeholder={tr("Driver full name")} className={inputCls(visibleError('driver_name'))} />
             </Field>
-            <Field id="vehicle_number" label="Vehicle number" required error={visibleError('vehicle_number')}>
+            <Field id="vehicle_number" label={tr("Vehicle number")} required error={visibleError('vehicle_number')}>
               <input id="vehicle_number" type="text" value={form.vehicle_number} onChange={(e) => set({ vehicle_number: e.target.value })}
-                placeholder="e.g. WXY 1234" className={inputCls(visibleError('vehicle_number'))} />
+                placeholder={tr("e.g. WXY 1234")} className={inputCls(visibleError('vehicle_number'))} />
             </Field>
           </FormSection>
 
-          <FormSection step="C" title="Additional Information" description="Anything the driver or team should know.">
-            <Field id="notes" label="Notes" className="sm:col-span-2">
+          <FormSection step="C" title={tr("Additional Information")} description={tr("Anything the driver or team should know.")}>
+            <Field id="notes" label={tr("Notes")} className="sm:col-span-2">
               <textarea id="notes" rows={3} value={form.notes} onChange={(e) => set({ notes: e.target.value })}
-                placeholder="Optional notes…" className={`${inputCls()} resize-none`} />
+                placeholder={tr("Optional notes…")} className={`${inputCls()} resize-none`} />
             </Field>
           </FormSection>
         </div>
@@ -607,7 +608,7 @@ export default function TransportPage() {
       {/* Status change / delete confirmation */}
       <ConfirmDialog
         open={pending !== null}
-        title={pending?.kind === 'status' ? pending.action.confirmTitle : 'Delete this transport?'}
+        title={pending?.kind === 'status' ? pending.action.confirmTitle : tr("Delete this transport?")}
         body={pending && (
           <>
             <p className="mb-3 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-gray-800">
@@ -617,10 +618,10 @@ export default function TransportPage() {
             </p>
             {pending.kind === 'status'
               ? pending.action.confirmBody
-              : 'The record is removed permanently. If it is linked to a batch, its reserved cargo is released. This cannot be undone.'}
+              : tr("The record is removed permanently. If it is linked to a batch, its reserved cargo is released. This cannot be undone.")}
           </>
         )}
-        confirmLabel={pending?.kind === 'status' ? pending.action.confirmLabel : 'Delete'}
+        confirmLabel={pending?.kind === 'status' ? pending.action.confirmLabel : tr("Delete")}
         danger={pending?.kind === 'delete' || (pending?.kind === 'status' && pending.action.danger)}
         busy={busy}
         onConfirm={confirmPending}

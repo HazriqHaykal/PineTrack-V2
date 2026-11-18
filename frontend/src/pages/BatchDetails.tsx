@@ -15,6 +15,7 @@ import { authService } from '../services/auth'
 import { BatchDetails as BatchDetailsData, BatchEventList, BatchLifecycle, BatchQuantities } from '../types'
 import AppSelect from '../components/ui/AppSelect'
 
+import { tr, trEnum, locale } from '../i18n'
 // ── Presentation maps ────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
@@ -24,12 +25,12 @@ const STATUS_STYLES: Record<string, string> = {
   rejected:   'bg-red-100 text-red-800',
 }
 
-const label = (s?: string | null) => (s ?? '').replace(/_/g, ' ')
+const label = (s?: string | null) => trEnum(s)
 const kg = (n: number) => `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg`
 const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })
+  new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
 const formatTime = (iso: string) =>
-  new Date(iso).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  new Date(iso).toLocaleString(locale, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 type Tab = 'journey' | 'grading' | 'quantities' | 'records'
 const TABS: Tab[] = ['journey', 'grading', 'quantities', 'records']
@@ -58,19 +59,19 @@ function Badge({ className, children }: { className: string; children: React.Rea
 function KpiCards({ q }: { q: BatchQuantities }) {
   const cards = [
     {
-      name: 'Harvested', value: q.harvested_kg,
-      sub: `${kg(q.marketable_kg)} marketable`,
-      hint: 'Original weight recorded at harvest.',
+      name: tr("Harvested"), value: q.harvested_kg,
+      sub: tr("{0} marketable", kg(q.marketable_kg)),
+      hint: tr("Original weight recorded at harvest."),
     },
     {
-      name: 'Reserved / Allocated', value: q.reserved_kg,
-      sub: q.in_transit_kg ? `${kg(q.in_transit_kg)} on the road` : 'Awaiting dispatch',
-      hint: 'Held by pending or in-transit transports.',
+      name: tr("Reserved / Allocated"), value: q.reserved_kg,
+      sub: q.in_transit_kg ? tr("{0} on the road", kg(q.in_transit_kg)) : tr("Awaiting dispatch"),
+      hint: tr("Held by pending or in-transit transports."),
     },
     {
-      name: 'Available', value: q.available_kg,
-      sub: q.withheld_kg ? `${kg(q.withheld_kg)} withheld (rejected)` : `${kg(q.delivered_kg)} already delivered`,
-      hint: 'Marketable stock not yet reserved or delivered; free to allocate.',
+      name: tr("Available"), value: q.available_kg,
+      sub: q.withheld_kg ? tr("{0} withheld (rejected)", kg(q.withheld_kg)) : tr("{0} already delivered", kg(q.delivered_kg)),
+      hint: tr("Marketable stock not yet reserved or delivered; free to allocate."),
       highlight: true,
     },
   ]
@@ -95,11 +96,11 @@ function KpiCards({ q }: { q: BatchQuantities }) {
 function Warnings({ q }: { q: BatchQuantities }) {
   const items: string[] = []
   if (q.over_allocated_kg > 0)
-    items.push(`Transports exceed the marketable quantity by ${kg(q.over_allocated_kg)}. These records predate allocation checks; review them on the Transport page.`)
+    items.push(tr("Transports exceed the marketable quantity by {0}. These records predate allocation checks; review them on the Transport page.", kg(q.over_allocated_kg)))
   if (q.unquantified_transports > 0)
-    items.push(`${q.unquantified_transports} linked transport(s) have no cargo weight, so they are not counted in the quantities.`)
+    items.push(tr("{0} linked transport(s) have no cargo weight, so they are not counted in the quantities.", q.unquantified_transports))
   if (q.waste_exceeds_losses_kg > 0)
-    items.push(`Recorded waste is ${kg(q.waste_exceeds_losses_kg)} more than the batch's spoilage and rejection. Update the grading figures or the waste records.`)
+    items.push(tr("Recorded waste is {0} more than the batch's spoilage and rejection. Update the grading figures or the waste records.", kg(q.waste_exceeds_losses_kg)))
   if (items.length === 0) return null
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-1">
@@ -126,14 +127,14 @@ function LifecycleStepper({ lifecycle }: { lifecycle: BatchLifecycle }) {
 
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-4 mb-6">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-3">Lifecycle</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-3">{tr("Lifecycle")}</p>
       <ol className="flex items-start">
         {path.map((stage, i) => {
           const meta = STAGES.find((s) => s.stage === stage)!
           const done = i < currentIdx || (i === currentIdx && finished)
           const isCurrent = i === currentIdx
           const rejected = isCurrent && stage === 'rejected'
-          const name = isCurrent && lifecycle.code === 'partially_delivered' ? 'Part Delivered' : meta.label
+          const name = isCurrent && lifecycle.code === 'partially_delivered' ? tr("Part Delivered") : meta.label
           return (
             <li key={stage} className="relative flex flex-1 flex-col items-center text-center min-w-0"
               aria-current={isCurrent ? 'step' : undefined}>
@@ -163,7 +164,7 @@ function LifecycleStepper({ lifecycle }: { lifecycle: BatchLifecycle }) {
         })}
       </ol>
       <p className="mt-4 text-sm text-gray-700">
-        <span className="font-medium text-gray-900">Now: </span>{lifecycle.reason}
+        <span className="font-medium text-gray-900">{tr("Now:")} </span>{lifecycle.reason}
       </p>
     </div>
   )
@@ -180,7 +181,7 @@ function Journey({ batchId, refreshKey, lifecycle }: { batchId: number; refreshK
     setLoading(true)
     apiClient.getBatchEvents(batchId, filter)
       .then((res) => { if (active) { setData(res); setError(null) } })
-      .catch((err) => { if (active) setError(apiErrorMessage(err, 'Failed to load the timeline')) })
+      .catch((err) => { if (active) setError(apiErrorMessage(err, tr("Failed to load the timeline"))) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [batchId, filter, refreshKey])
@@ -190,26 +191,26 @@ function Journey({ batchId, refreshKey, lifecycle }: { batchId: number; refreshK
       <LifecycleStepper lifecycle={lifecycle} />
       <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
         <p className="text-sm text-gray-600">
-          Everything recorded for this batch, newest first{data ? ` · ${data.total} event${data.total === 1 ? '' : 's'}` : ''}
+          {tr("Everything recorded for this batch, newest first")}{data ? tr(" · {0} event{1}", data.total, data.total === 1 ? '' : 's') : ''}
         </p>
         {data && data.event_types.length > 1 && (
-          <AppSelect size="sm" aria-label="Filter events by type" value={filter} onChange={setFilter}
+          <AppSelect size="sm" aria-label={tr("Filter events by type")} value={filter} onChange={setFilter}
             highlighted={filter !== ''} triggerClassName="w-auto min-w-[11rem]"
-            options={[{ value: '', label: 'All events' }, ...data.event_types.map((t) => ({ value: t, label: eventInfo(t).title }))]} />
+            options={[{ value: '', label: tr("All events") }, ...data.event_types.map((t) => ({ value: t, label: eventInfo(t).title }))]} />
         )}
       </div>
 
       {loading && !data ? (
         <div className="flex flex-col items-center justify-center h-32 text-gray-400 text-sm">
           <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin mb-2" />
-          Loading journey…
+          {tr("Loading journey…")}
         </div>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : data && data.items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center text-gray-400">
           <History size={28} className="mb-2 opacity-40" />
-          <p className="text-sm">{filter ? 'No events of this type.' : 'No activity has been recorded for this batch yet.'}</p>
+          <p className="text-sm">{filter ? tr("No events of this type.") : tr("No activity has been recorded for this batch yet.")}</p>
         </div>
       ) : data && (
         <ol className={`relative space-y-4 ${loading ? 'opacity-60' : ''}`}>
@@ -228,7 +229,7 @@ function Journey({ batchId, refreshKey, lifecycle }: { batchId: number; refreshK
                     <time className="text-xs text-gray-400 whitespace-nowrap" dateTime={e.created_at}>{formatTime(e.created_at)}</time>
                   </div>
                   <p className="text-sm text-gray-600 mt-0.5 break-words">{e.description}</p>
-                  <p className="text-xs text-gray-400 mt-0.5 capitalize">{e.actor_name} · {e.related_module}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 capitalize">{e.actor_name} · {trEnum(e.related_module)}</p>
                 </div>
               </li>
             )
@@ -264,29 +265,29 @@ function LedgerRow({ color, name, hint, value, sign, strong }: {
 function Quantities({ q, yieldPercent }: { q: BatchQuantities; yieldPercent: number }) {
   // Each kilogram of the harvest sits in exactly one segment, so the bar never double counts
   const usage = [
-    { name: 'Delivered',          value: q.delivered_kg,  color: 'bg-green-700', hint: 'Cargo of transports marked delivered.' },
-    { name: 'In transit',         value: q.in_transit_kg, color: 'bg-blue-500',  hint: 'Cargo of transports currently on the road.' },
-    { name: 'Reserved, pending',  value: q.pending_kg,    color: 'bg-amber-500', hint: 'Cargo of transports booked but not yet dispatched.' },
-    { name: 'Available',          value: q.available_kg,  color: 'bg-teal-500',  hint: 'Free to allocate to a new transport.' },
+    { name: tr("Delivered"),          value: q.delivered_kg,  color: 'bg-green-700', hint: tr("Cargo of transports marked delivered.") },
+    { name: tr("In transit"),         value: q.in_transit_kg, color: 'bg-blue-500',  hint: tr("Cargo of transports currently on the road.") },
+    { name: tr("Reserved, pending"),  value: q.pending_kg,    color: 'bg-amber-500', hint: tr("Cargo of transports booked but not yet dispatched.") },
+    { name: tr("Available"),          value: q.available_kg,  color: 'bg-teal-500',  hint: tr("Free to allocate to a new transport.") },
     ...(q.withheld_kg > 0
-      ? [{ name: 'Withheld', value: q.withheld_kg, color: 'bg-gray-500', hint: 'Marketable on paper, but the batch was rejected at grading, so it cannot be allocated.' }]
+      ? [{ name: tr("Withheld"), value: q.withheld_kg, color: 'bg-gray-500', hint: tr("Marketable on paper, but the batch was rejected at grading, so it cannot be allocated.") }]
       : []),
   ]
   const graded = q.grading_basis === 'grade_based'
   const losses = graded
     ? [
         ...(q.non_marketable_kg > 0
-          ? [{ name: 'Excluded grades', value: q.non_marketable_kg, color: 'bg-gray-500', hint: 'Grades the farm marketability policy does not sell.' }]
+          ? [{ name: tr("Excluded grades"), value: q.non_marketable_kg, color: 'bg-gray-500', hint: tr("Grades the farm marketability policy does not sell.") }]
           : []),
         ...(q.rejected_at_sorting_kg > 0
-          ? [{ name: 'Non-marketable at sorting', value: q.rejected_at_sorting_kg, color: 'bg-gray-500', hint: 'Fruit sorted out as unsellable at harvest; logged in Waste Management.' }]
+          ? [{ name: tr("Non-marketable at sorting"), value: q.rejected_at_sorting_kg, color: 'bg-gray-500', hint: tr("Fruit sorted out as unsellable at harvest; logged in Waste Management.") }]
           : []),
-        { name: 'Spoiled',  value: q.spoilage_kg, color: 'bg-orange-500', hint: 'Graded fruit found spoiled.' },
-        { name: 'Rejected after grading', value: Math.round((q.rejected_kg - q.rejected_at_sorting_kg) * 100) / 100, color: 'bg-red-600', hint: 'Graded fruit rejected later.' },
+        { name: tr("Spoiled"),  value: q.spoilage_kg, color: 'bg-orange-500', hint: tr("Graded fruit found spoiled.") },
+        { name: tr("Rejected after grading"), value: Math.round((q.rejected_kg - q.rejected_at_sorting_kg) * 100) / 100, color: 'bg-red-600', hint: tr("Graded fruit rejected later.") },
       ]
     : [
-        { name: 'Spoiled',  value: q.spoilage_kg, color: 'bg-orange-500', hint: 'Spoilage recorded at grading.' },
-        { name: 'Rejected', value: q.rejected_kg, color: 'bg-red-600',    hint: 'Rejected at grading.' },
+        { name: tr("Spoiled"),  value: q.spoilage_kg, color: 'bg-orange-500', hint: tr("Spoilage recorded at grading.") },
+        { name: tr("Rejected"), value: q.rejected_kg, color: 'bg-red-600',    hint: tr("Rejected at grading.") },
       ]
   const segments = [...usage, ...losses].filter((s) => s.value > 0)
   const total = Math.max(q.harvested_kg, segments.reduce((sum, s) => sum + s.value, 0)) || 1
@@ -296,8 +297,8 @@ function Quantities({ q, yieldPercent }: { q: BatchQuantities; yieldPercent: num
       {/* Distribution */}
       <div>
         <div className="flex items-baseline justify-between mb-2">
-          <p className="text-sm font-semibold text-gray-900">Where the harvest is now</p>
-          <p className="text-xs font-medium text-gray-700 tabular-nums">{kg(q.harvested_kg)} in total</p>
+          <p className="text-sm font-semibold text-gray-900">{tr("Where the harvest is now")}</p>
+          <p className="text-xs font-medium text-gray-700 tabular-nums">{kg(q.harvested_kg)} {tr("in total")}</p>
         </div>
         <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-200 gap-px" role="img"
           aria-label={segments.map((s) => `${s.name} ${kg(s.value)}`).join(', ')}>
@@ -319,19 +320,19 @@ function Quantities({ q, yieldPercent }: { q: BatchQuantities; yieldPercent: num
       {/* Ledger: losses on the left, how the marketable stock is used on the right */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
         <div>
-          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">From harvest to marketable</p>
-          <LedgerRow name="Harvested" hint="Original weight recorded at harvest." value={q.harvested_kg} />
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("From harvest to marketable")}</p>
+          <LedgerRow name="Harvested" hint={tr("Original weight recorded at harvest.")} value={q.harvested_kg} />
           {losses.map((l) => <LedgerRow key={l.name} color={l.color} name={l.name} hint={l.hint} value={l.value} sign="−" />)}
           <LedgerRow strong name={`Marketable (${yieldPercent}%)`}
             hint={graded
-              ? "Marketable grades minus spoiled and rejected. The percentage is the batch's marketable yield."
-              : "Harvested minus spoiled and rejected. The percentage is the batch's marketable yield (legacy calculation)."}
+              ? tr("Marketable grades minus spoiled and rejected. The percentage is the batch's marketable yield.")
+              : tr("Harvested minus spoiled and rejected. The percentage is the batch's marketable yield (legacy calculation).")}
             value={q.marketable_kg} />
         </div>
         <div>
-          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">How marketable stock is used</p>
+          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">{tr("How marketable stock is used")}</p>
           {usage.map((u) => <LedgerRow key={u.name} color={u.color} name={u.name} hint={u.hint} value={u.value} />)}
-          <LedgerRow strong name="Dispatched so far" hint="In transit plus delivered: everything that has left the farm."
+          <LedgerRow strong name="Dispatched so far" hint={tr("In transit plus delivered: everything that has left the farm.")}
             value={q.dispatched_kg} />
         </div>
       </div>
@@ -339,12 +340,12 @@ function Quantities({ q, yieldPercent }: { q: BatchQuantities; yieldPercent: num
       <details className="group rounded-lg bg-gray-50 border border-gray-200 px-3 py-2.5 text-xs text-gray-700">
         <summary className="flex items-center gap-2 cursor-pointer list-none font-medium text-gray-700">
           <Recycle size={14} className="text-gray-500" />
-          {kg(q.waste_recorded_kg)} of waste recorded against {kg(q.recorded_losses_kg)} of losses
+          {kg(q.waste_recorded_kg)} {tr("of waste recorded against")} {kg(q.recorded_losses_kg)} {tr("of losses")}
           <ChevronRight size={14} className="ml-auto text-gray-500 transition-transform group-open:rotate-90" />
         </summary>
         <p className="mt-2 leading-relaxed">
           {q.waste_policy}
-          {q.unclassified_losses_kg > 0 && ` ${kg(q.unclassified_losses_kg)} of losses has no waste record yet.`}
+          {q.unclassified_losses_kg > 0 && tr(" {0} of losses has no waste record yet.", kg(q.unclassified_losses_kg))}
         </p>
       </details>
     </div>
@@ -371,7 +372,7 @@ function RecordSection({ title, link, linkLabel, hidden, empty, children, count 
       )}
       {hidden > 0 && (
         <p className="mt-2 text-xs text-gray-400">
-          {hidden} more record(s) on this batch are managed by other users. They are included in the quantities.
+          {hidden} {tr("more record(s) on this batch are managed by other users. They are included in the quantities.")}
         </p>
       )}
     </section>
@@ -383,9 +384,9 @@ function RelatedRecords({ details, isAdmin }: { details: BatchDetailsData; isAdm
   return (
     <div className="space-y-6">
       <RecordSection
-        title="Transport" count={transports.items.length} hidden={transports.hidden_count}
-        link={isAdmin ? '/transport' : '/transport-update'} linkLabel="Open Transport"
-        empty="No transports are linked to this batch."
+        title={tr("Transport")} count={transports.items.length} hidden={transports.hidden_count}
+        link={isAdmin ? '/transport' : '/transport-update'} linkLabel={tr("Open Transport")}
+        empty={tr("No transports are linked to this batch.")}
       >
         {transports.items.map((t) => (
           <li key={t.id}>
@@ -394,7 +395,7 @@ function RelatedRecords({ details, isAdmin }: { details: BatchDetailsData; isAdm
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-gray-900 truncate">{t.destination}</p>
               <p className="text-xs text-gray-400 truncate">
-                Scheduled {t.scheduled_date}{t.actual_delivery ? ` · delivered ${t.actual_delivery}` : ''}{t.vehicle_number ? ` · ${t.vehicle_number}` : ''}
+                {tr("Scheduled")} {t.scheduled_date}{t.actual_delivery ? tr(" · delivered {0}", t.actual_delivery) : ''}{t.vehicle_number ? ` · ${t.vehicle_number}` : ''}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1 shrink-0">
@@ -409,9 +410,9 @@ function RelatedRecords({ details, isAdmin }: { details: BatchDetailsData; isAdm
       </RecordSection>
 
       <RecordSection
-        title="Waste" count={waste.items.length} hidden={waste.hidden_count}
-        link={isAdmin ? '/waste' : '/my-records'} linkLabel={isAdmin ? 'Open Waste' : 'Open My Records'}
-        empty="No waste records are linked to this batch."
+        title={tr("Waste")} count={waste.items.length} hidden={waste.hidden_count}
+        link={isAdmin ? '/waste' : '/my-records'} linkLabel={isAdmin ? tr("Open Waste") : tr("Open My Records")}
+        empty={tr("No waste records are linked to this batch.")}
       >
         {waste.items.map((w) => (
           <li key={w.id} className="flex items-center gap-3 py-3">
@@ -419,7 +420,7 @@ function RelatedRecords({ details, isAdmin }: { details: BatchDetailsData; isAdm
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-gray-900 capitalize truncate">{label(w.waste_type)}</p>
               <p className="text-xs text-gray-400 truncate capitalize">
-                {w.waste_date} · {label(w.classification)}{w.disposal_method ? ` · ${w.disposal_method}` : ''}
+                {w.waste_date} · {label(w.classification)}{w.disposal_method ? ` · ${trEnum(w.disposal_method)}` : ''}
               </p>
             </div>
             <span className="text-sm font-semibold text-gray-900 whitespace-nowrap shrink-0">{kg(w.quantity_kg)}</span>
@@ -430,7 +431,7 @@ function RelatedRecords({ details, isAdmin }: { details: BatchDetailsData; isAdm
       {/* Tasks carry no batch link in the backend, so none can be listed truthfully */}
       <p className="flex gap-2 text-xs text-gray-400">
         <Info size={13} className="shrink-0 mt-0.5" />
-        Scheduled tasks are not linked to individual batches, so none are listed here.
+        {tr("Scheduled tasks are not linked to individual batches, so none are listed here.")}
       </p>
     </div>
   )
@@ -453,7 +454,7 @@ export default function BatchDetails() {
 
   const load = useCallback(async () => {
     if (!Number.isInteger(id) || id <= 0) {
-      setError({ status: 404, msg: 'Batch not found' })
+      setError({ status: 404, msg: tr("Batch not found") })
       setLoading(false)
       return
     }
@@ -463,7 +464,7 @@ export default function BatchDetails() {
       setError(null)
     } catch (err) {
       const status = (err as { response?: { status?: number } })?.response?.status
-      setError({ status, msg: apiErrorMessage(err, 'Failed to load the batch') })
+      setError({ status, msg: apiErrorMessage(err, tr("Failed to load the batch")) })
     } finally {
       setLoading(false)
     }
@@ -481,7 +482,7 @@ export default function BatchDetails() {
     body = (
       <div className="flex flex-col items-center justify-center h-64 text-gray-400">
         <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mb-3" />
-        Loading batch…
+        {tr("Loading batch…")}
       </div>
     )
   } else if (error && !details) {
@@ -490,16 +491,16 @@ export default function BatchDetails() {
       <div className="flex flex-col items-center justify-center h-64 text-center bg-white rounded-xl border border-gray-100 shadow-sm px-4">
         {denied ? <ShieldAlert size={36} className="text-gray-300 mb-2" /> : <AlertTriangle size={36} className="text-gray-300 mb-2" />}
         <p className="font-medium text-gray-700">
-          {denied ? 'You do not have access to this batch' : error.status === 404 ? 'Batch not found' : 'Could not load this batch'}
+          {denied ? tr("You do not have access to this batch") : error.status === 404 ? tr("Batch not found") : tr("Could not load this batch")}
         </p>
         <p className="text-sm text-gray-400 mt-1">{error.msg}</p>
         <div className="flex gap-2 mt-4">
           <button onClick={() => navigate(backPath)} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-            Back
+            {tr("Back")}
           </button>
           {!denied && error.status !== 404 && (
-            <button onClick={load} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">
-              Try again
+            <button onClick={load} className="px-4 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium">
+              {tr("Try again")}
             </button>
           )}
         </div>
@@ -508,16 +509,16 @@ export default function BatchDetails() {
   } else if (details) {
     const { batch, lifecycle, quantities, transports, waste } = details
     const meta: [string, React.ReactNode][] = [
-      ['Field', batch.field_name],
-      ['Harvest date', formatDate(batch.harvest_date)],
-      ['Ripeness', batch.ripeness_level != null ? `${batch.ripeness_level} / 10` : 'Not recorded'],
-      ['Recorded by', details.created_by || 'Unknown'],
+      [tr("Field"), batch.field_name],
+      [tr("Harvest date"), formatDate(batch.harvest_date)],
+      [tr("Ripeness"), batch.ripeness_level != null ? `${batch.ripeness_level} / 10` : tr("Not recorded")],
+      [tr("Recorded by"), details.created_by || tr("Unknown")],
     ]
     const tabLabels: Record<Tab, string> = {
-      journey: 'Journey',
-      grading: 'Grading & Yield',
-      quantities: 'Quantities',
-      records: `Related Records (${transports.items.length + waste.items.length})`,
+      journey: tr("Journey"),
+      grading: tr("Grading & Yield"),
+      quantities: tr("Quantities"),
+      records: tr("Related Records ({0})", transports.items.length + waste.items.length),
     }
 
     body = (
@@ -535,7 +536,7 @@ export default function BatchDetails() {
               disabled={loading}
               className="flex items-center gap-1.5 border border-gray-200 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
             >
-              <RefreshCw size={14} strokeWidth={1.75} className={loading ? 'animate-spin' : ''} /> Refresh
+              <RefreshCw size={14} strokeWidth={1.75} className={loading ? 'animate-spin' : ''} /> {tr("Refresh")}
             </button>
           </div>
           <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 mt-4">
@@ -547,8 +548,8 @@ export default function BatchDetails() {
             ))}
           </dl>
           <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-            <Term hint="The quality-grading step recorded on the batch: pending, graded, processed or rejected.">Grading status</Term>
-            <Badge className={STATUS_STYLES[batch.harvest_status] || 'bg-gray-100 text-gray-700'}>{batch.harvest_status}</Badge>
+            <Term hint={tr("The quality-grading step recorded on the batch: pending, graded, processed or rejected.")}>{tr("Grading status")}</Term>
+            <Badge className={STATUS_STYLES[batch.harvest_status] || 'bg-gray-100 text-gray-700'}>{trEnum(batch.harvest_status)}</Badge>
           </div>
         </section>
 
@@ -557,7 +558,7 @@ export default function BatchDetails() {
 
         {/* Tabs */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div role="tablist" aria-label="Batch information" className="flex gap-1 px-3 border-b border-gray-100 overflow-x-auto">
+          <div role="tablist" aria-label={tr("Batch information")} className="flex gap-1 px-3 border-b border-gray-100 overflow-x-auto">
             {TABS.map((t) => (
               <button
                 key={t}
@@ -587,12 +588,12 @@ export default function BatchDetails() {
 
   return (
     <Layout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
+      <div className={`${isAdmin ? '' : 'p-4 sm:p-6 lg:p-8 '}max-w-5xl`}>
         <button
           onClick={() => navigate(backPath)}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-3"
         >
-          <ArrowLeft size={15} /> {isAdmin ? 'Harvest Management' : 'My Records'}
+          <ArrowLeft size={15} /> {isAdmin ? tr("Harvest Management") : tr("My Records")}
         </button>
         {body}
       </div>

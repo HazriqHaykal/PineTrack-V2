@@ -5,13 +5,14 @@ import AdminLayout from '../../components/layout/AdminLayout'
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { HistoricalYield, PlannerInput, PlannerMode, PlannerResult, WhatIfResult } from '../../types'
 
+import { tr, locale } from '../../i18n'
 // ── Formatting ───────────────────────────────────────────────────────────────
 
-const num = (n: number, digits = 2) => n.toLocaleString('en-MY', { minimumFractionDigits: 0, maximumFractionDigits: digits })
-const rm = (n: number) => `${n < 0 ? '−' : ''}RM ${Math.abs(n).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const num = (n: number, digits = 2) => n.toLocaleString(locale, { minimumFractionDigits: 0, maximumFractionDigits: digits })
+const rm = (n: number) => `${n < 0 ? '−' : ''}RM ${Math.abs(n).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const kg = (n: number) => `${num(n)} kg`
 const ha = (n: number) => `${num(n, 3)} ha`
-const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })
+const formatDate = (iso: string) => new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
 
 // ── Inputs ───────────────────────────────────────────────────────────────────
 
@@ -42,10 +43,10 @@ function buildInput(mode: PlannerMode, basis: Basis, v: Values): { input: Planne
     const raw = v[key].trim()
     if (raw === '') return undefined
     const n = Number(raw)
-    if (!Number.isFinite(n)) errors[key] = 'Enter a number'
-    else if (rule === 'positive' && n <= 0) errors[key] = 'Must be greater than 0'
-    else if (rule === 'nonnegative' && n < 0) errors[key] = 'Cannot be negative'
-    else if (rule === 'percent' && (n <= 0 || n > 100)) errors[key] = 'Between 0 and 100'
+    if (!Number.isFinite(n)) errors[key] = tr("Enter a number")
+    else if (rule === 'positive' && n <= 0) errors[key] = tr("Must be greater than 0")
+    else if (rule === 'nonnegative' && n < 0) errors[key] = tr("Cannot be negative")
+    else if (rule === 'percent' && (n <= 0 || n > 100)) errors[key] = tr("Between 0 and 100")
     return n
   }
   const price = read('selling_price_per_kg', 'positive')
@@ -111,7 +112,7 @@ function HistoryHint({ history, error, onUse, inUse }: {
   history: HistoricalYield | null; error: string; onUse: () => void; inUse: boolean
 }) {
   if (error) return <p className="mt-1 text-xs text-gray-500">{error}</p>
-  if (!history) return <p className="mt-1 text-xs text-gray-400">Checking recorded grading…</p>
+  if (!history) return <p className="mt-1 text-xs text-gray-400">{tr("Checking recorded grading…")}</p>
   if (!history.available) {
     return <p className="mt-1 text-xs text-gray-500" title={history.rules}>{history.message}</p>
   }
@@ -120,19 +121,19 @@ function HistoryHint({ history, error, onUse, inUse }: {
       <History size={13} className="shrink-0 mt-0.5 text-gray-500" />
       <div className="min-w-0 flex-1">
         <p>
-          <span className="font-semibold text-gray-900">{history.marketable_yield_percent}%</span> historical yield from{' '}
-          {history.included_batches} graded batches ({formatDate(history.period_start)} – {formatDate(history.period_end)})
+          <span className="font-semibold text-gray-900">{history.marketable_yield_percent}%</span> {tr("historical yield from")}{' '}
+          {history.included_batches} {tr("graded batches (")}{formatDate(history.period_start)} – {formatDate(history.period_end)})
         </p>
         <p className="text-gray-500 mt-0.5" title={history.rules}>
-          Weighted by quantity
+          {tr("Weighted by quantity")}
           {history.excluded_legacy_batches + history.excluded_ungraded_batches > 0 &&
-            `; ${history.excluded_legacy_batches + history.excluded_ungraded_batches} legacy or ungraded batch(es) excluded`}
+            tr("; {0} legacy or ungraded batch(es) excluded", history.excluded_legacy_batches + history.excluded_ungraded_batches)}
         </p>
       </div>
       {inUse ? (
-        <span className="shrink-0 font-medium text-green-800">In use</span>
+        <span className="shrink-0 font-medium text-green-800">{tr("In use")}</span>
       ) : (
-        <button type="button" onClick={onUse} className="shrink-0 font-medium text-green-700 hover:underline">Use</button>
+        <button type="button" onClick={onUse} className="shrink-0 font-medium text-green-700 hover:underline">{tr("Use")}</button>
       )}
     </div>
   )
@@ -150,34 +151,35 @@ function Results({ r }: { r: PlannerResult }) {
     zero: 'bg-white border border-gray-200 text-gray-900',
   }[t]
   const metrics = [
-    { label: r.mode === 'target_profit' ? 'Harvest required' : 'Harvest quantity', value: kg(r.harvest_kg) },
-    { label: 'Marketable quantity', value: kg(r.marketable_kg) },
-    { label: r.harvest_source === 'land_area' ? 'Land used' : 'Land required', value: ha(r.land_ha) },
-    { label: 'Revenue', value: rm(r.revenue) },
-    { label: 'Total costs', value: rm(r.total_cost) },
+    { label: r.mode === 'target_profit' ? tr("Harvest required") : tr("Harvest quantity"), value: kg(r.harvest_kg) },
+    { label: tr("Marketable quantity"), value: kg(r.marketable_kg) },
+    { label: r.harvest_source === 'land_area' ? tr("Land used") : tr("Land required"), value: ha(r.land_ha) },
+    { label: tr("Revenue"), value: rm(r.revenue) },
+    { label: tr("Total costs"), value: rm(r.total_cost) },
   ]
   const chart = [
-    { name: 'Revenue', value: r.revenue, fill: '#166534' },
-    { name: 'Total costs', value: r.total_cost, fill: '#9ca3af' },
-    { name: 'Profit', value: r.profit, fill: r.profit < 0 ? '#dc2626' : r.profit > 0 ? '#16a34a' : '#6b7280' },
+    { name: tr("Revenue"), value: r.revenue, fill: '#166534' },
+    { name: tr("Total costs"), value: r.total_cost, fill: '#9ca3af' },
+    { name: tr("Profit"), value: r.profit, fill: r.profit < 0 ? '#dc2626' : r.profit > 0 ? '#16a34a' : '#6b7280' },
   ]
 
   return (
     <div className="space-y-4">
       <div className={`rounded-xl px-5 py-4 ${profitBox}`}>
-        <p className={`text-xs font-medium uppercase tracking-wide ${t === 'positive' ? 'text-green-50' : 'text-gray-600'}`}>Expected profit</p>
+        <p className={`text-xs font-medium uppercase tracking-wide ${t === 'positive' ? 'text-green-50' : 'text-gray-600'}`}>{tr("Expected profit")}</p>
         <p className="text-3xl font-bold tabular-nums mt-0.5">{rm(r.profit)}</p>
         <p className={`text-xs mt-1 ${t === 'positive' ? 'text-green-50' : 'text-gray-600'}`}>
-          {r.profit_margin_percent != null ? `Profit margin ${r.profit_margin_percent}%` : 'Profit margin not defined (no revenue)'}
-          {r.break_even_marketable_kg != null && ` · Break-even at ${kg(r.break_even_marketable_kg)} marketable`}
+          {r.profit_margin_percent != null ? tr("Profit margin {0}%", r.profit_margin_percent) : tr("Profit margin not defined (no revenue)")}
+          {r.break_even_marketable_kg != null && tr(" · Break-even at {0} marketable", kg(r.break_even_marketable_kg))}
         </p>
       </div>
 
-      <dl className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+      {/* Cards wrap onto new rows instead of shrinking, so figures are never cut off */}
+      <dl className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
         {metrics.map((m) => (
-          <div key={m.label} className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 min-w-0">
+          <div key={m.label} className="rounded-xl border border-gray-200 bg-white px-4 py-3 min-w-0">
             <dt className="text-xs text-gray-500">{m.label}</dt>
-            <dd className="text-base font-semibold text-gray-900 tabular-nums mt-0.5 truncate" title={m.value}>{m.value}</dd>
+            <dd className="text-lg font-semibold text-gray-900 tabular-nums mt-0.5 leading-snug break-words">{m.value}</dd>
           </div>
         ))}
       </dl>
@@ -191,7 +193,7 @@ function Results({ r }: { r: PlannerResult }) {
       )}
 
       <div>
-        <p className="text-sm font-semibold text-gray-900 mb-2">Financial breakdown</p>
+        <p className="text-sm font-semibold text-gray-900 mb-2">{tr("Financial breakdown")}</p>
         <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chart} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
@@ -212,23 +214,23 @@ function Results({ r }: { r: PlannerResult }) {
 
       <details className="group rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
         <summary className="flex items-center gap-2 cursor-pointer list-none font-medium text-gray-800">
-          How was this calculated?
+          {tr("How was this calculated?")}
           <ChevronRight size={15} className="ml-auto text-gray-500 transition-transform group-open:rotate-90" />
         </summary>
         <ol className="mt-3 space-y-2.5">
           {r.steps.map((s) => (
             <li key={s.label}>
-              <p className="font-medium text-gray-900">{s.label}</p>
+              <p className="font-medium text-gray-900">{tr(s.label)}</p>
               <p className="text-xs text-gray-500">{s.formula}</p>
               <p className="text-xs text-gray-800 tabular-nums mt-0.5 break-words">{s.working}</p>
             </li>
           ))}
         </ol>
         <ul className="mt-3 pt-3 border-t border-gray-200 space-y-1 text-xs text-gray-600 list-disc pl-4">
-          <li>Variable cost is charged per marketable kg, not per harvested kg or per hectare.</li>
-          <li>Money is rounded to RM 0.01, quantities to 0.01 kg and land to 0.001 ha.
-            {r.mode === 'target_profit' && ' Required quantities and land are rounded up so the target is still met.'}</li>
-          <li>Calculation version {r.calculation_version}. Nothing is saved, and no farm records are changed.</li>
+          <li>{tr("Variable cost is charged per marketable kg, not per harvested kg or per hectare.")}</li>
+          <li>{tr("Money is rounded to RM 0.01, quantities to 0.01 kg and land to 0.001 ha.")}
+            {r.mode === 'target_profit' && tr(" Required quantities and land are rounded up so the target is still met.")}</li>
+          <li>{tr("Calculation version")} {r.calculation_version}{tr(". Nothing is saved, and no farm records are changed.")}</li>
         </ul>
       </details>
     </div>
@@ -271,7 +273,7 @@ function WhatIfScenarios({ input, mode }: { input: PlannerInput | null; mode: Pl
         setData(await apiClient.getWhatIf(input, controller.signal))
         setError('')
       } catch (err) {
-        if (!controller.signal.aborted) setError(apiErrorMessage(err, 'Could not calculate the scenarios'))
+        if (!controller.signal.aborted) setError(apiErrorMessage(err, tr("Could not calculate the scenarios")))
       } finally {
         if (!controller.signal.aborted) setLoading(false)
       }
@@ -281,11 +283,11 @@ function WhatIfScenarios({ input, mode }: { input: PlannerInput | null; mode: Pl
 
   const target = mode === 'target_profit'
   const rows: { label: string; get: (r: PlannerResult) => string; strong?: boolean }[] = [
-    { label: target ? 'Harvest required' : 'Harvest quantity', get: (r) => kg(r.harvest_kg) },
-    { label: target ? 'Land required' : 'Land', get: (r) => ha(r.land_ha) },
-    { label: 'Estimated revenue', get: (r) => rm(r.revenue) },
-    { label: 'Total costs', get: (r) => rm(r.total_cost) },
-    { label: 'Expected profit', get: (r) => rm(r.profit), strong: true },
+    { label: target ? tr("Harvest required") : tr("Harvest quantity"), get: (r) => kg(r.harvest_kg) },
+    { label: target ? tr("Land required") : tr("Land"), get: (r) => ha(r.land_ha) },
+    { label: tr("Estimated revenue"), get: (r) => rm(r.revenue) },
+    { label: tr("Total costs"), get: (r) => rm(r.total_cost) },
+    { label: tr("Expected profit"), get: (r) => rm(r.profit), strong: true },
   ]
 
   return (
@@ -298,8 +300,8 @@ function WhatIfScenarios({ input, mode }: { input: PlannerInput | null; mode: Pl
         className="flex w-full items-center gap-2 px-5 py-3.5 text-left"
       >
         <Scale size={15} className="text-gray-500" />
-        <span className="text-sm font-semibold text-gray-900">Explore What-If Scenarios</span>
-        <span className="text-xs text-gray-500">(Optional)</span>
+        <span className="text-sm font-semibold text-gray-900">{tr("Explore What-If Scenarios")}</span>
+        <span className="text-xs text-gray-500">{tr("(Optional)")}</span>
         <ChevronRight size={16} className={`ml-auto text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`} />
       </button>
 
@@ -307,28 +309,28 @@ function WhatIfScenarios({ input, mode }: { input: PlannerInput | null; mode: Pl
         <div id="what-if-panel" className="border-t border-gray-100 p-5 space-y-4">
           <p className="text-xs text-gray-600 max-w-3xl">
             {target
-              ? 'The same target profit under less and more favourable assumptions: how much harvest and land each would need.'
-              : 'The same planned harvest under less and more favourable assumptions: how the profit would change.'}
-            {' '}Expected is your current plan. These are hypothetical adjustments, not predictions or guarantees.
+              ? tr("The same target profit under less and more favourable assumptions: how much harvest and land each would need.")
+              : tr("The same planned harvest under less and more favourable assumptions: how the profit would change.")}
+            {' '}{tr("Expected is your current plan. These are hypothetical adjustments, not predictions or guarantees.")}
           </p>
 
           {!input ? (
-            <p className="text-sm text-gray-500">Complete the planning inputs above to generate the scenarios.</p>
+            <p className="text-sm text-gray-500">{tr("Complete the planning inputs above to generate the scenarios.")}</p>
           ) : error ? (
             <p className="flex gap-2 text-sm text-red-700"><AlertTriangle size={15} className="shrink-0 mt-0.5" />{error}</p>
           ) : !data ? (
-            <p className="text-sm text-gray-400">Calculating scenarios…</p>
+            <p className="text-sm text-gray-400">{tr("Calculating scenarios…")}</p>
           ) : (
             <div className={loading ? 'opacity-70 transition-opacity' : ''}>
               <div className="overflow-x-auto -mx-5 px-5">
                 <table className="w-full min-w-[480px] text-sm">
                   <thead>
                     <tr className="text-xs">
-                      <th className="text-left font-medium text-gray-500 py-2 pr-3">Estimate</th>
+                      <th className="text-left font-medium text-gray-500 py-2 pr-3">{tr("Estimate")}</th>
                       {data.scenarios.map((s) => (
                         <th key={s.label} scope="col"
                           className={`text-right font-semibold py-2 px-2 ${SCENARIO_STYLE[s.label] ?? ''} ${s.label === 'Expected' ? 'bg-green-50 rounded-t-lg' : ''}`}>
-                          {s.label}{s.label === 'Expected' && <span className="block text-[10px] font-normal text-gray-500">your inputs</span>}
+                          {s.label}{s.label === 'Expected' && <span className="block text-[10px] font-normal text-gray-500">{tr("your inputs")}</span>}
                         </th>
                       ))}
                     </tr>
@@ -362,14 +364,14 @@ function WhatIfScenarios({ input, mode }: { input: PlannerInput | null; mode: Pl
 
               <details className="group mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
                 <summary className="flex items-center gap-2 cursor-pointer list-none font-medium text-gray-800">
-                  View Assumptions
+                  {tr("View Assumptions")}
                   <ChevronRight size={15} className="ml-auto text-gray-500 transition-transform group-open:rotate-90" />
                 </summary>
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[480px] text-xs">
                     <thead>
                       <tr className="text-gray-500">
-                        <th className="text-left font-medium py-1.5 pr-3">Assumption</th>
+                        <th className="text-left font-medium py-1.5 pr-3">{tr("Assumption")}</th>
                         {data.scenarios.map((s) => <th key={s.label} className="text-right font-medium py-1.5 px-2">{s.label}</th>)}
                       </tr>
                     </thead>
@@ -393,9 +395,9 @@ function WhatIfScenarios({ input, mode }: { input: PlannerInput | null; mode: Pl
                   </table>
                 </div>
                 <ul className="mt-3 space-y-1 text-xs text-gray-600 list-disc pl-4">
-                  <li>Prices, costs and productivity change by a percentage of your input; marketable yield changes by percentage points and stays between 1% and 100%.</li>
-                  <li>{target ? 'The target profit' : 'The planned harvest or land area'} is the same in every scenario.</li>
-                  <li>Each scenario is calculated with the same formulas as the main result.</li>
+                  <li>{tr("Prices, costs and productivity change by a percentage of your input; marketable yield changes by percentage points and stays between 1% and 100%.")}</li>
+                  <li>{target ? tr("The target profit") : tr("The planned harvest or land area")} {tr("is the same in every scenario.")}</li>
+                  <li>{tr("Each scenario is calculated with the same formulas as the main result.")}</li>
                   <li>{data.note}</li>
                 </ul>
               </details>
@@ -429,7 +431,7 @@ export default function ProfitPlanner() {
           setValues((v) => (v.marketable_yield_percent ? v : { ...v, marketable_yield_percent: String(h.marketable_yield_percent) }))
         }
       })
-      .catch((err) => setHistoryError(apiErrorMessage(err, 'Historical yield could not be loaded. Enter the yield manually.')))
+      .catch((err) => setHistoryError(apiErrorMessage(err, tr("Historical yield could not be loaded. Enter the yield manually."))))
   }, [])
 
   const set = (key: FieldKey) => (v: string) => setValues((prev) => ({ ...prev, [key]: v }))
@@ -449,7 +451,7 @@ export default function ProfitPlanner() {
       } catch (err) {
         if (controller.signal.aborted) return
         setResult(null)
-        setCalcError(apiErrorMessage(err, 'Could not calculate this plan'))
+        setCalcError(apiErrorMessage(err, tr("Could not calculate this plan")))
       } finally {
         if (!controller.signal.aborted) setCalculating(false)
       }
@@ -461,17 +463,17 @@ export default function ProfitPlanner() {
 
   return (
     <AdminLayout>
-      <div className="p-6 lg:p-8 space-y-6">
+      <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Harvest &amp; Profit Planner</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Plan pineapple harvest requirements and estimate financial outcomes.</p>
+          <h1 className="text-2xl font-bold text-gray-900">{tr("Harvest & Profit Planner")}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{tr("Plan pineapple harvest requirements and estimate financial outcomes.")}</p>
         </div>
 
         {/* Mode selector */}
-        <div role="tablist" aria-label="Planning mode" className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+        <div role="tablist" aria-label={tr("Planning mode")} className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
           {([
-            ['target_profit', 'Target Profit', Target],
-            ['forecast', 'Harvest Forecast', TrendingUp],
+            ['target_profit', tr("Target Profit"), Target],
+            ['forecast', tr("Harvest Forecast"), TrendingUp],
           ] as const).map(([m, label, Icon]) => (
             <button key={m} role="tab" aria-selected={mode === m} onClick={() => setMode(m)}
               className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -485,15 +487,15 @@ export default function ProfitPlanner() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] gap-6 items-start">
           {/* Inputs */}
           <div className="space-y-6">
-            <Card title="Financial inputs">
+            <Card title={tr("Financial inputs")}>
               <div className="space-y-4">
                 {mode === 'target_profit' ? (
-                  <NumberField id="target_profit" label="Target profit" unit="RM" value={values.target_profit}
+                  <NumberField id="target_profit" label={tr("Target profit")} unit="RM" value={values.target_profit}
                     onChange={set('target_profit')} error={errors.target_profit} />
                 ) : (
                   <div className="space-y-2">
-                    <div role="radiogroup" aria-label="Plan from" className="flex gap-4 text-sm">
-                      {([['harvest', 'Planned harvest'], ['land', 'Available land']] as const).map(([b, label]) => (
+                    <div role="radiogroup" aria-label={tr("Plan from")} className="flex gap-4 text-sm">
+                      {([['harvest', tr("Planned harvest")], ['land', tr("Available land")]] as const).map(([b, label]) => (
                         <label key={b} className="inline-flex items-center gap-1.5 text-gray-700">
                           <input type="radio" name="basis" checked={basis === b} onChange={() => setBasis(b)} className="accent-green-700" />
                           {label}
@@ -501,39 +503,39 @@ export default function ProfitPlanner() {
                       ))}
                     </div>
                     {basis === 'harvest' ? (
-                      <NumberField id="planned_harvest_kg" label="Planned harvest quantity" unit="kg" value={values.planned_harvest_kg}
+                      <NumberField id="planned_harvest_kg" label={tr("Planned harvest quantity")} unit="kg" value={values.planned_harvest_kg}
                         onChange={set('planned_harvest_kg')} error={errors.planned_harvest_kg} />
                     ) : (
-                      <NumberField id="land_area_ha" label="Available land area" unit="ha" value={values.land_area_ha}
+                      <NumberField id="land_area_ha" label={tr("Available land area")} unit="ha" value={values.land_area_ha}
                         onChange={set('land_area_ha')} error={errors.land_area_ha} />
                     )}
                   </div>
                 )}
-                <NumberField id="selling_price_per_kg" label="Average selling price" unit="RM / kg" value={values.selling_price_per_kg}
+                <NumberField id="selling_price_per_kg" label={tr("Average selling price")} unit="RM / kg" value={values.selling_price_per_kg}
                   onChange={set('selling_price_per_kg')} error={errors.selling_price_per_kg} />
-                <NumberField id="variable_cost_per_kg" label="Variable cost per marketable kg" unit="RM / kg" value={values.variable_cost_per_kg}
+                <NumberField id="variable_cost_per_kg" label={tr("Variable cost per marketable kg")} unit="RM / kg" value={values.variable_cost_per_kg}
                   onChange={set('variable_cost_per_kg')} error={errors.variable_cost_per_kg}
-                  hint={<p className="mt-1 text-xs text-gray-500">E.g. packing and handling for each kilogram sold.</p>} />
-                <NumberField id="fixed_cost" label="Fixed operational cost" unit="RM" value={values.fixed_cost}
+                  hint={<p className="mt-1 text-xs text-gray-500">{tr("E.g. packing and handling for each kilogram sold.")}</p>} />
+                <NumberField id="fixed_cost" label={tr("Fixed operational cost")} unit="RM" value={values.fixed_cost}
                   onChange={set('fixed_cost')} error={errors.fixed_cost} />
               </div>
             </Card>
 
-            <Card title="Harvest assumptions">
+            <Card title={tr("Harvest assumptions")}>
               <div className="space-y-4">
-                <NumberField id="marketable_yield_percent" label="Expected marketable yield" unit="%" value={values.marketable_yield_percent}
+                <NumberField id="marketable_yield_percent" label={tr("Expected marketable yield")} unit="%" value={values.marketable_yield_percent}
                   onChange={set('marketable_yield_percent')} error={errors.marketable_yield_percent}
                   hint={<HistoryHint history={history} error={historyError} inUse={historyInUse}
                     onUse={() => history?.marketable_yield_percent != null && set('marketable_yield_percent')(String(history.marketable_yield_percent))} />} />
-                <NumberField id="productivity_kg_per_ha" label="Expected productivity" unit="kg / ha" value={values.productivity_kg_per_ha}
+                <NumberField id="productivity_kg_per_ha" label={tr("Expected productivity")} unit="kg / ha" value={values.productivity_kg_per_ha}
                   onChange={set('productivity_kg_per_ha')} error={errors.productivity_kg_per_ha}
-                  hint={<p className="mt-1 text-xs text-gray-500">Harvested weight per hectare, before grading.</p>} />
+                  hint={<p className="mt-1 text-xs text-gray-500">{tr("Harvested weight per hectare, before grading.")}</p>} />
               </div>
             </Card>
           </div>
 
           {/* Results */}
-          <Card title="Estimated results" icon={Info} className="min-w-0">
+          <Card title={tr("Estimated results")} icon={Info} className="min-w-0">
             <div aria-live="polite" className={calculating ? 'opacity-70 transition-opacity' : ''}>
               {calcError ? (
                 <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800">
@@ -544,16 +546,16 @@ export default function ProfitPlanner() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-14 text-center text-gray-500">
                   <Scale size={28} className="mb-2 text-gray-300" />
-                  <p className="text-sm font-medium text-gray-700">Enter every planning input to see the estimate</p>
+                  <p className="text-sm font-medium text-gray-700">{tr("Enter every planning input to see the estimate")}</p>
                   <p className="text-xs mt-1 max-w-sm">
                     {mode === 'target_profit'
-                      ? 'Find out how much to harvest, and on how much land, to reach a profit target.'
-                      : 'See the expected revenue, costs and profit of a planned harvest.'}
+                      ? tr("Find out how much to harvest, and on how much land, to reach a profit target.")
+                      : tr("See the expected revenue, costs and profit of a planned harvest.")}
                   </p>
                 </div>
               )}
               <p className="mt-4 text-xs text-gray-500">
-                {result?.disclaimer ?? 'Planning estimate only, based on the assumptions entered. Not a guaranteed financial result.'}
+                {result?.disclaimer ?? tr("Planning estimate only, based on the assumptions entered. Not a guaranteed financial result.")}
               </p>
             </div>
           </Card>

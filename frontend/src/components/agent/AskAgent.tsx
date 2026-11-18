@@ -1,25 +1,49 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Lightbulb } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Layers, Lightbulb, Recycle, Sprout } from 'lucide-react'
 import { apiClient, apiErrorMessage } from '../../services/api'
-import { AIHarvestPrediction, AIWastePrediction, Harvest } from '../../types'
+import { AIHarvestPrediction, AIWastePrediction, AnalysisScope, Harvest } from '../../types'
 import { SourceBadge, confidenceMeaning } from './agentMeta'
 import SearchableSelect from '../../components/ui/SearchableSelect'
+import { normalizeGrade } from '../batch/GradeBadge'
+import { useFarmToday } from '../../hooks/useFarmToday'
 
+import { tr, trEnum } from '../../i18n'
 type Tool = 'harvest' | 'waste'
 const ICON = { size: 16, strokeWidth: 1.75 } as const
 
 const WASTE_LABEL: Record<string, string> = {
-  rotten: 'Rotten', damaged: 'Damaged', overripe: 'Overripe', unused_parts: 'Unused parts', other: 'Other',
+  rotten: tr("Rotten"), damaged: tr("Damaged"), overripe: tr("Overripe"), unused_parts: tr("Unused parts"), other: tr("Other"),
 }
 
-function Slider({ id, label, value, min, max, step, low, high, onChange }: {
-  id: string; label: string; value: number; min: number; max: number; step: number; low: string; high: string; onChange: (v: number) => void
+/** Whole days from a YYYY-MM-DD date to today (farm calendar), never negative */
+function daysBetween(from: string, today: string): number {
+  const ms = Date.parse(`${today}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)
+  return Number.isFinite(ms) ? Math.max(0, Math.round(ms / 86_400_000)) : 0
+}
+
+/** Latest batch of each field, the only field information PineTrack records */
+function latestByField(harvests: Harvest[]): Harvest[] {
+  const map = new Map<string, Harvest>()
+  for (const h of harvests) {
+    const prev = map.get(h.field_name)
+    if (!prev || h.harvest_date > prev.harvest_date || (h.harvest_date === prev.harvest_date && h.id > prev.id)) map.set(h.field_name, h)
+  }
+  return [...map.values()].sort((a, b) => a.field_name.localeCompare(b.field_name))
+}
+
+const label = 'block text-sm font-medium text-gray-800 mb-1'
+const hint = 'mt-1 text-xs text-gray-500'
+const card = 'bg-white rounded-xl border border-gray-100 shadow-sm p-5'
+const submit = 'w-full inline-flex items-center justify-center gap-2 h-10 rounded-lg bg-green-700 hover:bg-green-800 text-white text-sm font-medium disabled:opacity-60'
+
+function Slider({ id, text, value, min, max, step, low, high, onChange }: {
+  id: string; text: string; value: number; min: number; max: number; step: number; low: string; high: string; onChange: (v: number) => void
 }) {
   return (
     <div>
       <label htmlFor={id} className="flex items-baseline justify-between text-sm font-medium text-gray-800 mb-1">
-        {label}<span className="text-sm font-semibold text-gray-900 tabular-nums">{value}</span>
+        {text}<span className="text-sm font-semibold text-gray-900 tabular-nums">{value}</span>
       </label>
       <input id={id} type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))} className="w-full accent-green-700" />
@@ -28,205 +52,345 @@ function Slider({ id, label, value, min, max, step, low, high, onChange }: {
   )
 }
 
-function Confidence({ value, type, source }: { value: number; type: string; source: 'gemini' | 'rules' }) {
+/** Small tag next to a field whose value came from a record; it stays editable */
+function FromRecord() {
+  return <span className="ml-1.5 rounded bg-green-50 px-1.5 py-px text-[10px] font-medium text-green-800 ring-1 ring-inset ring-green-200">{tr("from records")}</span>
+}
+
+function DaysInput({ id, text, value, prefilled, onChange, help }: {
+  id: string; text: string; value: number; prefilled: boolean; onChange: (v: number) => void; help: string
+}) {
   return (
-    <details className="text-xs">
-      <summary className="cursor-pointer list-none text-gray-500 hover:text-gray-800 select-none">About the confidence ({Math.round(value * 100)}%)</summary>
-      <p className="mt-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-gray-600">{confidenceMeaning(type, source)}</p>
+    <div>
+      <label htmlFor={id} className={label}>{text}{prefilled && <FromRecord />}</label>
+      <input id={id} type="number" min={0} step={1} inputMode="numeric" value={value}
+        onChange={(e) => onChange(Math.max(0, Math.round(Number(e.target.value) || 0)))}
+        className="w-32 h-10 rounded-lg border border-gray-200 px-3 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-green-600" />
+      <p className={hint}>{help}</p>
+    </div>
+  )
+}
+
+function ErrorLine({ text }: { text: string }) {
+  return <p role="alert" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"><AlertTriangle {...ICON} className="shrink-0 mt-0.5" />{text}</p>
+}
+
+function HowWorkedOut({ children }: { children: React.ReactNode }) {
+  return (
+    <details className="group text-xs">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-gray-600 hover:text-gray-900 select-none">
+        {tr("How was this worked out?")}
+        <ChevronDown {...ICON} size={13} className="transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="mt-2 space-y-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-gray-700">{children}</div>
     </details>
   )
 }
 
-function Placeholder({ text }: { text: string }) {
+function Waiting({ text }: { text: string }) {
   return (
-    <div className="flex h-full min-h-[240px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white px-6 text-center">
+    <div className="flex h-full min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white px-6 text-center">
       <Lightbulb {...ICON} size={22} className="text-gray-300 mb-2" />
       <p className="text-sm text-gray-500">{text}</p>
     </div>
   )
 }
 
-export default function AskAgent() {
-  const [tool, setTool] = useState<Tool>('harvest')
-  const [harvests, setHarvests] = useState<Harvest[]>([])
+// ── Harvest timing ─────────────────────────────────────────────────────────
 
-  const [hForm, setHForm] = useState({ harvest_id: '', ripeness_level: 6, days_since_last_harvest: 14, field_condition_score: 7 })
-  const [hResult, setHResult] = useState<AIHarvestPrediction | null>(null)
-  const [hBatch, setHBatch] = useState<Harvest | null>(null)
-  const [hLoading, setHLoading] = useState(false)
-  const [hError, setHError] = useState('')
+function HarvestTiming({ harvests, today }: { harvests: Harvest[]; today: string }) {
+  const fields = useMemo(() => latestByField(harvests), [harvests])
+  const [field, setField] = useState('')
+  const [ripeness, setRipeness] = useState(6)
+  const [condition, setCondition] = useState(7)
+  const [days, setDays] = useState(14)
+  const [daysEdited, setDaysEdited] = useState(false)
+  const [result, setResult] = useState<AIHarvestPrediction | null>(null)
+  const [asked, setAsked] = useState<Harvest | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const [wForm, setWForm] = useState({ quality_grade: 'B', damage_level: 4, age_days: 5 })
-  const [wResult, setWResult] = useState<AIWastePrediction | null>(null)
-  const [wLoading, setWLoading] = useState(false)
-  const [wError, setWError] = useState('')
+  const ref = fields.find((f) => f.field_name === field) ?? null
+  const recordedDays = ref ? daysBetween(ref.harvest_date, today) : null
 
+  // Fill the days from the field's last recorded harvest, unless the user typed their own value
   useEffect(() => {
-    apiClient.listHarvests(0, 500).then((d) => setHarvests(d.items)).catch(() => setHarvests([]))
-  }, [])
+    if (recordedDays !== null && !daysEdited) setDays(recordedDays)
+  }, [recordedDays, daysEdited])
 
-  const askHarvest = async (e: React.FormEvent) => {
+  const ask = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!hForm.harvest_id) { setHError('Choose the batch to ask about.'); return }
-    setHLoading(true); setHError(''); setHResult(null)
+    if (!ref) { setError(tr("Choose the field to ask about.")); return }
+    setLoading(true); setError(''); setResult(null)
     try {
-      setHResult(await apiClient.predictHarvestTiming({ ...hForm, harvest_id: Number(hForm.harvest_id) }))
-      setHBatch(harvests.find((h) => String(h.id) === hForm.harvest_id) ?? null)
+      // The API needs a batch for context; the field's latest batch is the honest reference
+      setResult(await apiClient.predictHarvestTiming({
+        harvest_id: ref.id, ripeness_level: ripeness, days_since_last_harvest: days, field_condition_score: condition,
+      }))
+      setAsked(ref)
     } catch (err) {
-      setHError(apiErrorMessage(err, 'PineTrack Agent could not respond. Please try again.'))
+      setError(apiErrorMessage(err, tr("PineTrack Agent could not respond. Please try again.")))
     } finally {
-      setHLoading(false)
+      setLoading(false)
     }
   }
-
-  const askWaste = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setWLoading(true); setWError(''); setWResult(null)
-    try {
-      setWResult(await apiClient.predictWasteClassification(wForm))
-    } catch (err) {
-      setWError(apiErrorMessage(err, 'PineTrack Agent could not respond. Please try again.'))
-    } finally {
-      setWLoading(false)
-    }
-  }
-
-  const card = 'bg-white rounded-xl border border-gray-100 shadow-sm p-5'
-  const submit = 'w-full inline-flex items-center justify-center gap-2 h-10 rounded-lg bg-green-700 hover:bg-green-800 text-white text-sm font-medium disabled:opacity-60'
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-        <div role="tablist" aria-label="Agent tool" className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
-          {([['harvest', 'Harvest Timing'], ['waste', 'Waste Classification']] as const).map(([k, label]) => (
-            <button key={k} role="tab" aria-selected={tool === k} onClick={() => setTool(k)}
-              className={`h-8 px-3 rounded-md text-sm font-medium transition-colors ${tool === k ? 'bg-green-700 text-white' : 'text-gray-700 hover:bg-gray-100'}`}>
-              {label}
-            </button>
-          ))}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <form onSubmit={ask} className={`${card} space-y-4`} noValidate>
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">{tr("When should this field be harvested?")}</h3>
+          <p className={hint}>{tr("Tell the agent what the crop looks like today.")}</p>
         </div>
-        <p className="text-xs text-gray-500 sm:text-right">
-          The agent answers these two questions. Free-text chat is not available.
-        </p>
+        {error && <ErrorLine text={error} />}
+
+        <div>
+          <label htmlFor="ask-field-name" className={label}>{tr("Field")}<span className="text-red-600 ml-0.5" aria-hidden>*</span></label>
+          <SearchableSelect id="ask-field-name" value={field} onChange={(v) => { setField(v); setDaysEdited(false) }}
+            placeholder={tr("Select a field…")} searchPlaceholder={tr("Search fields")} noResultsText={tr("No fields match")}
+            options={fields.map((f) => ({
+              value: f.field_name, label: f.field_name, keywords: f.batch_number,
+              description: tr("Last harvested {0} · {1}", f.harvest_date, f.batch_number),
+            }))} />
+          <p className={hint}>
+            {fields.length === 0
+              ? tr("Fields come from recorded harvests. Record a harvest first.")
+              : tr("Fields come from recorded harvests. The latest batch from the field gives the agent its context.")}
+          </p>
+        </div>
+
+        <DaysInput id="ask-days" text={tr("Days since this field was last harvested")} value={days}
+          prefilled={!!ref && !daysEdited} onChange={(v) => { setDays(v); setDaysEdited(true) }}
+          help={ref ? tr("Recorded harvest on {0}. Change it if the field was picked since.", ref.harvest_date) : tr("Filled in when you choose a field.")} />
+
+        <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-gray-500">{tr("Your observation today")}</p>
+        <Slider id="ask-ripe" text={tr("Ripeness (0–10)")} value={ripeness} min={0} max={10} step={0.5} low={tr("Unripe")} high={tr("Fully ripe")} onChange={setRipeness} />
+        <Slider id="ask-cond" text={tr("Field condition (0–10)")} value={condition} min={0} max={10} step={0.5} low={tr("Poor")} high={tr("Excellent")} onChange={setCondition} />
+
+        <button type="submit" disabled={loading || fields.length === 0} className={submit}>
+          <Lightbulb {...ICON} /> {loading ? tr("Asking the agent…") : tr("Get advice")}
+        </button>
+      </form>
+
+      {result ? (
+        <div className={`${card} space-y-4`} aria-live="polite">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium text-gray-500">{asked ? tr("Advice for {0}", asked.field_name) : tr("Recommendation")}</p>
+            <SourceBadge source={result.source ?? 'rules'} model={result.model_version} />
+          </div>
+          <div>
+            <p className="text-xl font-semibold text-gray-900">{tr(result.recommendation)}</p>
+            {result.explanation && <p className="mt-1 text-sm text-gray-700 leading-relaxed">{result.explanation}</p>}
+          </div>
+          <dl className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-gray-200 px-3 py-2">
+              <dt className="text-xs text-gray-500">{tr("Expected quality")}</dt>
+              <dd className="text-sm font-semibold text-gray-900">{tr(result.quality_prediction)}</dd>
+            </div>
+            <div className="rounded-lg border border-gray-200 px-3 py-2">
+              <dt className="text-xs text-gray-500">{tr("Transport urgency")}</dt>
+              <dd className="text-sm font-semibold text-gray-900">{tr(result.transport_priority)}</dd>
+            </div>
+          </dl>
+          <HowWorkedOut>
+            <p>{tr("Inputs: ripeness")} {result.reasoning.ripeness_level}/10 · {result.reasoning.days_since_harvest} {tr("days since last harvest · field condition")} {result.reasoning.field_condition}/10</p>
+            {asked && <p>{tr("Context: batch {0} (harvested {1}, grade {2}).", asked.batch_number, asked.harvest_date, trEnum(asked.quality_grade))}</p>}
+            <p>{tr("Built-in readiness score for these inputs:")} <span className="font-semibold">{result.reasoning.total_score}/100</span>
+              {result.source === 'gemini' ? tr(" (shown for comparison; Gemini made the recommendation)") : ''}</p>
+            <p className="text-gray-600">{tr("Confidence")} {Math.round(result.confidence_score * 100)}%. {confidenceMeaning('harvest_timing', result.source ?? 'rules')}</p>
+          </HowWorkedOut>
+          {asked && <Link to={`/harvest/${asked.id}`} className="inline-block text-sm font-medium text-green-800 hover:underline">{tr("Open batch {0}", asked.batch_number)}</Link>}
+        </div>
+      ) : <Waiting text={tr("Choose a field, set today's observations and get advice.")} />}
+    </div>
+  )
+}
+
+// ── Waste guidance ─────────────────────────────────────────────────────────
+
+function WasteGuidance({ harvests, today }: { harvests: Harvest[]; today: string }) {
+  const [batchId, setBatchId] = useState('')
+  const [grade, setGrade] = useState('B')
+  const [damage, setDamage] = useState(4)
+  const [age, setAge] = useState(5)
+  // Values the user set by hand are never replaced by a record's values
+  const [edited, setEdited] = useState<{ grade: boolean; age: boolean }>({ grade: false, age: false })
+  const [result, setResult] = useState<AIWastePrediction | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const batch = harvests.find((h) => String(h.id) === batchId) ?? null
+  const batchGrade = normalizeGrade(batch?.quality_grade)
+  const gradeFromRecord = !!batchGrade && !edited.grade
+  const ageFromRecord = !!batch && !edited.age
+
+  useEffect(() => {
+    if (!batch) return
+    if (batchGrade && !edited.grade) setGrade(batchGrade)
+    if (!edited.age) setAge(daysBetween(batch.harvest_date, today))
+  }, [batch, batchGrade, today, edited])
+
+  const ask = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true); setError(''); setResult(null)
+    try {
+      setResult(await apiClient.predictWasteClassification({ quality_grade: grade, damage_level: damage, age_days: age }))
+    } catch (err) {
+      setError(apiErrorMessage(err, tr("PineTrack Agent could not respond. Please try again.")))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <form onSubmit={ask} className={`${card} space-y-4`} noValidate>
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">{tr("What should be done with this fruit?")}</h3>
+          <p className={hint}>
+            {tr("For waste already logged, each record has its own advice in")} <Link to="/waste" className="text-green-800 hover:underline">{tr("Waste Management")}</Link>.
+          </p>
+        </div>
+        {error && <ErrorLine text={error} />}
+
+        <div>
+          <label htmlFor="ask-waste-batch" className={label}>{tr("Batch")} <span className="font-normal text-gray-500">{tr("(optional)")}</span></label>
+          <SearchableSelect id="ask-waste-batch" value={batchId} onChange={setBatchId}
+            placeholder={tr("Not from a specific batch")} searchPlaceholder={tr("Search batch number or field")} noResultsText={tr("No batches match")}
+            options={harvests.map((h) => ({
+              value: String(h.id), label: h.batch_number, keywords: h.field_name,
+              description: `${h.field_name} · ${h.harvest_date}`,
+            }))} />
+          <p className={hint}>{tr("Choosing a batch fills in its grade and age.")}</p>
+        </div>
+
+        <div>
+          <p className={label}>{tr("Quality grade")}{gradeFromRecord && <FromRecord />}</p>
+          <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label={tr("Quality grade")}>
+            {['A', 'B', 'C', 'D'].map((g) => (
+              <button key={g} type="button" role="radio" aria-checked={grade === g}
+                onClick={() => { setGrade(g); setEdited((p) => ({ ...p, grade: true })) }}
+                className={`h-9 rounded-lg text-sm font-semibold border transition-colors ${
+                  grade === g ? 'bg-green-700 text-white border-green-700' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}>
+                {g}
+              </button>
+            ))}
+          </div>
+          {batch && !batchGrade && <p className={hint}>{tr("This batch has no single grade recorded; choose the grade of this fruit.")}</p>}
+        </div>
+
+        <DaysInput id="ask-age" text={tr("Days since harvest")} value={age} prefilled={ageFromRecord}
+          onChange={(v) => { setAge(v); setEdited((p) => ({ ...p, age: true })) }}
+          help={batch ? tr("Batch harvested on {0}.", batch.harvest_date) : tr("How long ago the fruit was picked.")} />
+
+        <Slider id="ask-damage" text={tr("Damage you can see (0–10)")} value={damage} min={0} max={10} step={0.5} low={tr("None")} high={tr("Severe")} onChange={setDamage} />
+
+        <button type="submit" disabled={loading} className={submit}>
+          <Lightbulb {...ICON} /> {loading ? tr("Asking the agent…") : tr("Get advice")}
+        </button>
+      </form>
+
+      {result ? (
+        <div className={`${card} space-y-4`} aria-live="polite">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium text-gray-500">{tr("Waste type")}</p>
+            <SourceBadge source={result.source ?? 'rules'} model={result.model_version} />
+          </div>
+          <div>
+            <p className="text-xl font-semibold text-gray-900">{WASTE_LABEL[result.waste_type] ?? trEnum(result.waste_type)}</p>
+            {result.explanation && <p className="mt-1 text-sm text-gray-700 leading-relaxed">{result.explanation}</p>}
+          </div>
+          <div className="rounded-lg border border-gray-200 px-3 py-2">
+            <p className="text-xs text-gray-500">{tr("Suggested handling")}</p>
+            <p className="text-sm font-semibold text-gray-900 capitalize">{trEnum(result.disposal_method)}</p>
+          </div>
+          <HowWorkedOut>
+            <p>{tr("Inputs")}: {tr("Grade")} {result.quality_grade} {tr("· damage")} {result.damage_level}/10 · {result.age_days} {tr("days")}</p>
+            <p className="text-gray-600">{tr("Confidence")} {Math.round(result.confidence_score * 100)}%. {confidenceMeaning('waste_classification', result.source ?? 'rules')}</p>
+          </HowWorkedOut>
+          <Link to="/waste?new=1" className="inline-block text-sm font-medium text-green-800 hover:underline">{tr("Log this as waste")}</Link>
+        </div>
+      ) : <Waiting text={tr("Set the grade, age and damage, then get advice.")} />}
+    </div>
+  )
+}
+
+// ── Action cards ───────────────────────────────────────────────────────────
+
+function ActionCard({ icon: Icon, title, text, onClick, selected }: {
+  icon: React.ElementType; title: string; text: string; onClick: () => void; selected?: boolean
+}) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={selected}
+      className={`group flex w-full items-start gap-3 rounded-xl border bg-white p-4 text-left shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 ${
+        selected ? 'border-green-700 ring-1 ring-green-700' : 'border-gray-200 hover:border-green-700'
+      }`}>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-800"><Icon {...ICON} size={18} /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-gray-900">{title}</span>
+        <span className="mt-0.5 block text-xs text-gray-600">{text}</span>
+      </span>
+      <ChevronRight {...ICON} size={16} className="mt-1 shrink-0 text-gray-300 group-hover:text-gray-500" />
+    </button>
+  )
+}
+
+/** "What would you like help with?": the tools that fit the selected module */
+export default function AskAgent({ scope }: { scope: AnalysisScope }) {
+  const [tool, setTool] = useState<Tool | null>(null)
+  const [harvests, setHarvests] = useState<Harvest[]>([])
+  const { today } = useFarmToday()
+  const postHarvest = scope !== 'sulur'
+
+  useEffect(() => {
+    if (postHarvest) apiClient.listHarvests(0, 500).then((d) => setHarvests(d.items)).catch(() => setHarvests([]))
+  }, [postHarvest])
+
+  // A tool from another module closes when the module changes
+  useEffect(() => { if (!postHarvest) setTool(null) }, [postHarvest])
+
+  return (
+    <section aria-labelledby="help-heading" className="space-y-3">
+      <div>
+        <h2 id="help-heading" className="text-base font-semibold text-gray-900">{tr("What would you like help with?")}</h2>
+        <p className="text-xs text-gray-500">{tr("Pick a question. The agent answers these questions only; free-text chat is not available.")}</p>
       </div>
 
-      {tool === 'harvest' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          <form onSubmit={askHarvest} className={`${card} space-y-4`} noValidate>
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900">When should this block be harvested?</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Describe the field now; the agent recommends a harvest window.</p>
-            </div>
-            {hError && <p role="alert" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"><AlertTriangle {...ICON} className="shrink-0 mt-0.5" />{hError}</p>}
-            <div>
-              <label htmlFor="ask-batch" className="block text-sm font-medium text-gray-800 mb-1">Batch<span className="text-red-600 ml-0.5" aria-hidden>*</span></label>
-              <SearchableSelect id="ask-batch" value={hForm.harvest_id} onChange={(v) => setHForm({ ...hForm, harvest_id: v })}
-                placeholder="Select a batch…" searchPlaceholder="Search batch number or field" noResultsText="No batches match"
-                options={harvests.map((h) => ({
-                  value: String(h.id), label: h.batch_number, keywords: h.field_name,
-                  description: `${h.field_name} · ${h.harvest_date}`,
-                }))} />
-              <p className="mt-1 text-xs text-gray-500">Gives the agent the field and the batch's recorded grade.</p>
-            </div>
-            <Slider id="ask-ripe" label="Ripeness level (0–10)" value={hForm.ripeness_level} min={0} max={10} step={0.5} low="Unripe" high="Fully ripe"
-              onChange={(v) => setHForm({ ...hForm, ripeness_level: v })} />
-            <Slider id="ask-days" label="Days since last harvest of this block" value={hForm.days_since_last_harvest} min={0} max={90} step={1} low="0" high="90"
-              onChange={(v) => setHForm({ ...hForm, days_since_last_harvest: v })} />
-            <Slider id="ask-field" label="Field condition (0–10)" value={hForm.field_condition_score} min={0} max={10} step={0.5} low="Poor" high="Excellent"
-              onChange={(v) => setHForm({ ...hForm, field_condition_score: v })} />
-            <button type="submit" disabled={hLoading} className={submit}>
-              <Lightbulb {...ICON} /> {hLoading ? 'Asking the agent…' : 'Ask the agent'}
-            </button>
-          </form>
-
-          {hResult ? (
-            <div className={`${card} space-y-4`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-medium text-gray-500">Recommendation{hBatch ? ` for ${hBatch.batch_number}` : ''}</p>
-                <SourceBadge source={hResult.source ?? 'rules'} model={hResult.model_version} />
-              </div>
-              <div>
-                <p className="text-xl font-semibold text-gray-900">{hResult.recommendation}</p>
-                {hResult.explanation && <p className="mt-1 text-sm text-gray-700 leading-relaxed">{hResult.explanation}</p>}
-              </div>
-              <dl className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border border-gray-200 px-3 py-2">
-                  <dt className="text-xs text-gray-500">Expected quality</dt>
-                  <dd className="text-sm font-semibold text-gray-900">{hResult.quality_prediction}</dd>
-                </div>
-                <div className="rounded-lg border border-gray-200 px-3 py-2">
-                  <dt className="text-xs text-gray-500">Transport urgency</dt>
-                  <dd className="text-sm font-semibold text-gray-900">{hResult.transport_priority}</dd>
-                </div>
-              </dl>
-              <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2.5 text-xs text-gray-700">
-                <p>Inputs: ripeness {hResult.reasoning.ripeness_level}/10 · {hResult.reasoning.days_since_harvest} days since last harvest · field condition {hResult.reasoning.field_condition}/10</p>
-                <p className="mt-1">Built-in readiness score for these inputs: <span className="font-semibold">{hResult.reasoning.total_score}/100</span>
-                  {hResult.source === 'gemini' ? ' (shown for comparison; Gemini made the recommendation)' : ''}</p>
-              </div>
-              <Confidence value={hResult.confidence_score} type="harvest_timing" source={hResult.source ?? 'rules'} />
-              {hBatch && <Link to={`/harvest/${hBatch.id}`} className="inline-block text-sm font-medium text-green-800 hover:underline">Open {hBatch.batch_number}</Link>}
-            </div>
-          ) : <Placeholder text="Choose a batch, describe the field and ask the agent." />}
+      {tool === null ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {postHarvest && (
+            <>
+              <ActionCard icon={Sprout} title={tr("When to harvest a field")} onClick={() => setTool('harvest')}
+                text={tr("Get a harvest window for a field from today's ripeness and field condition.")} />
+              <ActionCard icon={Recycle} title={tr("What to do with waste")} onClick={() => setTool('waste')}
+                text={tr("Get the waste type and a handling suggestion for fruit that cannot be sold.")} />
+            </>
+          )}
+          {scope !== 'post_harvest' && (
+            // Sulur has no agent question yet; its rule-based planting check lives in the module
+            <Link to="/admin/sulur/planner"
+              className="group flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-green-700">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-800"><Layers {...ICON} size={18} /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-gray-900">{tr("Is there enough sulur to plant?")}</span>
+                <span className="mt-0.5 block text-xs text-gray-600">{tr("Opens the planting check in Sulur Inventory (built-in rules).")}</span>
+              </span>
+              <ChevronRight {...ICON} size={16} className="mt-1 shrink-0 text-gray-300 group-hover:text-gray-500" />
+            </Link>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          <form onSubmit={askWaste} className={`${card} space-y-4`}>
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900">What kind of waste is this, and how should it be handled?</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                For waste already logged, use the per-record recommendations on <Link to="/waste" className="text-green-800 hover:underline">Waste Management</Link>.
-              </p>
-            </div>
-            {wError && <p role="alert" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"><AlertTriangle {...ICON} className="shrink-0 mt-0.5" />{wError}</p>}
-            <div>
-              <p className="text-sm font-medium text-gray-800 mb-1">Quality grade (recorded at inspection)</p>
-              <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Quality grade">
-                {['A', 'B', 'C', 'D'].map((g) => (
-                  <button key={g} type="button" role="radio" aria-checked={wForm.quality_grade === g}
-                    onClick={() => setWForm({ ...wForm, quality_grade: g })}
-                    className={`h-9 rounded-lg text-sm font-semibold border transition-colors ${
-                      wForm.quality_grade === g ? 'bg-green-700 text-white border-green-700' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                    }`}>
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <Slider id="ask-damage" label="Damage level (0–10)" value={wForm.damage_level} min={0} max={10} step={0.5} low="None" high="Severe"
-              onChange={(v) => setWForm({ ...wForm, damage_level: v })} />
-            <Slider id="ask-age" label="Days since harvest" value={wForm.age_days} min={0} max={30} step={1} low="Fresh" high="30 days"
-              onChange={(v) => setWForm({ ...wForm, age_days: v })} />
-            <button type="submit" disabled={wLoading} className={submit}>
-              <Lightbulb {...ICON} /> {wLoading ? 'Asking the agent…' : 'Ask the agent'}
-            </button>
-          </form>
-
-          {wResult ? (
-            <div className={`${card} space-y-4`}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-medium text-gray-500">Classification</p>
-                <SourceBadge source={wResult.source ?? 'rules'} model={wResult.model_version} />
-              </div>
-              <div>
-                <p className="text-xl font-semibold text-gray-900">{WASTE_LABEL[wResult.waste_type] ?? wResult.waste_type}</p>
-                {wResult.explanation && <p className="mt-1 text-sm text-gray-700 leading-relaxed">{wResult.explanation}</p>}
-              </div>
-              <dl className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border border-gray-200 px-3 py-2">
-                  <dt className="text-xs text-gray-500">Suggested handling</dt>
-                  <dd className="text-sm font-semibold text-gray-900 capitalize">{wResult.disposal_method}</dd>
-                </div>
-                <div className="rounded-lg border border-gray-200 px-3 py-2">
-                  <dt className="text-xs text-gray-500">Inputs</dt>
-                  <dd className="text-sm text-gray-900">Grade {wResult.quality_grade} · damage {wResult.damage_level}/10 · {wResult.age_days} days</dd>
-                </div>
-              </dl>
-              <Confidence value={wResult.confidence_score} type="waste_classification" source={wResult.source ?? 'rules'} />
-            </div>
-          ) : <Placeholder text="Set the grade, damage and age, then ask the agent." />}
+        <div className="space-y-3">
+          <button type="button" onClick={() => setTool(null)}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">
+            <ArrowLeft {...ICON} size={15} /> {tr("Choose another question")}
+          </button>
+          {tool === 'harvest'
+            ? <HarvestTiming harvests={harvests} today={today} />
+            : <WasteGuidance harvests={harvests} today={today} />}
         </div>
       )}
-    </div>
+    </section>
   )
 }

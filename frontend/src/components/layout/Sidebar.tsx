@@ -16,15 +16,16 @@ import {
 } from 'lucide-react'
 import { authService } from '../../services/auth'
 
+import { tr, trEnum } from '../../i18n'
 const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: 'Dashboard',       path: '/dashboard'   },
-  { icon: Layers,          label: 'Sulur Inventory', path: '/admin/sulur' },
-  { icon: Sprout,          label: 'Harvest',         path: '/harvest'     },
-  { icon: Truck,           label: 'Transport',       path: '/transport'   },
-  { icon: Calendar,        label: 'Schedule',        path: '/schedule'    },
-  { icon: Recycle,         label: 'Waste',           path: '/waste'       },
-  { icon: BarChart3,       label: 'Analytics',       path: '/analytics'   },
-  { icon: Brain,           label: 'PineTrack Agent', path: '/ai'          },
+  { icon: LayoutDashboard, label: tr("Dashboard"),       path: '/dashboard'   },
+  { icon: Layers,          label: tr("Sulur Inventory"), path: '/admin/sulur' },
+  { icon: Sprout,          label: tr("Harvest"),         path: '/harvest'     },
+  { icon: Truck,           label: tr("Transport"),       path: '/transport'   },
+  { icon: Calendar,        label: tr("Schedule"),        path: '/schedule'    },
+  { icon: Recycle,         label: tr("Waste"),           path: '/waste'       },
+  { icon: BarChart3,       label: tr("Analytics"),       path: '/analytics'   },
+  { icon: Brain,           label: tr("PineTrack Agent"), path: '/ai'          },
 ]
 
 export default function Sidebar() {
@@ -47,10 +48,10 @@ export default function Sidebar() {
       <div className={`flex items-center border-b border-slate-700/60 h-16 ${collapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="w-8 h-8 rounded-lg bg-green-600 text-white font-bold text-sm flex items-center justify-center shrink-0">PT</span>
+            <span className="w-8 h-8 rounded-lg bg-green-600 text-white font-bold text-sm flex items-center justify-center shrink-0">{tr("PT")}</span>
             <div className="min-w-0">
-              <p className="font-bold text-sm text-white leading-tight">PineTrack</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider">v2.0</p>
+              <p className="font-bold text-sm text-white leading-tight">{tr("PineTrack")}</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider">{tr("v2.0")}</p>
             </div>
           </div>
         )}
@@ -61,7 +62,7 @@ export default function Sidebar() {
               ? 'bg-slate-700 text-white hover:bg-green-600'
               : 'opacity-0 group-hover:opacity-100 hover:bg-slate-700 text-slate-400 hover:text-white'
           }`}
-          aria-label="Toggle sidebar"
+          aria-label={tr("Toggle sidebar")}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={16} />}
         </button>
@@ -100,23 +101,23 @@ export default function Sidebar() {
           {!collapsed && (
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white truncate leading-tight">
-                {user?.full_name || user?.username || 'User'}
+                {user?.full_name || user?.username || tr("User")}
               </p>
               <p className="text-[10px] text-slate-400 uppercase tracking-wider">
-                {user?.role}
+                {trEnum(user?.role)}
               </p>
             </div>
           )}
         </div>
         <button
           onClick={handleLogout}
-          title={collapsed ? 'Logout' : undefined}
+          title={collapsed ? tr("Logout") : undefined}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors ${
             collapsed ? 'justify-center' : ''
           }`}
         >
           <LogOut size={18} className="shrink-0" />
-          {!collapsed && <span>Logout</span>}
+          {!collapsed && <span>{tr("Logout")}</span>}
         </button>
       </div>
     </aside>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, History } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
 import AgentOverview from '../../components/agent/AgentOverview'
 import AskAgent from '../../components/agent/AskAgent'
@@ -9,30 +9,27 @@ import { ModuleScopeSelect, useModuleScope } from '../../components/ui/ModuleSco
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { AIMetrics, AIRecommendations, AIStatus, AnalysisScope } from '../../types'
 
-type Tab = 'overview' | 'ask' | 'history'
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'ask', label: 'Ask Agent' },
-  { key: 'history', label: 'Activity History' },
-]
+import { tr } from '../../i18n'
 
 /** Engine configured on the server; each answer also records which engine actually produced it */
 function ModeIndicator({ status }: { status: AIStatus | null }) {
-  if (!status) return <span className="text-xs text-gray-500">Checking agent…</span>
+  if (!status) return <span className="text-xs text-gray-500">{tr("Checking agent…")}</span>
   const gemini = status.gemini_configured
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
-      gemini ? 'bg-green-50 text-green-800 ring-green-200' : 'bg-gray-100 text-gray-700 ring-gray-200'
-    }`}>
+    <span title={gemini ? tr("Answers come from Gemini; built-in rules step in if it fails.") : tr("Gemini is not set up, so answers come from the built-in rules.")}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
+        gemini ? 'bg-green-50 text-green-800 ring-green-200' : 'bg-gray-100 text-gray-700 ring-gray-200'
+      }`}>
       <span className={`h-2 w-2 rounded-full ${gemini ? 'bg-green-600' : 'bg-gray-400'}`} aria-hidden />
-      {gemini ? 'Gemini Active' : 'Built-in Rules'}
+      {gemini ? tr("Gemini Active") : tr("Built-in Rules")}
     </span>
   )
 }
 
 export default function AIInsights() {
   const [params, setParams] = useSearchParams()
-  const tab: Tab = TABS.some((t) => t.key === params.get('tab')) ? (params.get('tab') as Tab) : 'overview'
+  // Activity History is a secondary view; old ?tab=history links still open it
+  const showHistory = params.get('view') === 'history' || params.get('tab') === 'history'
   // The backend builds the agent's input from this scope and caches each scope separately
   const [scope, setScope] = useModuleScope()
 
@@ -61,7 +58,7 @@ export default function AIInsights() {
         setRecsByScope((prev) => ({ ...prev, [scope]: r }))
         loadMetrics()
       })
-      .catch((err) => { if (latestScope.current === scope) setError(apiErrorMessage(err, 'Failed to load recommendations.')) })
+      .catch((err) => { if (latestScope.current === scope) setError(apiErrorMessage(err, tr("Failed to load recommendations."))) })
       .finally(() => { if (latestScope.current === scope) setLoading(false) })
   }, [scope, loadMetrics])
 
@@ -74,65 +71,69 @@ export default function AIInsights() {
       setRecsByScope((prev) => ({ ...prev, [forScope]: r }))
       loadMetrics()
     } catch (err) {
-      setError(apiErrorMessage(err, 'Failed to generate recommendations.'))
+      setError(apiErrorMessage(err, tr("Failed to generate recommendations.")))
     } finally {
       setRefreshing(false)
     }
   }
 
-  const selectTab = (t: Tab) => {
+  const setView = (history: boolean) => {
     const next = new URLSearchParams(params)
-    if (t === 'overview') next.delete('tab')
-    else next.set('tab', t)
-    setParams(next, { replace: true })
+    next.delete('tab')
+    if (history) next.set('view', 'history')
+    else next.delete('view')
+    setParams(next)
   }
 
   const recs = recsByScope[scope] ?? null
 
   return (
     <AdminLayout>
-      <div className="space-y-5 max-w-[1400px]">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="space-y-5 max-w-[1100px]">
+        <header className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">PineTrack Agent</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Shared insights across Sulur Inventory and Post-Harvest Management.</p>
+            <h1 className="text-2xl font-bold text-gray-900">{showHistory ? tr("Activity History") : tr("PineTrack Agent")}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {showHistory ? tr("Past agent answers and how often each tool is used.") : tr("Advice from your Sulur Inventory and Post-Harvest records.")}
+            </p>
           </div>
-          <ModeIndicator status={status} />
-        </div>
-
-        <div role="tablist" aria-label="PineTrack Agent" className="flex gap-1 border-b border-gray-200 overflow-x-auto">
-          {TABS.map((t) => (
-            <button key={t.key} role="tab" id={`agent-tab-${t.key}`} aria-selected={tab === t.key} aria-controls={`agent-panel-${t.key}`}
-              onClick={() => selectTab(t.key)}
-              className={`px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${
-                tab === t.key ? 'border-green-700 text-green-800' : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'overview' && (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <ModuleScopeSelect value={scope} onChange={setScope} disabled={refreshing} />
-            <p className="text-xs text-gray-500">Chooses which module's records the agent analyses.</p>
+          <div className="flex items-center gap-3">
+            <ModeIndicator status={status} />
+            {showHistory ? (
+              <button onClick={() => setView(false)}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-800 hover:bg-gray-50">
+                <ArrowLeft size={15} strokeWidth={1.75} /> {tr("Back to Agent")}
+              </button>
+            ) : (
+              <button onClick={() => setView(true)}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-800 hover:bg-gray-50">
+                <History size={15} strokeWidth={1.75} /> {tr("Activity History")}
+              </button>
+            )}
           </div>
-        )}
+        </header>
 
-        {error && tab === 'overview' && (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3 text-sm">
-            <AlertTriangle size={16} strokeWidth={1.75} className="shrink-0" /> {error}
-          </div>
-        )}
+        {showHistory ? (
+          <AgentHistory status={status} metrics={metrics} />
+        ) : (
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">{tr("Module")}</span>
+              <ModuleScopeSelect value={scope} onChange={setScope} disabled={refreshing} />
+            </div>
 
-        <div role="tabpanel" id={`agent-panel-${tab}`} aria-labelledby={`agent-tab-${tab}`}>
-          {tab === 'overview' && (
-            <AgentOverview scope={scope} status={status} recs={recs} metrics={metrics}
+            {error && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3 text-sm">
+                <AlertTriangle size={16} strokeWidth={1.75} className="shrink-0" /> {error}
+              </div>
+            )}
+
+            <AgentOverview scope={scope} status={status} recs={recs}
               loading={loading && !recs} refreshing={refreshing} onRegenerate={regenerate} />
-          )}
-          {tab === 'ask' && <AskAgent />}
-          {tab === 'history' && <AgentHistory status={status} metrics={metrics} />}
-        </div>
+
+            <AskAgent scope={scope} />
+          </>
+        )}
       </div>
     </AdminLayout>
   )

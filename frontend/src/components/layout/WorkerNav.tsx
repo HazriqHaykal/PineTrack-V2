@@ -2,21 +2,23 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Calendar, CheckSquare, Layers, LogOut, Recycle, Sprout, Truck, UserCircle } from 'lucide-react'
 import { authService } from '../../services/auth'
 
+import { tr } from '../../i18n'
+import LanguageToggle from '../ui/LanguageToggle'
 /** Worker tabs. `match` lists path prefixes that belong to the tab (detail pages included). */
 const TABS = [
-  { icon: CheckSquare, label: 'My Tasks',  path: '/my-tasks',         match: ['/my-tasks'] },
-  { icon: Layers,      label: 'Sulur',     path: '/worker/sulur',     match: ['/worker/sulur', '/worker/sulur/'] },
-  { icon: Sprout,      label: 'Harvest',   path: '/harvest-entry',    match: ['/harvest-entry', '/harvest/', '/my-records'] },
-  { icon: Truck,       label: 'Transport', path: '/transport-update', match: ['/transport-update', '/transport/'] },
-  { icon: Recycle,     label: 'Waste',     path: '/waste-submit',     match: ['/waste-submit'] },
-  { icon: Calendar,    label: 'Schedule',  path: '/my-schedule',      match: ['/my-schedule'] },
+  { icon: CheckSquare, label: tr("My Tasks"),  path: '/my-tasks',         match: ['/my-tasks'] },
+  { icon: Layers,      label: tr("Sulur"),     path: '/worker/sulur',     match: ['/worker/sulur', '/worker/sulur/'] },
+  { icon: Sprout,      label: tr("Harvest"),   path: '/harvest-entry',    match: ['/harvest-entry', '/harvest/', '/my-records'] },
+  { icon: Truck,       label: tr("Transport"), path: '/transport-update', match: ['/transport-update', '/transport/'] },
+  { icon: Recycle,     label: tr("Waste"),     path: '/waste-submit',     match: ['/waste-submit'] },
+  { icon: Calendar,    label: tr("Schedule"),  path: '/my-schedule',      match: ['/my-schedule'] },
 ]
 
 function Brand({ dark }: { dark?: boolean }) {
   return (
     <p className="font-logo font-bold text-[1.05rem] leading-none tracking-tight">
-      <span className={dark ? 'text-white' : 'text-green-900'}>PINE</span>
-      <span className="text-[#e07d1c]">TRACK</span>
+      <span className={dark ? 'text-white' : 'text-green-900'}>{tr("PINE")}</span>
+      <span className="text-[#e07d1c]">{tr("TRACK")}</span>
     </p>
   )
 }
@@ -34,7 +36,7 @@ export default function WorkerNav() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const user = authService.getUser()
-  const name = user?.full_name || user?.username || 'Worker'
+  const name = user?.full_name || user?.username || tr("Worker")
 
   const isActive = (match: string[]) => match.some((m) => (m.endsWith('/') ? pathname.startsWith(m) : pathname === m))
   const onProfile = pathname === '/profile'
@@ -51,11 +53,11 @@ export default function WorkerNav() {
         <div className="flex h-16 items-center px-5 border-b border-white/[0.07]">
           <div>
             <Brand dark />
-            <p className="mt-1 text-[9px] font-semibold uppercase tracking-widest text-[#8ac5a8]">Worker</p>
+            <p className="mt-1 text-[9px] font-semibold uppercase tracking-widest text-[#8ac5a8]">{tr("Worker")}</p>
           </div>
         </div>
 
-        <nav aria-label="Main" className="flex-1 px-2 py-4 space-y-0.5">
+        <nav aria-label={tr("Main")} className="flex-1 px-2 py-4 space-y-0.5">
           {TABS.map(({ icon: Icon, label, path, match }) => {
             const active = isActive(match)
             return (
@@ -80,21 +82,23 @@ export default function WorkerNav() {
             </span>
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium text-white">{name}</span>
-              <span className="block text-[10px] uppercase tracking-wide text-[#8ac5a8]">Profile</span>
+              <span className="block text-[10px] uppercase tracking-wide text-[#8ac5a8]">{tr("Profile")}</span>
             </span>
           </Link>
           <button onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-[#8ac5a8] hover:bg-white/[0.06] hover:text-white transition-colors">
-            <LogOut size={17} strokeWidth={1.75} /> Sign out
+            <LogOut size={17} strokeWidth={1.75} /> {tr("Sign out")}
           </button>
+          <div className="px-3 pt-2"><LanguageToggle dark /></div>
         </div>
       </aside>
 
       {/* ── Phones and tablets: top bar ────────────────────────────────────── */}
       <header className="xl:hidden sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:px-6">
-          <Link to="/my-tasks" aria-label="PineTrack home"><Brand /></Link>
-          <Link to="/profile" aria-label="Your profile" aria-current={onProfile ? 'page' : undefined}
+          <Link to="/my-tasks" aria-label={tr("PineTrack home")}><Brand /></Link>
+          <div className="ml-auto mr-2"><LanguageToggle compact /></div>
+          <Link to="/profile" aria-label={tr("Your profile")} aria-current={onProfile ? 'page' : undefined}
             className={`flex items-center gap-2 rounded-full py-1 pl-1 pr-1 sm:pr-3 transition-colors ${onProfile ? 'bg-green-50' : 'hover:bg-gray-100'}`}>
             <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${
               onProfile ? 'bg-green-700 text-white' : 'bg-green-50 text-green-800 ring-1 ring-green-200'
@@ -107,7 +111,7 @@ export default function WorkerNav() {
       </header>
 
       {/* ── Phones and tablets: bottom tab bar ─────────────────────────────── */}
-      <nav aria-label="Main" data-bottom-nav
+      <nav aria-label={tr("Main")} data-bottom-nav
         className="xl:hidden fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white/95 backdrop-blur shadow-[0_-2px_12px_rgba(16,24,40,0.06)] pb-[env(safe-area-inset-bottom)]">
         <ul className="mx-auto grid max-w-xl grid-cols-6 px-1">
           {TABS.map(({ icon: Icon, label, path, match }) => {

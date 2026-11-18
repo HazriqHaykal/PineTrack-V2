@@ -3,6 +3,7 @@
 import { useNavigate } from 'react-router-dom'
 import { authService } from './services/auth'
 
+import { tr } from './i18n'
 export default function Navbar() {
   const navigate = useNavigate()
   const user = authService.getUser()
@@ -16,12 +17,12 @@ export default function Navbar() {
     <nav className="bg-green-600 text-white shadow-lg">
       <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <button onClick={() => navigate('/dashboard')} className="text-2xl font-bold">
-          PineTrack
+          {tr("PineTrack")}
         </button>
         <div className="flex items-center gap-4">
           <span className="text-sm">{user?.full_name || user?.username}</span>
           <button onClick={handleLogout} className="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg text-sm">
-            Logout
+            {tr("Logout")}
           </button>
         </div>
       </div>

@@ -6,14 +6,15 @@ import { AILog, AIMetrics, AIStatus } from '../../types'
 import { PREDICTION_LABEL, SourceBadge, Source, confidenceMeaning, formatWhen, isRecommendationSet, modelName, predictionLabel, sourceOf } from './agentMeta'
 import AppSelect from '../../components/ui/AppSelect'
 
+import { tr, trEnum } from '../../i18n'
 const PAGE = 500
 const BRAND_GREEN = '#2d6a4f'
 const ROUTE_LABEL: Record<string, string> = {
-  processing: 'Processing', low_grade: 'Low-grade processing', feed: 'Animal feed',
-  compost: 'Compost', dispose: 'Safe disposal', review: 'Manual review',
+  processing: tr("Processing"), low_grade: tr("Low-grade processing"), feed: tr("Animal feed"),
+  compost: tr("Compost"), dispose: tr("Safe disposal"), review: tr("Manual review"),
 }
 const WASTE_LABEL: Record<string, string> = {
-  rotten: 'Rotten', damaged: 'Damaged', overripe: 'Overripe', unused_parts: 'Unused parts', other: 'Other',
+  rotten: tr("Rotten"), damaged: tr("Damaged"), overripe: tr("Overripe"), unused_parts: tr("Unused parts"), other: tr("Other"),
 }
 
 /** Local calendar date of a timestamp, for the date filter */
@@ -24,7 +25,7 @@ const localDay = (iso: string) => {
 
 /** A readable one-line result for each stored prediction type */
 function resultText(log: AILog): string {
-  if (log.prediction_type === 'waste_classification') return `Classified as ${WASTE_LABEL[log.prediction_result] ?? log.prediction_result}`
+  if (log.prediction_type === 'waste_classification') return tr("Classified as {0}", WASTE_LABEL[log.prediction_result] ?? log.prediction_result)
   return log.prediction_result
 }
 
@@ -35,14 +36,14 @@ function LogDetails({ log }: { log: AILog }) {
   let body: React.ReactNode = null
 
   if (log.prediction_type === 'harvest_timing') {
-    body = <p>Inputs: ripeness {d.ripeness_level}/10 · {d.days_since_last_harvest} days since last harvest · field condition {d.field_condition_score}/10</p>
+    body = <p>{tr("Inputs: ripeness")} {d.ripeness_level}/10 · {d.days_since_last_harvest} {tr("days since last harvest · field condition")} {d.field_condition_score}/10</p>
   } else if (log.prediction_type === 'waste_classification') {
-    body = <p>Inputs: grade {d.quality_grade} · damage {d.damage_level}/10 · {d.age_days} days old</p>
+    body = <p>{tr("Inputs: grade")} {d.quality_grade} {tr("· damage")} {d.damage_level}/10 · {d.age_days} {tr("days old")}</p>
   } else if (log.prediction_type === 'waste_analysis') {
     const r = d.result ?? {}
     body = (
       <>
-        <p>Waste record #{d.waste_id} · {ROUTE_LABEL[r.route] ?? r.route}</p>
+        <p>{tr("Waste record #")}{d.waste_id} · {ROUTE_LABEL[r.route] ?? r.route}</p>
         {r.explanation && <p className="mt-1">{r.explanation}</p>}
       </>
     )
@@ -52,11 +53,11 @@ function LogDetails({ log }: { log: AILog }) {
     const sulurBatches = d.snapshot?.sulur?.batches
     body = (
       <>
-        {typeof batches === 'number' && <p>Post-harvest, last {d.snapshot.period_days} days: {batches} harvest batch{batches === 1 ? '' : 'es'}, {d.snapshot.waste?.records ?? 0} waste records.</p>}
-        {typeof sulurBatches === 'number' && <p>Sulur Inventory: {sulurBatches} batch{sulurBatches === 1 ? '' : 'es'}, {(d.snapshot.sulur.totals?.available ?? 0).toLocaleString()} sulur available.</p>}
+        {typeof batches === 'number' && <p>{tr("Post-harvest, last")} {d.snapshot.period_days} {tr("days:")} {batches} {tr("harvest batch")}{batches === 1 ? '' : 'es'}, {d.snapshot.waste?.records ?? 0} {tr("waste records.")}</p>}
+        {typeof sulurBatches === 'number' && <p>{tr("Sulur Inventory:")} {sulurBatches} {tr("batch")}{sulurBatches === 1 ? '' : 'es'}, {(d.snapshot.sulur.totals?.available ?? 0).toLocaleString()} {tr("sulur available.")}</p>}
         {items.length > 0
-          ? <ul className="mt-1 list-disc pl-4 space-y-0.5">{items.map((i, n) => <li key={n}>{i.title} <span className="text-gray-500">({i.priority})</span></li>)}</ul>
-          : <p className="mt-1">No recommendations in this set.</p>}
+          ? <ul className="mt-1 list-disc pl-4 space-y-0.5">{items.map((i, n) => <li key={n}>{i.title} <span className="text-gray-500">({trEnum(i.priority)})</span></li>)}</ul>
+          : <p className="mt-1">{tr("No recommendations in this set.")}</p>}
       </>
     )
   }
@@ -64,11 +65,11 @@ function LogDetails({ log }: { log: AILog }) {
   return (
     <div className="space-y-2 text-xs text-gray-700">
       {body}
-      <p className="text-gray-500">Model: {modelName(log.model_version)}</p>
+      <p className="text-gray-500">{tr("Model:")} {modelName(log.model_version)}</p>
       {log.confidence_score != null && (
         <p className="text-gray-600">
           <span className="font-medium text-gray-700">
-            Confidence {Math.round(log.confidence_score * 100)}%{isRecommendationSet(log.prediction_type) ? ' (average of the set)' : ''}.
+            {tr("Confidence")} {Math.round(log.confidence_score * 100)}%{isRecommendationSet(log.prediction_type) ? tr(" (average of the set)") : ''}.
           </span>{' '}
           {confidenceMeaning(log.prediction_type, source)}
         </p>
@@ -97,7 +98,7 @@ export default function AgentHistory({ status, metrics }: { status: AIStatus | n
       setTotal(res.total)
       setError(null)
     } catch (err) {
-      setError(apiErrorMessage(err, 'Could not load the activity history'))
+      setError(apiErrorMessage(err, tr("Could not load the activity history")))
     } finally {
       setLoading(false)
     }
@@ -126,34 +127,34 @@ export default function AgentHistory({ status, metrics }: { status: AIStatus | n
         <div className="flex flex-col gap-3 px-5 pt-4 pb-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Activity history</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Every saved agent answer, newest first</p>
+              <h2 className="text-sm font-semibold text-gray-900">{tr("Activity history")}</h2>
+              <p className="text-xs text-gray-500 mt-0.5">{tr("Every saved agent answer, newest first")}</p>
             </div>
-            <button onClick={load} disabled={loading} aria-label="Reload history" title="Reload"
+            <button onClick={load} disabled={loading} aria-label={tr("Reload history")} title={tr("Reload")}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-60">
               <RefreshCw size={15} strokeWidth={1.75} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <AppSelect size="sm" aria-label="Category" value={typeF} onChange={setTypeF} highlighted={typeF !== 'all'}
+            <AppSelect size="sm" aria-label={tr("Category")} value={typeF} onChange={setTypeF} highlighted={typeF !== 'all'}
               triggerClassName="w-auto min-w-[10rem]"
-              options={[{ value: 'all', label: 'All categories' }, ...types.map((t) => ({ value: t, label: predictionLabel(t) }))]} />
-            <AppSelect size="sm" aria-label="Source" value={sourceF} onChange={(v) => setSourceF(v as 'all' | Source)}
+              options={[{ value: 'all', label: tr("All categories") }, ...types.map((t) => ({ value: t, label: predictionLabel(t) }))]} />
+            <AppSelect size="sm" aria-label={tr("Source")} value={sourceF} onChange={(v) => setSourceF(v as 'all' | Source)}
               highlighted={sourceF !== 'all'} triggerClassName="w-auto min-w-[10rem]"
               options={[
-                { value: 'all', label: 'Gemini and rules' },
-                { value: 'gemini', label: 'Gemini only' },
-                { value: 'rules', label: 'Built-in rules only' },
+                { value: 'all', label: tr("Gemini and rules") },
+                { value: 'gemini', label: tr("Gemini only") },
+                { value: 'rules', label: tr("Built-in rules only") },
               ]} />
-            <label className="flex items-center gap-1.5 text-xs text-gray-600">From
+            <label className="flex items-center gap-1.5 text-xs text-gray-600">{tr("From")}
               <input type="date" value={fromF} onChange={(e) => setFromF(e.target.value)} className={control(!!fromF)} />
             </label>
-            <label className="flex items-center gap-1.5 text-xs text-gray-600">To
+            <label className="flex items-center gap-1.5 text-xs text-gray-600">{tr("To")}
               <input type="date" value={toF} onChange={(e) => setToF(e.target.value)} className={control(!!toF)} />
             </label>
             {filtersActive && (
               <button onClick={clear} className="h-9 inline-flex items-center gap-1 px-1 text-xs font-medium text-gray-600 hover:text-gray-900">
-                <X size={13} /> Clear
+                <X size={13} /> {tr("Clear")}
               </button>
             )}
           </div>
@@ -161,22 +162,22 @@ export default function AgentHistory({ status, metrics }: { status: AIStatus | n
 
         {total > logs.length && (
           <p className="mx-5 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Showing the latest {logs.length} of {total} entries; filters apply to these.
+            {tr("Showing the latest")} {logs.length} {tr("of")} {total} {tr("entries; filters apply to these.")}
           </p>
         )}
 
         {loading && logs.length === 0 ? (
-          <p className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-500">Loading history…</p>
+          <p className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-500">{tr("Loading history…")}</p>
         ) : error ? (
           <div className="border-t border-gray-100 px-5 py-10 text-center">
             <AlertTriangle size={26} className="mx-auto text-gray-300 mb-2" />
             <p className="text-sm text-gray-700">{error}</p>
-            <button onClick={load} className="mt-2 text-sm font-medium text-green-800 hover:underline">Try again</button>
+            <button onClick={load} className="mt-2 text-sm font-medium text-green-800 hover:underline">{tr("Try again")}</button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="border-t border-gray-100 px-5 py-10 text-center">
-            <p className="text-sm font-medium text-gray-800">{logs.length === 0 ? 'No agent activity yet' : 'No entries match these filters'}</p>
-            {logs.length > 0 && <button onClick={clear} className="mt-1 text-sm font-medium text-green-800 hover:underline">Clear filters</button>}
+            <p className="text-sm font-medium text-gray-800">{logs.length === 0 ? tr("No agent activity yet") : tr("No entries match these filters")}</p>
+            {logs.length > 0 && <button onClick={clear} className="mt-1 text-sm font-medium text-green-800 hover:underline">{tr("Clear filters")}</button>}
           </div>
         ) : (
           <ul className="border-t border-gray-100 divide-y divide-gray-100">
@@ -202,10 +203,10 @@ export default function AgentHistory({ status, metrics }: { status: AIStatus | n
                       <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
                         <LogDetails log={log} />
                         {log.harvest_id && (
-                          <Link to={`/harvest/${log.harvest_id}`} className="mt-2 inline-block text-xs font-medium text-green-800 hover:underline">Open the related batch</Link>
+                          <Link to={`/harvest/${log.harvest_id}`} className="mt-2 inline-block text-xs font-medium text-green-800 hover:underline">{tr("Open the related batch")}</Link>
                         )}
                         {log.prediction_type === 'waste_analysis' && (
-                          <Link to="/waste" className="mt-2 ml-3 inline-block text-xs font-medium text-green-800 hover:underline">Open Waste Management</Link>
+                          <Link to="/waste" className="mt-2 ml-3 inline-block text-xs font-medium text-green-800 hover:underline">{tr("Open Waste Management")}</Link>
                         )}
                       </div>
                     </div>
@@ -216,16 +217,16 @@ export default function AgentHistory({ status, metrics }: { status: AIStatus | n
           </ul>
         )}
         {filtersActive && filtered.length > 0 && (
-          <p className="border-t border-gray-100 px-5 py-2.5 text-xs text-gray-500">Showing {filtered.length} of {logs.length} entries</p>
+          <p className="border-t border-gray-100 px-5 py-2.5 text-xs text-gray-500">{tr("Showing")} {filtered.length} {tr("of")} {logs.length} {tr("entries")}</p>
         )}
       </section>
 
       <div className="space-y-4">
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4">
-          <h2 className="text-sm font-semibold text-gray-900">Predictions by type</h2>
-          <p className="text-xs text-gray-500 mt-0.5">All time · {metrics?.total_predictions ?? 0} in total</p>
+          <h2 className="text-sm font-semibold text-gray-900">{tr("Predictions by type")}</h2>
+          <p className="text-xs text-gray-500 mt-0.5">{tr("All time ·")} {metrics?.total_predictions ?? 0} {tr("in total")}</p>
           {byType.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-500">No predictions yet.</p>
+            <p className="py-6 text-center text-sm text-gray-500">{tr("No predictions yet.")}</p>
           ) : (
             <ul className="mt-3 space-y-2.5">
               {byType.map(([type, n]) => (
@@ -247,26 +248,26 @@ export default function AgentHistory({ status, metrics }: { status: AIStatus | n
 
         <details className="group bg-white rounded-xl border border-gray-100 shadow-sm">
           <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3.5 text-sm font-semibold text-gray-900">
-            Agent details
+            {tr("Agent details")}
             <ChevronDown size={15} strokeWidth={1.75} className="text-gray-400 transition-transform group-open:rotate-180" />
           </summary>
           <div className="border-t border-gray-100 px-5 py-4 space-y-3 text-xs text-gray-700">
             <dl className="grid grid-cols-2 gap-y-2">
-              <dt className="text-gray-500">Engine now</dt>
-              <dd>{status ? (status.gemini_configured ? 'Gemini' : 'Built-in rules') : '—'}</dd>
-              <dt className="text-gray-500">Model</dt>
+              <dt className="text-gray-500">{tr("Engine now")}</dt>
+              <dd>{status ? (status.gemini_configured ? tr("Gemini") : tr("Built-in rules")) : '—'}</dd>
+              <dt className="text-gray-500">{tr("Model")}</dt>
               <dd className="break-words">{status ? modelName(status.model) : '—'}</dd>
-              <dt className="text-gray-500">Fallback</dt>
-              <dd>Built-in rules answer whenever Gemini is unavailable or gives an invalid answer.</dd>
+              <dt className="text-gray-500">{tr("Fallback")}</dt>
+              <dd>{tr("Built-in rules answer whenever Gemini is unavailable or gives an invalid answer.")}</dd>
             </dl>
             {status && !status.gemini_configured && (
               <p className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-gray-600">
-                Gemini is not configured on the server, so all answers come from the built-in rules. A system administrator can enable Gemini in the server configuration.
+                {tr("Gemini is not configured on the server, so all answers come from the built-in rules. A system administrator can enable Gemini in the server configuration.")}
               </p>
             )}
             {metrics && Object.keys(metrics.by_model_version).length > 0 && (
               <div>
-                <p className="text-gray-500 mb-1">Answers by engine (all time)</p>
+                <p className="text-gray-500 mb-1">{tr("Answers by engine (all time)")}</p>
                 <ul className="space-y-0.5">
                   {Object.entries(metrics.by_model_version).map(([m, n]) => (
                     <li key={m} className="flex justify-between gap-2"><span>{modelName(m)}</span><span className="tabular-nums font-medium">{n}</span></li>

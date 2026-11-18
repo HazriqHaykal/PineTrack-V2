@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Info, X } from 'lucide-react'
 
+import { tr } from '../../i18n'
 export interface GuideSection {
   heading: string
   items: { key: string; dot: string; label: string; meaning: string }[]
 }
 
 /** Compact "Status guide" button + popover explaining what badge colours mean */
-export default function GuidePopover({ title = 'Status guide', sections }: { title?: string; sections: GuideSection[] }) {
+export default function GuidePopover({ title = tr("Status guide"), sections }: { title?: string; sections: GuideSection[] }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -45,7 +46,7 @@ export default function GuidePopover({ title = 'Status guide', sections }: { tit
         >
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-gray-900">{title}</p>
-            <button onClick={() => setOpen(false)} aria-label={`Close ${title.toLowerCase()}`}
+            <button onClick={() => setOpen(false)} aria-label={tr("Close {0}", title.toLowerCase())}
               className="p-1 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-800">
               <X size={15} strokeWidth={1.75} />
             </button>

@@ -17,6 +17,7 @@ import { Schedule, SystemUser } from '../../types'
 import AppSelect from '../../components/ui/AppSelect'
 import SearchableSelect from '../../components/ui/SearchableSelect'
 
+import { tr, trEnum } from '../../i18n'
 // ── Form ─────────────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
@@ -33,9 +34,9 @@ type FormErrors = Partial<Record<keyof FormState, string>>
 
 function validate(f: FormState): FormErrors {
   const e: FormErrors = {}
-  if (!f.task_type) e.task_type = 'Choose a task category.'
-  if (!f.worker_id) e.worker_id = 'Choose who will do this task.'
-  if (!f.assigned_date) e.assigned_date = 'Choose the date the task is scheduled for.'
+  if (!f.task_type) e.task_type = tr("Choose a task category.")
+  if (!f.worker_id) e.worker_id = tr("Choose who will do this task.")
+  if (!f.assigned_date) e.assigned_date = tr("Choose the date the task is scheduled for.")
   return e
 }
 
@@ -128,7 +129,7 @@ export default function SchedulePage() {
       setTotal(d.total ?? d.items.length)
       setLoadError(null)
     } catch (err) {
-      setLoadError(apiErrorMessage(err, 'Failed to load tasks'))
+      setLoadError(apiErrorMessage(err, tr("Failed to load tasks")))
     } finally {
       setLoading(false)
     }
@@ -188,15 +189,15 @@ export default function SchedulePage() {
     try {
       if (editing) {
         await apiClient.updateSchedule(editing.id, { ...payload, status: form.status })
-        showToast('Task updated', 'success')
+        showToast(tr("Task updated"), 'success')
       } else {
         await apiClient.createSchedule({ ...payload, status: 'pending' })
-        showToast('Task scheduled', 'success')
+        showToast(tr("Task scheduled"), 'success')
       }
       setModal(false)
       load()
     } catch (e2) {
-      setSubmitError(apiErrorMessage(e2, 'Failed to save the task'))
+      setSubmitError(apiErrorMessage(e2, tr("Failed to save the task")))
     } finally {
       setSubmitting(false)
     }
@@ -207,12 +208,12 @@ export default function SchedulePage() {
     setBusy(true)
     try {
       await apiClient.deleteSchedule(deleting.id)
-      showToast('Task deleted', 'success')
+      showToast(tr("Task deleted"), 'success')
       setDeleting(null)
       setViewing(null)
       load()
     } catch (e) {
-      showToast(apiErrorMessage(e, 'Delete failed'), 'error')
+      showToast(apiErrorMessage(e, tr("Delete failed")), 'error')
     } finally {
       setBusy(false)
     }
@@ -224,7 +225,7 @@ export default function SchedulePage() {
     const map = new Map<number, string>()
     workers.forEach((w) => map.set(w.id, w.full_name || w.username))
     // Keep tasks of deactivated accounts filterable
-    tasks.forEach((t) => { if (!map.has(t.worker_id)) map.set(t.worker_id, t.worker_name || `Worker #${t.worker_id}`) })
+    tasks.forEach((t) => { if (!map.has(t.worker_id)) map.set(t.worker_id, t.worker_name || tr("Worker #{0}", t.worker_id)) })
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [workers, tasks])
 
@@ -236,17 +237,17 @@ export default function SchedulePage() {
 
   const filtersActive = statusF !== 'all' || categoryF !== 'all' || workerF !== 'all' || (view === 'list' && (!!fromF || !!toF))
   const clearFilters = () => { setStatusF('all'); setCategoryF('all'); setWorkerF('all'); setFromF(''); setToF('') }
-  const rangeError = fromF && toF && fromF > toF ? 'The start date is after the end date.' : null
+  const rangeError = fromF && toF && fromF > toF ? tr("The start date is after the end date.") : null
 
   const weekEnd = addDays(today, 6)
   const monthAgo = addDays(today, -29)
   const cards = [
-    { label: 'Upcoming', value: tasks.filter((t) => isOpen(t) && t.assigned_date >= today && t.assigned_date <= weekEnd).length,
-      period: 'Open tasks, next 7 days', tone: 'text-gray-900' },
-    { label: 'Overdue', value: tasks.filter((t) => isOverdue(t, today)).length,
-      period: 'Still open, scheduled before today', tone: 'text-red-700' },
-    { label: 'Completed', value: tasks.filter((t) => t.status === 'completed' && t.assigned_date >= monthAgo && t.assigned_date <= today).length,
-      period: 'Scheduled in the last 30 days', tone: 'text-gray-900' },
+    { label: tr("Upcoming"), value: tasks.filter((t) => isOpen(t) && t.assigned_date >= today && t.assigned_date <= weekEnd).length,
+      period: tr("Open tasks, next 7 days"), tone: 'text-gray-900' },
+    { label: tr("Overdue"), value: tasks.filter((t) => isOverdue(t, today)).length,
+      period: tr("Still open, scheduled before today"), tone: 'text-red-700' },
+    { label: tr("Completed"), value: tasks.filter((t) => t.status === 'completed' && t.assigned_date >= monthAgo && t.assigned_date <= today).length,
+      period: tr("Scheduled in the last 30 days"), tone: 'text-gray-900' },
   ]
 
   const categoriesForForm = editing && LEGACY_CATEGORIES.some((c) => c.value === form.task_type)
@@ -264,8 +265,8 @@ export default function SchedulePage() {
           <TaskStatusBadge status={t.status} />
         </div>
         <p className="mt-0.5 text-xs text-gray-600">
-          {t.scheduled_time ? <span className="tabular-nums">{formatTime(t.scheduled_time)} · </span> : 'Any time · '}
-          {t.worker_name || `Worker #${t.worker_id}`}
+          {t.scheduled_time ? <span className="tabular-nums">{formatTime(t.scheduled_time)} · </span> : tr("Any time · ")}
+          {t.worker_name || tr("Worker #{0}", t.worker_id)}
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <PriorityBadge priority={t.priority} />
@@ -277,16 +278,16 @@ export default function SchedulePage() {
 
   return (
     <AdminLayout>
-      <div className="p-6 lg:p-8">
+      <div>
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Post-Harvest Scheduling</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Plan post-harvest activities and monitor assigned workers.</p>
+            <h1 className="text-2xl font-bold text-gray-900">{tr("Post-Harvest Scheduling")}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">{tr("Plan post-harvest activities and monitor assigned workers.")}</p>
           </div>
           <button onClick={() => openCreate(view === 'calendar' ? selectedDay : undefined)}
             className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors self-start sm:self-auto">
-            <Plus size={16} strokeWidth={2} /> New Task
+            <Plus size={16} strokeWidth={2} /> {tr("New Task")}
           </button>
         </div>
 
@@ -301,13 +302,13 @@ export default function SchedulePage() {
           ))}
         </div>
         <p className="text-xs text-gray-500 mb-6">
-          Today is {formatDay(today)}{timeZone ? ` (${timeZone}, farm timezone)` : ' (this device’s timezone; farm settings unavailable)'}.
+          {tr("Today is")} {formatDay(today)}{timeZone ? tr(" ({0}, farm timezone)", timeZone) : tr(" (this device’s timezone; farm settings unavailable)")}.
         </p>
 
         {/* Toolbar */}
         <div className="flex flex-col xl:flex-row xl:items-end gap-3 mb-5">
-          <div role="tablist" aria-label="View" className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
-            {([['calendar', 'Calendar', CalendarDays], ['list', 'List', List]] as const).map(([v, label, Icon]) => (
+          <div role="tablist" aria-label={tr("View")} className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+            {([['calendar', tr("Calendar"), CalendarDays], ['list', tr("List"), List]] as const).map(([v, label, Icon]) => (
               <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}
                 className={`inline-flex items-center gap-1.5 h-7 px-3 rounded-md text-sm font-medium transition-colors ${
                   view === v ? 'bg-green-700 text-white' : 'text-gray-700 hover:bg-gray-100'
@@ -318,21 +319,21 @@ export default function SchedulePage() {
           </div>
 
           <div className="flex flex-wrap items-end gap-2 xl:ml-auto">
-            <FilterSelect label="Status" value={statusF} onChange={(v) => setStatusF(v as 'all' | TaskStatus)}
-              options={[['all', 'All statuses'], ...TASK_STATUSES.map((s) => [s, TASK_STATUS_META[s].label] as [string, string])]} />
-            <FilterSelect label="Category" value={categoryF} onChange={setCategoryF}
-              options={[['all', 'All categories'], ...ALL_CATEGORIES.map((c) => [c.value, c.label] as [string, string])]} />
-            <FilterSelect label="Worker" value={workerF} onChange={setWorkerF}
-              options={[['all', 'All workers'], ...workerOptions.map(([id, name]) => [String(id), name] as [string, string])]} />
+            <FilterSelect label={tr("Status")} value={statusF} onChange={(v) => setStatusF(v as 'all' | TaskStatus)}
+              options={[['all', tr("All statuses")], ...TASK_STATUSES.map((s) => [s, TASK_STATUS_META[s].label] as [string, string])]} />
+            <FilterSelect label={tr("Category")} value={categoryF} onChange={setCategoryF}
+              options={[['all', tr("All categories")], ...ALL_CATEGORIES.map((c) => [c.value, c.label] as [string, string])]} />
+            <FilterSelect label={tr("Worker")} value={workerF} onChange={setWorkerF}
+              options={[['all', tr("All workers")], ...workerOptions.map(([id, name]) => [String(id), name] as [string, string])]} />
             {view === 'list' && (
               <>
-                <DateFilter label="From" value={fromF} onChange={setFromF} />
-                <DateFilter label="To" value={toF} onChange={setToF} />
+                <DateFilter label={tr("From")} value={fromF} onChange={setFromF} />
+                <DateFilter label={tr("To")} value={toF} onChange={setToF} />
               </>
             )}
             {filtersActive && (
               <button onClick={clearFilters} className="h-9 inline-flex items-center gap-1 px-2 text-sm font-medium text-gray-600 hover:text-gray-900">
-                <X size={14} /> Clear
+                <X size={14} /> {tr("Clear")}
               </button>
             )}
           </div>
@@ -340,7 +341,7 @@ export default function SchedulePage() {
         {rangeError && view === 'list' && <p className="-mt-3 mb-4 text-xs text-red-700">{rangeError}</p>}
         {total > tasks.length && (
           <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            Showing the {tasks.length} most recent of {total} tasks. Older tasks are not loaded.
+            {tr("Showing the")} {tasks.length} {tr("most recent of")} {total} {tr("tasks. Older tasks are not loaded.")}
           </p>
         )}
 
@@ -348,15 +349,15 @@ export default function SchedulePage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 bg-white rounded-xl border border-gray-100 text-sm text-gray-500">
             <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin mb-3" />
-            Loading tasks…
+            {tr("Loading tasks…")}
           </div>
         ) : loadError ? (
           <div className="flex flex-col items-center justify-center h-64 bg-white rounded-xl border border-gray-100 text-center px-4">
             <AlertTriangle size={30} className="text-gray-300 mb-2" />
-            <p className="font-medium text-gray-800">Could not load tasks</p>
+            <p className="font-medium text-gray-800">{tr("Could not load tasks")}</p>
             <p className="text-sm text-gray-500 mt-1">{loadError}</p>
             <button onClick={() => { setLoading(true); load() }} className={`${btnSecondary} mt-4 inline-flex items-center gap-1.5`}>
-              <RefreshCw size={14} strokeWidth={1.75} /> Try again
+              <RefreshCw size={14} strokeWidth={1.75} /> {tr("Try again")}
             </button>
           </div>
         ) : view === 'calendar' ? (
@@ -368,17 +369,17 @@ export default function SchedulePage() {
             <aside className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 self-start" aria-live="polite">
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900">{selectedDay === today ? 'Today' : formatDay(selectedDay, { weekday: 'long' })}</h3>
+                  <h3 className="text-sm font-semibold text-gray-900">{selectedDay === today ? tr("Today") : formatDay(selectedDay, { weekday: 'long' })}</h3>
                   <p className="text-xs text-gray-500">{formatDay(selectedDay, { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                 </div>
                 <button onClick={() => openCreate(selectedDay)}
                   className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                  <Plus size={14} /> Add
+                  <Plus size={14} /> {tr("Add")}
                 </button>
               </div>
               {dayTasks.length === 0 ? (
                 <p className="py-8 text-center text-sm text-gray-500">
-                  {tasks.length === 0 ? 'No tasks have been scheduled yet.' : filtersActive ? 'No tasks on this day match the filters.' : 'Nothing scheduled on this day.'}
+                  {tasks.length === 0 ? tr("No tasks have been scheduled yet.") : filtersActive ? tr("No tasks on this day match the filters.") : tr("Nothing scheduled on this day.")}
                 </p>
               ) : (
                 <ul className="space-y-2">{dayTasks.map(dayTaskRow)}</ul>
@@ -389,17 +390,17 @@ export default function SchedulePage() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             {listTasks.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-center px-4">
-                <p className="font-medium text-gray-800">{tasks.length === 0 ? 'No tasks yet' : 'No tasks match these filters'}</p>
+                <p className="font-medium text-gray-800">{tasks.length === 0 ? tr("No tasks yet") : tr("No tasks match these filters")}</p>
                 {tasks.length === 0
-                  ? <p className="text-sm text-gray-500 mt-1">Create a task to start planning post-harvest work.</p>
-                  : <button onClick={clearFilters} className="mt-2 text-sm font-medium text-green-800 hover:underline">Clear filters</button>}
+                  ? <p className="text-sm text-gray-500 mt-1">{tr("Create a task to start planning post-harvest work.")}</p>
+                  : <button onClick={clearFilters} className="mt-2 text-sm font-medium text-green-800 hover:underline">{tr("Clear filters")}</button>}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[820px] text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      {[['Task', 'w-[32%]'], ['Scheduled', ''], ['Worker', ''], ['Priority', ''], ['Status', ''], ['Actions', 'text-right']].map(([h, cls]) => (
+                      {[[tr("Task"), 'w-[32%]'], [tr("Scheduled"), ''], [tr("Worker"), ''], [tr("Priority"), ''], [tr("Status"), ''], [tr("Actions"), 'text-right']].map(([h, cls]) => (
                         <th key={h} className={`text-left px-4 py-3 text-xs text-gray-600 font-semibold uppercase tracking-wide whitespace-nowrap ${cls}`}>{h}</th>
                       ))}
                     </tr>
@@ -418,15 +419,15 @@ export default function SchedulePage() {
                           {t.scheduled_time && <span className="tabular-nums text-gray-500"> · {formatTime(t.scheduled_time)}</span>}
                           {isOverdue(t, today) && <span className="ml-2"><OverdueBadge /></span>}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-gray-700">{t.worker_name || `Worker #${t.worker_id}`}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-700">{t.worker_name || tr("Worker #{0}", t.worker_id)}</td>
                         <td className="px-4 py-3"><PriorityBadge priority={t.priority} /></td>
                         <td className="px-4 py-3"><TaskStatusBadge status={t.status} /></td>
                         <td className="px-4 py-2">
                           <div className="flex items-center justify-end gap-1">
-                            <IconButton icon={Eye} label={`View progress of task #${t.id}`} onClick={() => setViewing(t)} />
-                            <IconButton icon={Pencil} label={`Edit task #${t.id}`} onClick={() => openEdit(t)} />
+                            <IconButton icon={Eye} label={tr("View progress of task #{0}", t.id)} onClick={() => setViewing(t)} />
+                            <IconButton icon={Pencil} label={tr("Edit task #{0}", t.id)} onClick={() => openEdit(t)} />
                             <span className="mx-0.5 h-4 w-px bg-gray-200" aria-hidden />
-                            <IconButton icon={Trash2} label={`Delete task #${t.id}`} danger onClick={() => setDeleting(t)} />
+                            <IconButton icon={Trash2} label={tr("Delete task #{0}", t.id)} danger onClick={() => setDeleting(t)} />
                           </div>
                         </td>
                       </tr>
@@ -438,7 +439,7 @@ export default function SchedulePage() {
           </div>
         )}
         {!loading && !loadError && view === 'list' && filtersActive && listTasks.length > 0 && (
-          <p className="mt-3 text-xs text-gray-500">Showing {listTasks.length} of {tasks.length} tasks</p>
+          <p className="mt-3 text-xs text-gray-500">{tr("Showing")} {listTasks.length} {tr("of")} {tasks.length} {tr("tasks")}</p>
         )}
       </div>
 
@@ -449,15 +450,15 @@ export default function SchedulePage() {
       <Dialog
         open={modalOpen}
         size="lg"
-        title={editing ? `Edit Task #${editing.id}` : 'New Task'}
-        subtitle={editing ? `Assigned to ${editing.worker_name || `worker #${editing.worker_id}`}` : 'New tasks start as Pending; the worker updates progress.'}
+        title={editing ? tr("Edit Task #{0}", editing.id) : tr("New Task")}
+        subtitle={editing ? tr("Assigned to {0}", editing.worker_name || `worker #${editing.worker_id}`) : tr("New tasks start as Pending; the worker updates progress.")}
         onClose={() => setModal(false)}
         onSubmit={handleSubmit}
         footer={
           <>
-            <button type="button" onClick={() => setModal(false)} className={btnSecondary}>Cancel</button>
+            <button type="button" onClick={() => setModal(false)} className={btnSecondary}>{tr("Cancel")}</button>
             <button type="submit" disabled={submitting} className={btnPrimary}>
-              {submitting ? 'Saving…' : editing ? 'Save Changes' : 'Create Task'}
+              {submitting ? tr("Saving…") : editing ? tr("Save Changes") : tr("Create Task")}
             </button>
           </>
         }
@@ -469,59 +470,59 @@ export default function SchedulePage() {
             </p>
           )}
 
-          <FormSection step="A" title="Task Information">
-            <Field id="task_type" label="Task category" required error={err('task_type')} hint={categoryHint} className="sm:col-span-2">
+          <FormSection step="A" title={tr("Task Information")}>
+            <Field id="task_type" label={tr("Task category")} required error={err('task_type')} hint={categoryHint} className="sm:col-span-2">
               <AppSelect id="task_type" value={form.task_type} onChange={(v) => set({ task_type: v })} error={!!err('task_type')}
                 aria-describedby={`task_type-${err('task_type') ? 'error' : 'hint'}`}
                 groups={[
-                  { label: 'Post-harvest', options: POST_HARVEST_CATEGORIES.map((c) => ({ value: c.value, label: c.label })) },
-                  { label: 'Coordination and other', options: SUPPORTING_CATEGORIES.map((c) => ({ value: c.value, label: c.label })) },
+                  { label: tr("Post-harvest"), options: POST_HARVEST_CATEGORIES.map((c) => ({ value: c.value, label: c.label })) },
+                  { label: tr("Coordination and other"), options: SUPPORTING_CATEGORIES.map((c) => ({ value: c.value, label: c.label })) },
                   ...(categoriesForForm.length > 0
-                    ? [{ label: 'Legacy', options: categoriesForForm.map((c) => ({ value: c.value, label: c.label })) }]
+                    ? [{ label: tr("Legacy"), options: categoriesForForm.map((c) => ({ value: c.value, label: c.label })) }]
                     : []),
                 ]} />
             </Field>
           </FormSection>
 
-          <FormSection step="B" title="Assignment">
-            <Field id="worker_id" label="Assigned worker" required error={err('worker_id')} className="sm:col-span-2">
+          <FormSection step="B" title={tr("Assignment")}>
+            <Field id="worker_id" label={tr("Assigned worker")} required error={err('worker_id')} className="sm:col-span-2">
               <SearchableSelect id="worker_id" value={form.worker_id} onChange={(v) => set({ worker_id: v })} error={!!err('worker_id')}
-                placeholder="Select a worker…" searchPlaceholder="Search workers" noResultsText="No workers match"
+                placeholder={tr("Select a worker…")} searchPlaceholder={tr("Search workers")} noResultsText={tr("No workers match")}
                 options={[
                   ...workers.map((w) => ({
                     value: String(w.id), label: `${w.full_name || w.username}${w.role === 'admin' ? ' (admin)' : ''}`, keywords: w.username,
                   })),
                   ...(editing && !workers.some((w) => String(w.id) === form.worker_id)
-                    ? [{ value: String(editing.worker_id), label: `${editing.worker_name || `Worker #${editing.worker_id}`} (inactive)` }]
+                    ? [{ value: String(editing.worker_id), label: tr("{0} (inactive)", editing.worker_name || `Worker #${editing.worker_id}`) }]
                     : []),
                 ]} />
             </Field>
-            <Field id="assigned_date" label="Scheduled date" required error={err('assigned_date')}
-              hint={!editing && form.assigned_date && form.assigned_date < today ? 'This date is in the past; the task will show as overdue.' : undefined}>
+            <Field id="assigned_date" label={tr("Scheduled date")} required error={err('assigned_date')}
+              hint={!editing && form.assigned_date && form.assigned_date < today ? tr("This date is in the past; the task will show as overdue.") : undefined}>
               <input id="assigned_date" type="date" value={form.assigned_date} onChange={(e) => set({ assigned_date: e.target.value })}
                 className={inputCls(err('assigned_date'))} />
             </Field>
-            <Field id="scheduled_time" label="Scheduled time" hint="Optional">
+            <Field id="scheduled_time" label={tr("Scheduled time")} hint={tr("Optional")}>
               <input id="scheduled_time" type="time" value={form.scheduled_time} onChange={(e) => set({ scheduled_time: e.target.value })}
                 className={inputCls()} />
             </Field>
-            <Field id="priority" label="Priority">
+            <Field id="priority" label={tr("Priority")}>
               <AppSelect id="priority" value={form.priority} onChange={(v) => set({ priority: v })}
-                options={PRIORITIES.map((p) => ({ value: p, label: p[0].toUpperCase() + p.slice(1) }))} />
+                options={PRIORITIES.map((p) => ({ value: p, label: trEnum(p).replace(/^\w/, (c) => c.toUpperCase()) }))} />
             </Field>
             {editing && (
-              <Field id="status" label="Status" hint="Normally updated by the worker.">
+              <Field id="status" label={tr("Status")} hint={tr("Normally updated by the worker.")}>
                 <AppSelect id="status" value={form.status} onChange={(v) => set({ status: v as TaskStatus })}
                   options={TASK_STATUSES.map((s) => ({ value: s, label: TASK_STATUS_META[s].label }))} />
               </Field>
             )}
           </FormSection>
 
-          <FormSection step="C" title="Additional Information">
-            <Field id="details" label="Description and instructions" className="sm:col-span-2"
-              hint="Optional. For example the batch number, quantity, or packing standard to follow.">
+          <FormSection step="C" title={tr("Additional Information")}>
+            <Field id="details" label={tr("Description and instructions")} className="sm:col-span-2"
+              hint={tr("Optional. For example the batch number, quantity, or packing standard to follow.")}>
               <textarea id="details" rows={4} value={form.details} onChange={(e) => set({ details: e.target.value })}
-                placeholder="What should the worker do?" className={`${inputCls()} resize-none`} />
+                placeholder={tr("What should the worker do?")} className={`${inputCls()} resize-none`} />
             </Field>
           </FormSection>
         </div>
@@ -529,17 +530,17 @@ export default function SchedulePage() {
 
       <ConfirmDialog
         open={deleting !== null}
-        title="Delete this task?"
+        title={tr("Delete this task?")}
         body={deleting && (
           <>
             <p className="mb-3 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-gray-800">
               <span className="font-medium">{taskLabel(deleting.task_type)}</span>
-              <span className="text-gray-600"> · {formatDay(deleting.assigned_date)} · {deleting.worker_name || `Worker #${deleting.worker_id}`}</span>
+              <span className="text-gray-600"> · {formatDay(deleting.assigned_date)} · {deleting.worker_name || tr("Worker #{0}", deleting.worker_id)}</span>
             </p>
-            The task is removed permanently and disappears from the worker’s schedule. To keep a record, set its status to Cancelled instead.
+            {tr("The task is removed permanently and disappears from the worker’s schedule. To keep a record, set its status to Cancelled instead.")}
           </>
         )}
-        confirmLabel="Delete"
+        confirmLabel={tr("Delete")}
         danger
         busy={busy}
         onConfirm={confirmDelete}

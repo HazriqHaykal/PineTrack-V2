@@ -3,6 +3,7 @@ import * as Popover from '@radix-ui/react-popover'
 import { Check, ChevronDown, Loader2, Search } from 'lucide-react'
 import { selectTriggerCls } from './AppSelect'
 
+import { tr } from '../../i18n'
 /**
  * Select with a search box, for long lists such as harvest batches.
  *
@@ -49,7 +50,7 @@ function bottomObstruction(): number {
 
 export default function SearchableSelect({
   value, onChange, options, id, placeholder = 'Select…', searchPlaceholder = 'Search…', emptyOptionLabel,
-  disabled, loading, error, noResultsText = 'No matches', ...aria
+  disabled, loading, error, noResultsText = tr("No matches"), ...aria
 }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -122,7 +123,7 @@ export default function SearchableSelect({
           className={selectTriggerCls('md', !!error)}>
           <span className={`min-w-0 flex-1 truncate ${selected ? 'text-gray-900' : 'text-gray-400'}`}>
             {loading
-              ? <span className="inline-flex items-center gap-2 text-gray-500"><Loader2 size={14} className="animate-spin" /> Loading…</span>
+              ? <span className="inline-flex items-center gap-2 text-gray-500"><Loader2 size={14} className="animate-spin" /> {tr("Loading…")}</span>
               : selected ? selected.label : placeholder}
           </span>
           <ChevronDown size={16} strokeWidth={1.75} className="shrink-0 text-gray-500 transition-transform group-data-[state=open]:rotate-180" />
