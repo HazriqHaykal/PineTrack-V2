@@ -463,7 +463,7 @@ export default function ProfitPlanner() {
 
   return (
     <AdminLayout>
-      <div className="p-6 lg:p-8 space-y-6">
+      <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{tr("Harvest & Profit Planner")}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{tr("Plan pineapple harvest requirements and estimate financial outcomes.")}</p>

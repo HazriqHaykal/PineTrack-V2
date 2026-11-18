@@ -1,5 +1,17 @@
 // Bahasa Melayu, part 3: O – S
 export const ms3: Record<string, string> = {
+  "Post-Harvest Management reports": "Laporan Pengurusan Lepas Tuai",
+  "Sulur Inventory reports": "Laporan Inventori Sulur",
+  "Sulur stock, certification and traceability reports": "Laporan stok, pensijilan dan kebolehkesanan sulur",
+  "Planting material in the nursery · counts in sulur pieces": "Bahan tanaman di tapak semaian · kiraan dalam keping sulur",
+  "Post-Harvest Trends & Activity": "Trend & Aktiviti Lepas Tuai",
+  "Quick actions": "Tindakan pantas",
+  "Stock Alerts": "Amaran Stok",
+  "Planting Log": "Log Penanaman",
+  "Profitable cultivation plan": "Pelan penanaman menguntungkan",
+  "Projected loss": "Unjuran kerugian",
+  "Record Stock Movement": "Rekod Pergerakan Stok",
+  "Stock availability verified": "Ketersediaan stok disahkan",
   "Observations, issues or remarks": "Pemerhatian, isu atau catatan",
   "Official Management Quality Verification Certificate for Batch SLR-202610-MD2-001 (Grade A Uniform Suckers).": "Sijil Pengesahan Kualiti Pengurusan Rasmi untuk Kelompok SLR-202610-MD2-001 (Sulur Seragam Gred A).",
   "On-time deliveries": "Penghantaran tepat masa",

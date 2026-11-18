@@ -1,15 +1,15 @@
-import { useState, useEffect, type ElementType } from 'react'
+import { useState, useEffect } from 'react'
 import {
   AreaChart, Area, BarChart, Bar, ComposedChart, PieChart, Pie, Cell,
   Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer
 } from 'recharts'
-import { Download, AlertTriangle, Layers, Warehouse } from 'lucide-react'
-import AdminLayout from '../../components/layout/AdminLayout'
+import { Download, AlertTriangle } from 'lucide-react'
+import AdminLayout, { AdminPageHeader } from '../../components/layout/AdminLayout'
 import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
 import { GRADES, GRADE_HEX } from '../../components/batch/GradeBadge'
 import { AnalyticsOverview, PeriodKpis, SulurAnalytics } from '../../types'
-import { ModuleScopeSelect, useModuleScope } from '../../components/ui/ModuleScope'
+import { MODULE_META, ModuleHeading, ModuleKey, ModuleScopeSelect, useModuleScope } from '../../components/ui/ModuleScope'
 import SulurAnalyticsPanel from '../../components/sulur/SulurAnalyticsPanel'
 
 
@@ -32,25 +32,17 @@ function SectionHeader({ title, sub }: { title: string; sub?: string }) {
   )
 }
 
-/** Separates the two modules when both are shown */
-function ModuleHeading({ icon: Icon, title, unit }: { icon: ElementType; title: string; unit: string }) {
-  return (
-    <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
-      <Icon size={17} strokeWidth={1.75} className="text-green-800" />
-      <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-      <span className="text-xs text-gray-500">· {unit}</span>
-    </div>
-  )
-}
-
-function SummaryCard({ icon: Icon, title, unit, rows }: {
-  icon: ElementType; title: string; unit: string; rows: { label: string; value: string }[]
+function SummaryCard({ module, unit, rows }: {
+  module: ModuleKey; unit: string; rows: { label: string; value: string }[]
 }) {
+  const { icon: Icon, label, tile } = MODULE_META[module]
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
       <div className="flex items-center gap-2">
-        <Icon size={16} strokeWidth={1.75} className="text-green-800" />
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${tile}`}>
+          <Icon size={15} strokeWidth={1.75} />
+        </span>
+        <h3 className="text-sm font-semibold text-gray-900">{label}</h3>
       </div>
       <p className="text-xs text-gray-400 mt-0.5">{unit}</p>
       <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
@@ -168,28 +160,15 @@ export default function AnalyticsPage() {
 
   return (
     <AdminLayout>
-      <div className="p-6 lg:p-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{tr("Analytics & Reports")}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {scope === 'all' ? tr("Performance insights across both operational modules")
-                : scope === 'sulur' ? tr("Sulur Inventory stock, grading and movements")
-                : tr("Harvest, grading, yield, transport, scheduling and waste performance")}
-            </p>
-          </div>
-          {showPost && <div className="flex gap-2">
-            {['harvest', 'transport', 'waste'].map((type) => (
-              <button key={type} onClick={() => handleExport(type)}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition-colors capitalize">
-                <Download size={13} /> {type}
-              </button>
-            ))}
-          </div>}
-        </div>
-
-        <div className="mb-6 -mt-4">
+      <div>
+        {/* Same header and module switcher as Reports */}
+        <AdminPageHeader
+          title={tr("Analytics")}
+          subtitle={scope === 'all' ? tr("Performance insights across both operational modules")
+            : scope === 'sulur' ? tr("Sulur Inventory stock, grading and movements")
+            : tr("Harvest, grading, yield, transport, scheduling and waste performance")}
+        />
+        <div className="mb-6">
           <ModuleScopeSelect value={scope} onChange={setScope} />
         </div>
 
@@ -201,13 +180,13 @@ export default function AnalyticsPage() {
 
         {scope === 'all' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-            <SummaryCard icon={Warehouse} title={tr("Post-Harvest Management")} unit={`Last ${overview?.kpis.period_days ?? 30} days · weights in kg`} rows={[
+            <SummaryCard module="post_harvest" unit={`Last ${overview?.kpis.period_days ?? 30} days · weights in kg`} rows={[
               { label: tr("Harvest volume"), value: overview ? tr("{0} kg", overview.kpis.current.harvest_volume_kg.toLocaleString()) : '—' },
               { label: tr("Marketable yield"), value: overview?.kpis.current.marketable_yield_percent != null ? `${overview.kpis.current.marketable_yield_percent}%` : '—' },
               { label: tr("Waste rate"), value: overview ? `${overview.kpis.current.waste_rate_percent}%` : '—' },
               { label: tr("On-time deliveries"), value: overview ? `${overview.kpis.current.on_time_rate_percent}%` : '—' },
             ]} />
-            <SummaryCard icon={Layers} title={tr("Sulur Inventory")} unit={`Current stock and last ${sulur?.kpis.period_days ?? 30} days · counts in sulur pieces`} rows={
+            <SummaryCard module="sulur" unit={`Current stock and last ${sulur?.kpis.period_days ?? 30} days · counts in sulur pieces`} rows={
               sulur && sulur.has_data ? [
                 { label: tr("Available sulur"), value: sulur.totals.available.toLocaleString() },
                 { label: tr("Planted, period"), value: sulur.kpis.current.planted.toLocaleString() },
@@ -222,7 +201,16 @@ export default function AnalyticsPage() {
         )}
 
         {showPost && (<section aria-label={tr("Post-Harvest Management analytics")} className="mb-10">
-        {scope === 'all' && <ModuleHeading icon={Warehouse} title={tr("Post-Harvest Management")} unit="weights in kg" />}
+        <ModuleHeading module="post_harvest" action={
+          <div className="flex flex-wrap justify-end gap-2">
+            {([['harvest', tr("Harvest")], ['transport', tr("Transport")], ['waste', tr("Waste")]] as const).map(([type, label]) => (
+              <button key={type} onClick={() => handleExport(type)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium border border-gray-200 bg-white rounded-lg hover:bg-gray-50 text-gray-700 transition-colors">
+                <Download size={13} /> {label} {tr("PDF")}
+              </button>
+            ))}
+          </div>
+        } />
 
         {/* Summary KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
@@ -420,7 +408,7 @@ export default function AnalyticsPage() {
 
         {showSulur && (
           <section aria-label={tr("Sulur Inventory analytics")} className="mb-10">
-            {scope === 'all' && <ModuleHeading icon={Layers} title={tr("Sulur Inventory")} unit="counts in sulur pieces" />}
+            <ModuleHeading module="sulur" />
             <SulurAnalyticsPanel data={sulur} error={sulurError} />
           </section>
         )}

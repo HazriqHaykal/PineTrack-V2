@@ -154,7 +154,7 @@ export default function UserManagement() {
           </div>
           <button
             onClick={() => { setFormError(''); setShowCreate(true) }}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
+            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
           >
             <Plus size={15} /> {tr("Add User")}
           </button>
@@ -321,10 +321,10 @@ export default function UserManagement() {
                 </p>
               )}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreate(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                <button type="button" onClick={() => setShowCreate(false)} className="flex-1 py-2.5 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                   {tr("Cancel")}
                 </button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-60">
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
                   {saving ? tr("Creating…") : tr("Create User")}
                 </button>
               </div>
@@ -343,10 +343,10 @@ export default function UserManagement() {
               <input required minLength={6} type="password" autoFocus value={newPassword}
                 onChange={e => setNewPassword(e.target.value)} placeholder={tr("New password (min 6 characters)")} className={inputClass} />
               <div className="flex gap-3">
-                <button type="button" onClick={() => setResetFor(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                <button type="button" onClick={() => setResetFor(null)} className="flex-1 py-2.5 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                   {tr("Cancel")}
                 </button>
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-60">
+                <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-60">
                   {saving ? tr("Saving…") : tr("Save Password")}
                 </button>
               </div>

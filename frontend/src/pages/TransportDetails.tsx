@@ -357,7 +357,7 @@ export default function TransportDetails() {
 
   return (
     <Layout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
+      <div className={`${isAdmin ? '' : 'p-4 sm:p-6 lg:p-8 '}max-w-5xl`}>
         <button onClick={() => navigate(backPath)} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 mb-3">
           <ArrowLeft size={15} /> {isAdmin ? tr("Transport Management") : tr("Transport Updates")}
         </button>

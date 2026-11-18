@@ -136,7 +136,7 @@ export default function AdminSettings() {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-semibold text-sm hover:bg-green-700 active:scale-[0.98] transition-all shadow-md shadow-green-100 disabled:opacity-60"
+          className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
         >
           <Save size={15} />
           {saving ? tr("Saving…") : tr("Save Changes")}

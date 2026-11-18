@@ -381,78 +381,59 @@ export const SulurReportsSection: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Same card, icon and button styles as the rest of the Reports page
+  const cards = [
+    {
+      icon: <FileText size={18} />, iconCls: 'text-green-700 bg-green-50',
+      title: tr("Full Sulur Inventory & Profit PDF"),
+      desc: tr("Complete batch registry, stock movement summary, LPNM certificate numbers, and 0.5 ha MD2 profit projection."),
+      action: tr("Export Full Sulur Report (PDF)"), onClick: handleDownloadSulurSummaryReport,
+    },
+    {
+      icon: <ShieldCheck size={18} />, iconCls: 'text-purple-600 bg-purple-50',
+      title: tr("LPNM Seed Quality Certificate PDF"),
+      desc: tr("Official Management Quality Verification Certificate for Batch SLR-202610-MD2-001 (Grade A Uniform Suckers)."),
+      action: tr("Download LPNM Certificate (PDF)"), onClick: () => window.open(`${API_BASE}/api/sulur/batches/1/certificate.pdf`, '_blank'),
+    },
+    {
+      icon: <Layers size={18} />, iconCls: 'text-blue-600 bg-blue-50',
+      title: tr("Sulur Batch & Traceability CSV"),
+      desc: tr("Download raw spreadsheet data of all sulur batches, quantities, storage locations, and certificate statuses."),
+      action: tr("Export Sulur Dataset (CSV)"), onClick: handleDownloadSulurCSV,
+    },
+  ];
+
   return (
-    <div className="mt-8 pt-8 border-t border-gray-200 space-y-5 animate-fade-up">
-      <div>
-        <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs uppercase">
-          {tr("Sulur Inventory & Certification Reports")}
-        </span>
-        <h2 className="text-xl font-bold text-gray-900 mt-1">
-          {tr("Pineapple Seed (Sulur) Traceability, Quality Certificate & Profit Reports")}
-        </h2>
-        <p className="text-xs text-gray-500">
+    <section className="bg-white rounded-xl border border-gray-100 shadow-sm">
+      <div className="px-5 py-4 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <FileText size={16} className="text-slate-600" />
+          <h3 className="text-sm font-bold text-gray-900">{tr("Sulur Inventory & Certification Reports")}</h3>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
           {tr("Export structured PDF and CSV reports for Seri Nanas Farm management and LPNM compliance")}
         </p>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between space-y-4">
-          <div>
-            <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
-              <FileText size={22} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-5">
+        {cards.map(c => (
+          <div key={c.title} className="rounded-xl border border-gray-100 p-4 flex flex-col gap-4">
+            <div className="flex items-start gap-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${c.iconCls}`}>{c.icon}</div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-800">{c.title}</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">{c.desc}</p>
+              </div>
             </div>
-            <h3 className="text-base font-bold text-gray-900">{tr("Full Sulur Inventory & Profit PDF")}</h3>
-            <p className="text-xs text-gray-500 mt-1">
-              {tr("Complete batch registry, stock movement summary, LPNM certificate numbers, and 0.5 ha MD2 profit projection.")}
-            </p>
+            <button
+              type="button"
+              onClick={c.onClick}
+              className="mt-auto inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Download size={14} /> {c.action}
+            </button>
           </div>
-          <button
-            onClick={handleDownloadSulurSummaryReport}
-            className="w-full py-3 bg-[#162f25] hover:bg-emerald-900 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition"
-          >
-            <Download size={15} />
-            <span>{tr("Export Full Sulur Report (PDF)")}</span>
-          </button>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between space-y-4">
-          <div>
-            <div className="w-11 h-11 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-3">
-              <ShieldCheck size={22} />
-            </div>
-            <h3 className="text-base font-bold text-gray-900">{tr("LPNM Seed Quality Certificate PDF")}</h3>
-            <p className="text-xs text-gray-500 mt-1">
-              {tr("Official Management Quality Verification Certificate for Batch SLR-202610-MD2-001 (Grade A Uniform Suckers).")}
-            </p>
-          </div>
-          <button
-            onClick={() => window.open(`${API_BASE}/api/sulur/batches/1/certificate.pdf`, '_blank')}
-            className="w-full py-3 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition"
-          >
-            <Download size={15} />
-            <span>{tr("Download LPNM Certificate (PDF)")}</span>
-          </button>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between space-y-4">
-          <div>
-            <div className="w-11 h-11 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center mb-3">
-              <Layers size={22} />
-            </div>
-            <h3 className="text-base font-bold text-gray-900">{tr("Sulur Batch & Traceability CSV")}</h3>
-            <p className="text-xs text-gray-500 mt-1">
-              {tr("Download raw spreadsheet data of all sulur batches, quantities, storage locations, and certificate statuses.")}
-            </p>
-          </div>
-          <button
-            onClick={handleDownloadSulurCSV}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition"
-          >
-            <Download size={15} />
-            <span>{tr("Export Sulur Dataset (CSV)")}</span>
-          </button>
-        </div>
+        ))}
       </div>
-    </div>
+    </section>
   );
 };

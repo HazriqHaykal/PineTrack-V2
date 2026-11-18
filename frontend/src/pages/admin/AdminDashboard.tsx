@@ -2,14 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
-  AlertTriangle, CalendarClock, CalendarPlus, CheckCircle2, ChevronRight, ClipboardCheck, Info, Navigation,
-  Plus, Recycle, RefreshCw, Sprout, Truck, Users, XCircle,
+  AlertTriangle, CalendarClock, CalendarPlus, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck, Hourglass, Info,
+  Navigation, Package, Recycle, RefreshCw, ShieldCheck, Sprout, Truck, XCircle,
 } from 'lucide-react'
 import AdminLayout from '../../components/layout/AdminLayout'
 import GradeBadge, { GRADES, GRADE_HEX, isMixed, normalizeGrade } from '../../components/batch/GradeBadge'
 import { apiClient, apiErrorMessage } from '../../services/api'
 import { authService } from '../../services/auth'
-import { AnalyticsOverview, HarvestStats, TransportEfficiency, WasteStats } from '../../types'
+import { MODULE_META, ModuleKey } from '../../components/ui/ModuleScope'
+import { AnalyticsOverview, HarvestStats, SulurAnalytics, TransportEfficiency, WasteStats } from '../../types'
 
 import { tr, locale } from '../../i18n'
 // PineTrack brand, matching the sidebar
@@ -68,10 +69,6 @@ function EmptyState({ text }: { text: string }) {
   return <div className="flex h-full min-h-[160px] items-center justify-center text-sm text-gray-500">{text}</div>
 }
 
-function Skeleton({ className }: { className: string }) {
-  return <div className={`animate-pulse rounded-xl bg-white border border-gray-100 ${className}`} />
-}
-
 // ── Welcome banner ───────────────────────────────────────────────────────────
 
 function farmGreeting(now: Date) {
@@ -128,30 +125,208 @@ function WelcomeBanner({ name, farmName }: { name: string; farmName: string | nu
   )
 }
 
-// ── KPI cards ────────────────────────────────────────────────────────────────
+// ── Module sections ──────────────────────────────────────────────────────────
 
-function KPICard({ icon: Icon, label, value, sub, period, onClick }: {
-  icon: React.ElementType; label: string; value: string; sub: string; period: string; onClick: () => void
+/** Module icons and accents are shared with Analytics and Reports */
+const MODULE = MODULE_META
+
+function ModuleSection({ module, subtitle, link, linkLabel, children, footer }: {
+  module: ModuleKey; subtitle: string; link: string; linkLabel: string; children: React.ReactNode; footer?: React.ReactNode
+}) {
+  const m = MODULE[module]
+  const Icon = m.icon
+  return (
+    <section aria-label={m.label} className="bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col min-w-0">
+      <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${m.tile}`}>
+            <Icon {...ICON} size={18} />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-gray-900">{m.label}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+          </div>
+        </div>
+        <PanelLink to={link}>{linkLabel}</PanelLink>
+      </div>
+      <div className="flex-1 px-5 pb-5">{children}</div>
+      {footer && <div className="border-t border-gray-100 px-5 py-3">{footer}</div>}
+    </section>
+  )
+}
+
+/** One figure inside a module section; the period says which time window the number covers */
+function MetricTile({ label, period, value, sub, progress, warn, onClick }: {
+  label: string; period: string; value: string; sub: string
+  /** 0–100: draws a thin progress bar under the value */
+  progress?: number
+  warn?: boolean
+  onClick: () => void
 }) {
   return (
     <button onClick={onClick}
-      className="group text-left bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3.5 h-full flex flex-col hover:border-gray-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
+      className={`group text-left rounded-lg border px-3.5 py-3 h-full flex flex-col transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 ${
+        warn ? 'border-amber-200 bg-amber-50/60 hover:border-amber-300' : 'border-gray-100 bg-gray-50/60 hover:border-gray-300'
+      }`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-gray-600 min-w-0">
-          <Icon {...ICON} className="shrink-0 text-green-800" />
-          <span className="truncate">{label}</span>
-        </span>
+        <span className="text-xs font-medium text-gray-600 truncate">{label}</span>
         <span className="text-[11px] text-gray-500 whitespace-nowrap">{period}</span>
       </div>
-      <p className="text-2xl font-bold text-gray-900 leading-tight mt-2 tabular-nums truncate">{value}</p>
-      <p className="text-xs text-gray-500 mt-1 truncate">{sub}</p>
+      <p className="text-xl font-bold text-gray-900 leading-tight mt-1.5 tabular-nums truncate">{value}</p>
+      {progress != null && (
+        <div className="mt-2 h-1.5 rounded-full bg-gray-200" aria-hidden>
+          <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(0, progress))}%`, background: BRAND_GREEN }} />
+        </div>
+      )}
+      <p className="text-xs text-gray-500 mt-1.5 truncate">{sub}</p>
     </button>
   )
 }
 
-// ── Needs your attention ─────────────────────────────────────────────────────
+function SectionError({ text, onRetry }: { text: string; onRetry: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      <AlertTriangle {...ICON} className="shrink-0" />
+      <span className="flex-1 min-w-0">{text}</span>
+      <button onClick={onRetry} className="flex items-center gap-1.5 font-medium hover:underline">
+        <RefreshCw {...ICON} size={14} /> {tr("Try again")}
+      </button>
+    </div>
+  )
+}
+
+function TileSkeletons() {
+  return (
+    <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+      {[0, 1, 2, 3].map((i) => <div key={i} className="h-[92px] animate-pulse rounded-lg bg-gray-100" />)}
+    </div>
+  )
+}
+
+const pcs = (n: number) => tr("{0} pcs", n.toLocaleString())
+
+function SulurOverview({ data, error, onRetry }: { data: SulurAnalytics | null; error: string; onRetry: () => void }) {
+  const navigate = useNavigate()
+  const toStock = () => navigate('/admin/sulur/stock')
+  let body: React.ReactNode
+  if (error) body = <SectionError text={error} onRetry={onRetry} />
+  else if (!data) body = <TileSkeletons />
+  else if (!data.has_data) body = <EmptyState text={tr("No Sulur batches recorded yet. Figures appear once batches are added.")} />
+  else {
+    const { totals, alerts } = data
+    const below = alerts.below_threshold
+    const alertCount = below + (alerts.aging_batches ? 1 : 0) + (alerts.uncertified_batches ? 1 : 0)
+    body = (
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+        <MetricTile label={tr("Available Sulur")} period={tr("Current stock")} value={pcs(totals.available)}
+          sub={tr("{0} batches · {1} varieties", data.batches, data.by_variety.length)} onClick={toStock} />
+        <MetricTile label={tr("Planted & Reserved")} period={tr("Current stock")} value={pcs(totals.planted + totals.reserved)}
+          sub={tr("{0} planted · {1} reserved", totals.planted.toLocaleString(), totals.reserved.toLocaleString())}
+          onClick={() => navigate('/admin/sulur/movements')} />
+        <MetricTile label={tr("Certified Batches")} period={tr("Current")} value={`${data.certified_batches} / ${data.batches}`}
+          progress={data.batches ? (data.certified_batches / data.batches) * 100 : 0}
+          sub={tr("{0} with stock awaiting certification", alerts.uncertified_batches)} onClick={toStock} />
+        <MetricTile label={tr("Stock Alerts")} period={tr("Now")} value={String(alertCount)} warn={alertCount > 0}
+          sub={tr("{0} below minimum · {1} aging · {2} uncertified", below, alerts.aging_batches, alerts.uncertified_batches)}
+          onClick={toStock} />
+      </div>
+    )
+  }
+  return (
+    <ModuleSection module="sulur" subtitle={tr("Planting material in the nursery · counts in sulur pieces")}
+      link="/admin/sulur/stock" linkLabel={tr("Stock & Batches")}>
+      {body}
+    </ModuleSection>
+  )
+}
+
+/** Each opens the module's existing form through its ?new=1 hook; no forms are duplicated here */
+const QUICK_ACTIONS = [
+  { label: tr("New Harvest"),   path: '/harvest?new=1',   icon: Sprout },
+  { label: tr("New Transport"), path: '/transport?new=1', icon: Truck },
+  { label: tr("Assign Task"),   path: '/schedule?new=1',  icon: CalendarPlus },
+  { label: tr("Log Waste"),     path: '/waste?new=1',     icon: Recycle },
+]
+
+function QuickActions() {
+  const navigate = useNavigate()
+  // The dashboard is admin-only, and every action opens an admin form
+  if (!authService.isAdmin()) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-medium text-gray-500 mr-1">{tr("Quick actions")}</span>
+      {QUICK_ACTIONS.map(({ label, path, icon: Icon }) => (
+        <button key={label} onClick={() => navigate(path)}
+          className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-800 hover:border-green-700 hover:bg-green-50/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
+          <Icon {...ICON} size={14} className="shrink-0 text-green-800" />
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function PostHarvestOverview({ hStats, tStats, wStats, overview, error, onRetry }: {
+  hStats: HarvestStats | null; tStats: TransportEfficiency | null; wStats: WasteStats | null; overview: AnalyticsOverview | null
+  error: string; onRetry: () => void
+}) {
+  const navigate = useNavigate()
+  let body: React.ReactNode
+  if (error) body = <SectionError text={error} onRetry={onRetry} />
+  else if (!hStats || !tStats || !wStats || !overview) body = <TileSkeletons />
+  else {
+    const cur = overview.kpis.current
+    const days = overview.kpis.period_days
+    body = (
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+        <MetricTile label={tr("Total Harvested")} period={tr("All time")} value={kg(hStats.total_quantity_kg)}
+          sub={tr("{0} batches · {1} in last {2} days", hStats.total_harvests, kg(cur.harvest_volume_kg), days)}
+          onClick={() => navigate('/harvest')} />
+        <MetricTile label={tr("Marketable Yield")} period={tr("Last {0} days", days)}
+          value={cur.marketable_yield_percent != null ? `${cur.marketable_yield_percent}%` : '—'}
+          sub={cur.graded_batches
+            ? tr("{0} marketable · {1} graded batches", kg(cur.marketable_kg), cur.graded_batches)
+            : tr("No graded batches in this period")}
+          onClick={() => navigate('/harvest')} />
+        <MetricTile label={tr("Delivery Progress")} period={tr("All time")} value={`${tStats.delivered} / ${tStats.total_transports}`}
+          progress={tStats.total_transports ? (tStats.delivered / tStats.total_transports) * 100 : 0}
+          sub={tr("{0} in transit · {1} scheduled", tStats.in_transit, tStats.pending)}
+          onClick={() => navigate('/transport')} />
+        <MetricTile label={tr("Waste Recorded")} period={tr("All time")} value={kg(wStats.total_waste_kg)}
+          sub={tr("{0} records · {1} in last {2} days", wStats.total_records, kg(cur.waste_kg), days)}
+          onClick={() => navigate('/waste')} />
+      </div>
+    )
+  }
+  return (
+    <ModuleSection module="post_harvest" subtitle={tr("Harvest, delivery and waste · weights in kg")}
+      link="/harvest" linkLabel={tr("Harvest")} footer={<QuickActions />}>
+      {body}
+    </ModuleSection>
+  )
+}
+
+// ── Needs your attention (both modules) ──────────────────────────────────────
 
 type Alert = AnalyticsOverview['alerts'][number]
+type Priority = 'high' | 'medium' | 'low'
+
+interface UnifiedAlert {
+  key: string
+  module: ModuleKey
+  priority: Priority
+  msg: string
+  icon: React.ElementType
+  link: string | null
+  linkLabel: string
+  rank: number
+}
+
+const PRIORITY: Record<Priority, { label: string; badge: string; bar: string; icon: string; order: number }> = {
+  high:   { label: tr("High priority"),   badge: 'bg-red-50 text-red-800 ring-red-200',       bar: 'bg-red-500',   icon: 'text-red-600',   order: 0 },
+  medium: { label: tr("Medium priority"), badge: 'bg-amber-50 text-amber-800 ring-amber-200', bar: 'bg-amber-500', icon: 'text-amber-600', order: 1 },
+  low:    { label: tr("Low priority"),    badge: 'bg-blue-50 text-blue-800 ring-blue-200',    bar: 'bg-blue-400',  icon: 'text-blue-600',  order: 2 },
+}
 
 /**
  * Icon, rank and destination for each alert the backend raises. The link is the
@@ -178,42 +353,91 @@ function describeAlert(a: Alert): { icon: React.ElementType; rank: number; link:
   return { ...base, icon: CheckCircle2, rank: 20 }
 }
 
-const ALERT_TONE: Record<Alert['level'], { icon: string; tag: string; label: string; bar: string }> = {
-  warning: { icon: 'text-amber-600', tag: 'text-amber-800', label: tr("Action needed"), bar: 'bg-amber-500' },
-  info:    { icon: 'text-blue-600',  tag: 'text-blue-800',  label: tr("Information"),   bar: 'bg-blue-400' },
-  success: { icon: 'text-green-700', tag: 'text-green-800', label: tr("All clear"),     bar: 'bg-green-600' },
+/** Post-harvest alerts as the backend raises them; "all clear" notes are left out of the combined list */
+function postHarvestAlerts(alerts: Alert[]): UnifiedAlert[] {
+  return alerts
+    .filter((a) => a.level !== 'success')
+    .map((a) => ({
+      key: `ph-${a.msg}`,
+      module: 'post_harvest' as const,
+      priority: (a.level === 'warning' ? 'high' : 'low') as Priority,
+      msg: a.msg,
+      ...describeAlert(a),
+    }))
 }
 
-function NeedsAttention({ alerts }: { alerts: Alert[] }) {
+/** Sulur alerts from /analytics/sulur, with the same priorities as the Sulur module's own alert rules */
+function sulurAlerts(s: SulurAnalytics): UnifiedAlert[] {
+  if (!s.has_data) return []
+  const stock = { module: 'sulur' as const, link: '/admin/sulur/stock', linkLabel: tr("Stock & Batches") }
+  const out: UnifiedAlert[] = s.by_variety.filter((v) => v.below_threshold).map((v) => {
+    const empty = v.available === 0
+    return {
+      ...stock,
+      key: `sulur-low-${v.variety}`,
+      priority: empty ? 'high' : 'medium',
+      icon: Package,
+      rank: empty ? 0 : 5,
+      msg: empty
+        ? tr("{0} sulur stock is used up (minimum {1} pcs).", v.variety, v.min_stock_threshold.toLocaleString())
+        : tr("{0} sulur stock is below minimum: {1} of {2} pcs available.", v.variety, v.available.toLocaleString(), v.min_stock_threshold.toLocaleString()),
+    }
+  })
+  if (s.alerts.aging_batches) {
+    out.push({ ...stock, key: 'sulur-aging', priority: 'medium', icon: Hourglass, rank: 6,
+      msg: tr("{0} sulur batch(es) raw or curing for over 14 days.", s.alerts.aging_batches) })
+  }
+  if (s.alerts.uncertified_batches) {
+    out.push({ ...stock, key: 'sulur-uncertified', priority: 'low', icon: ShieldCheck, rank: 10,
+      msg: tr("{0} sulur batch(es) with stock awaiting quality certification.", s.alerts.uncertified_batches) })
+  }
+  return out
+}
+
+const badge = 'inline-flex items-center whitespace-nowrap px-1.5 py-0.5 rounded-md text-[11px] font-medium ring-1 ring-inset'
+
+function NeedsAttention({ alerts, loading, unavailable }: {
+  alerts: UnifiedAlert[]
+  loading: boolean
+  /** Modules whose alerts could not be loaded */
+  unavailable: ModuleKey[]
+}) {
   const navigate = useNavigate()
-  const sorted = alerts.map((a) => ({ ...a, ...describeAlert(a) })).sort((x, y) => x.rank - y.rank)
-  const warnings = alerts.filter((a) => a.level === 'warning').length
+  const sorted = [...alerts].sort((x, y) => PRIORITY[x.priority].order - PRIORITY[y.priority].order || x.rank - y.rank)
+  const high = alerts.filter((a) => a.priority === 'high').length
 
   return (
     <Panel
-      className="h-full"
       title={tr("Needs Your Attention")}
-      subtitle={tr("Live checks on deliveries, tasks and harvest quality")}
-      action={warnings > 0 && (
-        <span className="text-xs font-medium text-amber-900 bg-amber-50 ring-1 ring-inset ring-amber-200 rounded-md px-2 py-0.5 whitespace-nowrap">
-          {warnings} {tr("to act on")}
-        </span>
+      subtitle={tr("Alerts from Sulur Inventory and Post-Harvest Management, highest priority first")}
+      action={high > 0 && (
+        <span className={`${badge} ${PRIORITY.high.badge}`}>{tr("{0} high priority", high)}</span>
       )}
       flush
     >
+      {unavailable.length > 0 && (
+        <p className="mx-5 mb-3 text-xs text-red-700">
+          {tr("Alerts unavailable for: {0}. See the error above.", unavailable.map((m) => MODULE[m].label).join(', '))}
+        </p>
+      )}
       {sorted.length === 0 ? (
-        <p className="text-sm text-gray-500 px-5 pb-5">{tr("No alerts right now.")}</p>
+        <p className="text-sm text-gray-500 px-5 pb-5">
+          {loading ? tr("Checking both modules…") : tr("No alerts right now. Both modules are on track.")}
+        </p>
       ) : (
         <ul className="border-t border-gray-100 divide-y divide-gray-100">
-          {sorted.map(({ icon: Icon, link, linkLabel, ...a }) => {
-            const tone = ALERT_TONE[a.level]
+          {sorted.map(({ key, icon: Icon, link, linkLabel, module, priority, msg }) => {
+            const p = PRIORITY[priority]
             const body = (
               <>
-                <span className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full ${tone.bar}`} aria-hidden />
-                <Icon {...ICON} className={`shrink-0 ${tone.icon}`} />
+                <span className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full ${p.bar}`} aria-hidden />
+                <Icon {...ICON} className={`shrink-0 ${p.icon}`} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm text-gray-900 leading-snug">{a.msg}</p>
-                  <p className={`text-[11px] font-medium mt-0.5 ${tone.tag}`}>{tone.label}</p>
+                  <p className="text-sm text-gray-900 leading-snug">{msg}</p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    <span className={`${badge} ${MODULE[module].badge}`}>{MODULE[module].label}</span>
+                    <span className={`${badge} ${p.badge}`}>{p.label}</span>
+                  </div>
                 </div>
                 {link && (
                   <span className="hidden sm:inline-flex items-center gap-0.5 text-xs font-medium text-gray-500 group-hover:text-green-800 whitespace-nowrap">
@@ -223,50 +447,20 @@ function NeedsAttention({ alerts }: { alerts: Alert[] }) {
               </>
             )
             return (
-              <li key={a.msg}>
+              <li key={key}>
                 {link ? (
                   <button onClick={() => navigate(link)}
-                    className="group relative flex w-full items-center gap-3 px-5 py-2.5 text-left hover:bg-gray-50 focus:outline-none focus-visible:bg-gray-50">
+                    className="group relative flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-gray-50 focus:outline-none focus-visible:bg-gray-50">
                     {body}
                   </button>
                 ) : (
-                  <div className="relative flex items-center gap-3 px-5 py-2.5">{body}</div>
+                  <div className="relative flex items-center gap-3 px-5 py-3">{body}</div>
                 )}
               </li>
             )
           })}
         </ul>
       )}
-    </Panel>
-  )
-}
-
-// ── Quick actions ────────────────────────────────────────────────────────────
-
-/** Each opens the module's existing form through its ?new=1 hook; no forms are duplicated here */
-const QUICK_ACTIONS = [
-  { label: tr("New Harvest"),   path: '/harvest?new=1',   icon: Sprout },
-  { label: tr("New Transport"), path: '/transport?new=1', icon: Truck },
-  { label: tr("Assign Task"),   path: '/schedule?new=1',  icon: CalendarPlus },
-  { label: tr("Log Waste"),     path: '/waste?new=1',     icon: Recycle },
-]
-
-function QuickActions() {
-  const navigate = useNavigate()
-  // The dashboard is admin-only, and every action opens an admin form
-  if (!authService.isAdmin()) return null
-  return (
-    <Panel title={tr("Quick Actions")} subtitle={tr("Opens the module's form")} className="h-full">
-      <div className="grid grid-cols-2 xl:grid-cols-1 gap-2">
-        {QUICK_ACTIONS.map(({ label, path, icon: Icon }) => (
-          <button key={label} onClick={() => navigate(path)}
-            className="group flex items-center gap-2 h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-800 hover:border-green-700 hover:bg-green-50/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
-            <Icon {...ICON} className="shrink-0 text-green-800" />
-            <span className="truncate">{label}</span>
-            <Plus {...ICON} size={14} className="ml-auto shrink-0 text-gray-400 group-hover:text-green-800" />
-          </button>
-        ))}
-      </div>
     </Panel>
   )
 }
@@ -463,23 +657,61 @@ function WorkerPerformance({ workers, since }: { workers: AnalyticsOverview['wor
   )
 }
 
+// ── Detailed post-harvest charts (collapsed by default) ──────────────────────
+
+function PostHarvestDetails({ overview }: { overview: AnalyticsOverview }) {
+  const [open, setOpen] = useState(false)
+  // First month of the 6-month window, as the backend counts it
+  const since = overview.harvest_trend[0]?.month ?? ''
+  return (
+    <section className="bg-white rounded-xl border border-gray-100 shadow-sm">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="post-harvest-details"
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left rounded-xl hover:bg-gray-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-gray-900">{tr("Post-Harvest Trends & Activity")}</h2>
+          <p className="text-xs text-gray-500 mt-0.5">{tr("Harvest volume, grade split, recent batches and worker tasks · last 6 months")}</p>
+        </div>
+        <ChevronDown {...ICON} className={`shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {/* Charts mount only when opened, so they measure their real width */}
+      {open && (
+        <div id="post-harvest-details" className="border-t border-gray-100 bg-gray-50/50 p-4 space-y-4 rounded-b-xl">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <HarvestVolume trend={overview.harvest_trend} />
+            <GradeSplit grades={overview.grade_distribution} />
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+            <RecentHarvests rows={overview.recent_harvests} />
+            <WorkerPerformance workers={overview.worker_performance} since={since} />
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminDashboard() {
-  const navigate = useNavigate()
-  const user     = authService.getUser()
+  const user = authService.getUser()
 
   const [hStats, setHStats]     = useState<HarvestStats | null>(null)
   const [tStats, setTStats]     = useState<TransportEfficiency | null>(null)
   const [wStats, setWStats]     = useState<WasteStats | null>(null)
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null)
-  const [farmName, setFarmName] = useState<string | null>(null)
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState('')
+  const [phLoading, setPhLoading] = useState(true)
+  const [phError, setPhError]   = useState('')
 
-  const load = useCallback(() => {
-    setLoading(true)
-    setError('')
+  const [sulur, setSulur]       = useState<SulurAnalytics | null>(null)
+  const [sulurLoading, setSulurLoading] = useState(true)
+  const [sulurError, setSulurError] = useState('')
+
+  const [farmName, setFarmName] = useState<string | null>(null)
+
+  // The two modules load independently, so one failing never hides the other
+  const loadPostHarvest = useCallback(() => {
+    setPhLoading(true)
+    setPhError('')
     Promise.all([
       apiClient.getHarvestStats(),
       apiClient.getTransportEfficiency(),
@@ -487,11 +719,20 @@ export default function AdminDashboard() {
       apiClient.getAnalyticsOverview(6),
     ])
       .then(([h, t, w, o]) => { setHStats(h); setTStats(t); setWStats(w); setOverview(o) })
-      .catch((err) => setError(apiErrorMessage(err, tr("Failed to load dashboard data."))))
-      .finally(() => setLoading(false))
+      .catch((err) => setPhError(apiErrorMessage(err, tr("Failed to load post-harvest data."))))
+      .finally(() => setPhLoading(false))
   }, [])
 
-  useEffect(() => { load() }, [load])
+  const loadSulur = useCallback(() => {
+    setSulurLoading(true)
+    setSulurError('')
+    apiClient.getSulurAnalytics(6)
+      .then(setSulur)
+      .catch((err) => setSulurError(apiErrorMessage(err, tr("Failed to load Sulur Inventory data."))))
+      .finally(() => setSulurLoading(false))
+  }, [])
+
+  useEffect(() => { loadPostHarvest(); loadSulur() }, [loadPostHarvest, loadSulur])
 
   useEffect(() => {
     // The greeting should not block or fail the dashboard
@@ -503,71 +744,29 @@ export default function AdminDashboard() {
       .catch(() => setFarmName(FALLBACK_FARM_NAME))
   }, [])
 
-  const ready = !error && hStats && tStats && wStats && overview
-  const last30 = overview?.kpis.current
-  // First month of the 6-month window, as the backend counts it
-  const since = overview?.harvest_trend[0]?.month ?? ''
+  const alerts: UnifiedAlert[] = [
+    ...(sulur && !sulurError ? sulurAlerts(sulur) : []),
+    ...(overview && !phError ? postHarvestAlerts(overview.alerts) : []),
+  ]
+  const unavailable: ModuleKey[] = [
+    ...(sulurError ? ['sulur' as const] : []),
+    ...(phError ? ['post_harvest' as const] : []),
+  ]
 
   return (
     <AdminLayout>
       <div className="space-y-4 max-w-[1400px]">
         <WelcomeBanner name={user?.full_name || user?.username || 'there'} farmName={farmName} />
 
-        {error && (
-          <div className="flex flex-wrap items-center gap-3 bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3 text-sm">
-            <AlertTriangle {...ICON} className="shrink-0" />
-            <span className="flex-1 min-w-0">{error}</span>
-            <button onClick={load} className="flex items-center gap-1.5 font-medium hover:underline">
-              <RefreshCw {...ICON} size={14} /> {tr("Try again")}
-            </button>
-          </div>
-        )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+          <SulurOverview data={sulurError ? null : sulur} error={sulurError} onRetry={loadSulur} />
+          <PostHarvestOverview hStats={hStats} tStats={tStats} wStats={wStats} overview={overview}
+            error={phError} onRetry={loadPostHarvest} />
+        </div>
 
-        {loading && !ready && (
-          <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[108px]" />)}
-            </div>
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-              <Skeleton className="h-48 xl:col-span-2" />
-              <Skeleton className="h-48" />
-            </div>
-          </>
-        )}
+        <NeedsAttention alerts={alerts} loading={sulurLoading || phLoading} unavailable={unavailable} />
 
-        {ready && (
-          <div className={`space-y-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
-            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard icon={Sprout} period={tr("All time")} label={tr("Total Harvested")} value={kg(hStats.total_quantity_kg)}
-                sub={tr("{0} batches · {1} in last 30 days", hStats.total_harvests, kg(last30?.harvest_volume_kg ?? 0))}
-                onClick={() => navigate('/harvest')} />
-              <KPICard icon={Truck} period={tr("All time")} label={tr("Deliveries Completed")} value={`${tStats.delivered} / ${tStats.total_transports}`}
-                sub={tr("{0} in transit · {1} scheduled", tStats.in_transit, tStats.pending)}
-                onClick={() => navigate('/transport')} />
-              <KPICard icon={Recycle} period={tr("All time")} label={tr("Waste Logged")} value={kg(wStats.total_waste_kg)}
-                sub={tr("{0} records · {1} in last 30 days", wStats.total_records, kg(last30?.waste_kg ?? 0))}
-                onClick={() => navigate('/waste')} />
-              <KPICard icon={Users} period={tr("Today")} label={tr("Active Workers")} value={String(overview.workers.active)}
-                sub={tr("{0} with tasks today", overview.workers.on_field_today)}
-                onClick={() => navigate('/admin/users')} />
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-              <div className="xl:col-span-2"><NeedsAttention alerts={overview.alerts} /></div>
-              <QuickActions />
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-              <HarvestVolume trend={overview.harvest_trend} />
-              <GradeSplit grades={overview.grade_distribution} />
-            </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
-              <RecentHarvests rows={overview.recent_harvests} />
-              <WorkerPerformance workers={overview.worker_performance} since={since} />
-            </div>
-          </div>
-        )}
+        {overview && !phError && <PostHarvestDetails overview={overview} />}
       </div>
     </AdminLayout>
   )

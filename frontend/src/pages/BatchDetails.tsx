@@ -499,7 +499,7 @@ export default function BatchDetails() {
             {tr("Back")}
           </button>
           {!denied && error.status !== 404 && (
-            <button onClick={load} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">
+            <button onClick={load} className="px-4 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg text-sm font-medium">
               {tr("Try again")}
             </button>
           )}
@@ -588,7 +588,7 @@ export default function BatchDetails() {
 
   return (
     <Layout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
+      <div className={`${isAdmin ? '' : 'p-4 sm:p-6 lg:p-8 '}max-w-5xl`}>
         <button
           onClick={() => navigate(backPath)}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-3"

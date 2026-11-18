@@ -35,11 +35,18 @@ export interface NavGroup {
 export type NavEntry = ({ kind: 'link' } & NavLink) | ({ kind: 'group' } & NavGroup)
 
 export interface NavSection {
-  label: string
+  /** Heading above the entries; omitted for the top-level Dashboard link */
+  label?: string
   entries: NavEntry[]
 }
 
 export const ADMIN_NAV: NavSection[] = [
+  {
+    // Farm-wide overview of both modules, so it sits outside either module group
+    entries: [
+      { kind: 'link', label: tr("Dashboard"), icon: LayoutDashboard, path: '/dashboard', roles: ['admin'] },
+    ],
+  },
   {
     label: tr("Operations"),
     entries: [
@@ -62,7 +69,6 @@ export const ADMIN_NAV: NavSection[] = [
         icon: Warehouse,
         roles: ['admin'],
         children: [
-          { label: tr("Dashboard"),                icon: LayoutDashboard, path: '/dashboard' },
           { label: tr("Harvest"),                  icon: Sprout,          path: '/harvest' },
           { label: tr("Transport"),                icon: Truck,           path: '/transport' },
           { label: tr("Scheduling"),               icon: Calendar,        path: '/schedule' },

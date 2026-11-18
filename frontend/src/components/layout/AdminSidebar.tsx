@@ -204,15 +204,15 @@ export default function AdminSidebar() {
       </div>
 
       <nav aria-label={tr("Admin")} className="flex-1 px-2 py-4 overflow-y-auto space-y-5">
-        {sections.map((section) => (
-          <div key={section.label} role="group" aria-label={section.label}>
-            {collapsed ? (
+        {sections.map((section, i) => (
+          <div key={section.label ?? `section-${i}`} role="group" aria-label={section.label}>
+            {section.label && (collapsed ? (
               <div className="mx-3 mb-2 h-px" style={{ backgroundColor: C.divider }} aria-hidden />
             ) : (
               <p className="px-3 mb-1.5 text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color: C.muted }}>
                 {section.label}
               </p>
-            )}
+            ))}
             <div className="space-y-0.5">
               {section.entries.map((entry) =>
                 entry.kind === 'group' ? (

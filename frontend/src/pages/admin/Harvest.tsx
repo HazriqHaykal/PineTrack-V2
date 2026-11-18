@@ -303,7 +303,7 @@ export default function HarvestPage() {
 
   return (
     <AdminLayout>
-      <div className="p-6 lg:p-8">
+      <div>
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>

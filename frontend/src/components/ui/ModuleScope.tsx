@@ -1,7 +1,45 @@
+import React from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { Layers, Warehouse } from 'lucide-react'
 import { AnalysisScope } from '../../types'
 
 import { tr } from '../../i18n'
+
+export type ModuleKey = 'sulur' | 'post_harvest'
+
+/**
+ * One look per module, shared by the Dashboard, Analytics and Reports: the
+ * module's sidebar icon and one brand accent (warm orange for Sulur, forest
+ * green for Post-Harvest), plus the unit its figures are counted in.
+ */
+export const MODULE_META: Record<ModuleKey, {
+  label: string; icon: React.ElementType; unit: string; tile: string; badge: string
+}> = {
+  sulur: {
+    label: tr("Sulur Inventory"), icon: Layers, unit: tr("counts in sulur pieces"),
+    tile: 'bg-harvest-50 text-harvest-700', badge: 'bg-harvest-50 text-harvest-800 ring-harvest-200',
+  },
+  post_harvest: {
+    label: tr("Post-Harvest Management"), icon: Warehouse, unit: tr("weights in kg"),
+    tile: 'bg-forest-50 text-forest-700', badge: 'bg-forest-50 text-forest-700 ring-forest-200',
+  },
+}
+
+/** Separates the two modules on a page showing both */
+export function ModuleHeading({ module, action }: { module: ModuleKey; action?: React.ReactNode }) {
+  const m = MODULE_META[module]
+  const Icon = m.icon
+  return (
+    <div className="flex items-center gap-2.5 mb-4 pb-2.5 border-b border-gray-200">
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${m.tile}`}>
+        <Icon size={15} strokeWidth={1.75} />
+      </span>
+      <h2 className="text-base font-semibold text-gray-900">{m.label}</h2>
+      <span className="text-xs text-gray-500">· {m.unit}</span>
+      {action && <div className="ml-auto">{action}</div>}
+    </div>
+  )
+}
 export const SCOPE_OPTIONS: { value: AnalysisScope; label: string }[] = [
   { value: 'all',          label: tr("All Modules") },
   { value: 'sulur',        label: tr("Sulur Inventory") },

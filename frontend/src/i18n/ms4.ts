@@ -1,5 +1,7 @@
 // Bahasa Melayu, part 4: T – z, lowercase fragments, placeholders and API enum values
 export const ms4: Record<string, string> = {
+  "weights in kg": "berat dalam kg",
+  "Try adjusting filters or add a new batch": "Cuba laraskan penapis atau tambah kelompok baharu",
   "Target Plot / Destination": "Plot Sasaran / Destinasi",
   "Target Profit": "Sasaran Keuntungan",
   "Target Variety": "Varieti Sasaran",

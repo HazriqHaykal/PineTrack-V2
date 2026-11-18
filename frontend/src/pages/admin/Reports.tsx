@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FileText, Download, Calendar, Sprout, Truck, Recycle, BarChart3, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
-import AdminLayout from '../../components/layout/AdminLayout'
+import AdminLayout, { AdminPageHeader } from '../../components/layout/AdminLayout'
+import { ModuleHeading, ModuleScopeSelect, useModuleScope } from '../../components/ui/ModuleScope'
 import { apiClient, apiErrorMessage, saveBlob } from '../../services/api'
 import { SulurReportsSection } from '../../components/sulur/SulurModuleBridge'
 
@@ -44,6 +45,9 @@ const TYPE_ICON: Record<ReportType, React.ReactNode> = {
 }
 
 export default function Reports() {
+  const [scope, setScope] = useModuleScope()
+  const showPost  = scope !== 'sulur'
+  const showSulur = scope !== 'post_harvest'
   const [selectedType, setSelectedType] = useState<ReportType>('harvest')
   const [selectedPeriod, setSelectedPeriod] = useState(PERIOD_OPTIONS[1])
   const [reports, setReports] = useState<GeneratedReport[]>([])
@@ -77,7 +81,21 @@ export default function Reports() {
   }
 
   return (
-    <AdminLayout title={tr("Reports")} subtitle={tr("Generate and download operational reports")}>
+    <AdminLayout>
+      {/* Same header and module switcher as Analytics */}
+      <AdminPageHeader
+        title={tr("Reports")}
+        subtitle={scope === 'all' ? tr("Generate and download operational reports")
+          : scope === 'sulur' ? tr("Sulur stock, certification and traceability reports")
+          : tr("Harvest, transport and waste PDF reports from live data")}
+      />
+      <div className="mb-6">
+        <ModuleScopeSelect value={scope} onChange={setScope} />
+      </div>
+
+      {showPost && (
+      <section aria-label={tr("Post-Harvest Management reports")} className="mb-10">
+      <ModuleHeading module="post_harvest" />
 
       {/* Generate panel */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-6">
@@ -149,7 +167,7 @@ export default function Reports() {
         <button
           onClick={handleGenerate}
           disabled={generating}
-          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl font-semibold text-sm hover:bg-green-700 active:scale-[0.98] transition-all disabled:opacity-60 shadow-md shadow-green-100"
+          className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
         >
           {generating ? (
             <><Clock size={15} className="animate-spin" /> {tr("Generating PDF...")}</>
@@ -204,7 +222,7 @@ export default function Reports() {
                     <td className="px-5 py-3.5 text-right">
                       <button
                         onClick={() => saveBlob(report.blob, report.filename)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-semibold hover:bg-green-700 transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs font-medium transition-colors"
                       >
                         <Download size={12} /> {tr("PDF")}
                       </button>
@@ -216,8 +234,15 @@ export default function Reports() {
           </div>
         )}
       </div>
+      </section>
+      )}
 
+      {showSulur && (
+        <section aria-label={tr("Sulur Inventory reports")} className="mb-10">
+          <ModuleHeading module="sulur" />
           <SulurReportsSection />
+        </section>
+      )}
     </AdminLayout>
   )
 }
