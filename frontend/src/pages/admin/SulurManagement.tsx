@@ -75,8 +75,8 @@ function Advice({ tone, title, children }: { tone: Tone; title: string; children
   );
 }
 
-// VITE_API_URL ends in /api (see .env.example); these calls add /api/sulur themselves
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
+// VITE_API_URL may or may not end in /api or a slash; these calls add /api/sulur themselves
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '').replace(/\/api$/, '');
 
 const LPNM_STANDARDS: Record<string, { density: number; npkPer1000: number; foliarPer1000: number; seedCost: number; nutCostPer1000: number; opCostHa: number; revenueHa: number }> = {
   MD2:      { density: 43500, npkPer1000: 45, foliarPer1000: 4.0, seedCost: 0.90, nutCostPer1000: 380, opCostHa: 5000, revenueHa: 60000 },

@@ -11,10 +11,9 @@ from sqlalchemy.orm import sessionmaker
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-# Frontends that must always be able to reach the API, even if ALLOWED_ORIGINS
-# is set to something else in the Vercel dashboard.
+# Origins that must always be able to reach the API. The deployed frontend URL
+# goes in the ALLOWED_ORIGINS environment variable on the hosting service.
 REQUIRED_ORIGINS = [
-    "https://pine-track-v2-gcaj.vercel.app",  # deployed frontend
     "http://localhost:5173",  # Vite dev server
 ]
 

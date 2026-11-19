@@ -65,7 +65,13 @@ export interface HarvestUpdateInput {
   notes?: string
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+// The backend serves every route under /api. Accept VITE_API_URL with or without
+// the /api suffix and trailing slash, so "https://host", "https://host/" and
+// "https://host/api" all resolve to "https://host/api".
+const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:8000')
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '')
+const API_BASE_URL = `${API_ORIGIN}/api`
 
 class APIClient {
   private client: AxiosInstance
