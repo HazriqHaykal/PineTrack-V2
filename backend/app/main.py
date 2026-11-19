@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 from sqlalchemy import text
-from app.config import Base, engine, is_sqlite
+from app.config import Base, engine, is_sqlite, settings
 from app import models  # noqa: F401 - registers the tables on Base.metadata
 from app.routers import auth, harvest, transport, waste, schedule, ai, reports, users, analytics, planner, sulur
 
@@ -49,11 +49,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-    ],
+    allow_origins=[o.strip().rstrip("/") for o in settings.allowed_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
