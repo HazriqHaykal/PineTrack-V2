@@ -11,21 +11,6 @@ import { AIMetrics, AIRecommendations, AIStatus, AnalysisScope } from '../../typ
 
 import { tr } from '../../i18n'
 
-/** Engine configured on the server; each answer also records which engine actually produced it */
-function ModeIndicator({ status }: { status: AIStatus | null }) {
-  if (!status) return <span className="text-xs text-gray-500">{tr("Checking agent…")}</span>
-  const gemini = status.gemini_configured
-  return (
-    <span title={gemini ? tr("Answers come from Gemini; built-in rules step in if it fails.") : tr("Gemini is not set up, so answers come from the built-in rules.")}
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
-        gemini ? 'bg-green-50 text-green-800 ring-green-200' : 'bg-gray-100 text-gray-700 ring-gray-200'
-      }`}>
-      <span className={`h-2 w-2 rounded-full ${gemini ? 'bg-green-600' : 'bg-gray-400'}`} aria-hidden />
-      {gemini ? tr("Gemini Active") : tr("Built-in Rules")}
-    </span>
-  )
-}
-
 export default function AIInsights() {
   const [params, setParams] = useSearchParams()
   // Activity History is a secondary view; old ?tab=history links still open it
@@ -98,7 +83,6 @@ export default function AIInsights() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <ModeIndicator status={status} />
             {showHistory ? (
               <button onClick={() => setView(false)}
                 className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-800 hover:bg-gray-50">
