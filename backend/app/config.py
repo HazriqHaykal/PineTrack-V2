@@ -11,6 +11,14 @@ from sqlalchemy.orm import sessionmaker
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# Frontends that must always be able to reach the API, even if ALLOWED_ORIGINS
+# is set to something else in the Vercel dashboard.
+REQUIRED_ORIGINS = [
+    "https://pine-track-v2-gcaj.vercel.app",  # deployed frontend
+    "http://localhost:5173",  # Vite dev server
+]
+
+
 class Settings(BaseSettings):
     # SQLite by default so the API runs without a database server.
     # Set DATABASE_URL=postgresql://user:password@localhost:5432/pinetrack to use PostgreSQL.
@@ -25,10 +33,17 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.8-flash"
 
-    # Comma-separated list of frontend URLs allowed to call the API (CORS)
-    allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
+    # Extra comma-separated frontend URLs allowed to call the API (CORS).
+    # These are added to REQUIRED_ORIGINS below, never replace them.
+    allowed_origins: str = "http://127.0.0.1:5173,http://localhost:3000"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Exact origins (scheme + host, no trailing slash) the browser may call from."""
+        extra = [o.strip().rstrip("/") for o in self.allowed_origins.split(",") if o.strip()]
+        return list(dict.fromkeys(REQUIRED_ORIGINS + extra))
 
     @property
     def debug(self) -> bool:
