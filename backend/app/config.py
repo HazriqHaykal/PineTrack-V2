@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     # Google Gemini powers the AI recommendations. Without a key the API
     # falls back to built-in rules so every AI endpoint still responds.
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.8-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
+    # Flash-lite answers in 1-2 s. gemini-3.8-flash "thinks" for 30-80 s per
+    # recommendation (even on "low"), which runs past the request timeout.
+    # Leave empty for models that do not accept a thinking level.
+    gemini_thinking_level: str = "low"
 
     # Extra comma-separated frontend URLs allowed to call the API (CORS).
     # These are added to REQUIRED_ORIGINS below, never replace them.

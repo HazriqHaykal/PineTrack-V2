@@ -28,7 +28,8 @@ class GeminiError(Exception):
 class GeminiService:
     """Service for calling the Gemini generateContent API"""
 
-    TIMEOUT_SECONDS = 30
+    # Stays under the frontend's 60 s limit for a recommendations refresh
+    TIMEOUT_SECONDS = 45
 
     @staticmethod
     def is_configured() -> bool:
@@ -49,13 +50,18 @@ class GeminiService:
         if not GeminiService.is_configured():
             raise GeminiError("GEMINI_API_KEY is not set")
 
+        generation_config: Dict[str, Any] = {
+            "temperature": 0.3,
+            "responseMimeType": "application/json",
+            "responseSchema": response_schema,
+        }
+        thinking_level = settings.gemini_thinking_level.strip()
+        if thinking_level:
+            generation_config["thinkingConfig"] = {"thinkingLevel": thinking_level}
+
         payload = {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.3,
-                "responseMimeType": "application/json",
-                "responseSchema": response_schema,
-            },
+            "generationConfig": generation_config,
         }
 
         try:

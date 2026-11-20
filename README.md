@@ -108,7 +108,8 @@ All backend settings live in `backend/.env`. This file is not committed; never p
 | `DATABASE_URL` | Database connection. `sqlite:///./pinetrack.db` for local use, or a Supabase connection string. |
 | `SECRET_KEY` | Signs login tokens. Use a long random value outside development. |
 | `GEMINI_API_KEY` | Enables PineTrack Agent's Gemini answers. Optional. |
-| `GEMINI_MODEL` | Gemini model name. Defaults to `gemini-3.8-flash`. |
+| `GEMINI_MODEL` | Gemini model name. Defaults to `gemini-3.5-flash-lite` (larger models can take over 30 s to answer). |
+| `GEMINI_THINKING_LEVEL` | How much Gemini reasons before answering. Defaults to `low`; leave empty for models that do not support it. |
 
 The frontend reads one optional setting, `VITE_API_URL`, from `frontend/.env`. It defaults to `http://localhost:8000/api`.
 
